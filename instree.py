@@ -104,17 +104,31 @@ def _login(jar: dict) -> Client:
     return c
 
 
-def connect() -> Client:
-    """Récupère une session : session.toml d'abord, sinon cookies navigateur."""
-    if CONFIG.is_file():
+def connect() -> tuple[Client, str, str | None]:
+    """
+    Récupère une session Instagram.
+
+    Retourne (client, source, note) :
+    - source : « session.toml » ou « navigateur (firefox) » etc.
+    - note   : message optionnel (ex. session.toml vide)
+    """
+    toml_present = CONFIG.is_file()
+    toml_empty = False
+
+    if toml_present:
         try:
             import tomllib
             ig_cfg = tomllib.loads(CONFIG.read_text()).get("instagram", {})
             sid = str(ig_cfg.get("sessionid", "")).strip()
             if sid:
-                return _login({"sessionid": sid, "ds_user_id": str(ig_cfg.get("ds_user_id", "")).strip()})
+                client = _login({
+                    "sessionid": sid,
+                    "ds_user_id": str(ig_cfg.get("ds_user_id", "")).strip(),
+                })
+                return client, "session.toml", None
+            toml_empty = True
         except (LoginRequired, Exception):
-            pass
+            toml_empty = True
 
     import browser_cookie3
     for b in ("firefox", "chrome", "chromium", "brave", "edge", "opera", "vivaldi", "librewolf"):
@@ -125,11 +139,26 @@ def connect() -> Client:
                 if c.name in ("sessionid", "ds_user_id")
             }
             if jar.get("sessionid"):
-                return _login(jar)
+                client = _login(jar)
+                note = None
+                if toml_empty:
+                    note = (
+                        "session.toml présent mais vide — cookies navigateur utilisés "
+                        "(voir session.toml.example)"
+                    )
+                return client, f"navigateur ({b})", note
         except Exception:
             pass
 
-    raise RuntimeError("Pas de session — remplis session.toml ou connecte-toi à instagram.com")
+    if toml_empty:
+        raise RuntimeError(
+            "session.toml vide et aucun cookie Instagram dans le navigateur — "
+            "remplis session.toml ou connecte-toi sur instagram.com"
+        )
+    raise RuntimeError(
+        "Pas de session — copie session.toml.example → session.toml, "
+        "ou connecte-toi à instagram.com dans ton navigateur"
+    )
 
 
 def session_user(ig: Client) -> str:
@@ -495,8 +524,15 @@ def _run():
         sys.exit(1)
 
     _titre("session", BLUE)
-    client_instagram = connect()
-    print(f"  connecté en {_bold('@' + session_user(client_instagram))}")
+    try:
+        client_instagram, source_session, note_session = connect()
+    except RuntimeError as e:
+        print(f"! Erreur : {e}")
+        sys.exit(1)
+    print(f"  compte   {_bold('@' + session_user(client_instagram))}")
+    print(f"  source   {_dim(source_session)}")
+    if note_session:
+        print(f"  {_dim(note_session)}")
 
     try:
         resultats = chercher(

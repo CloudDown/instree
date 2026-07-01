@@ -1,0 +1,19 @@
+# Copie ce fichier en session.toml et remplis tes valeurs.
+# Ne commite jamais session.toml (il contient des secrets).
+#
+# Ordre de connexion d'instree :
+#   1. session.toml  → si sessionid est rempli
+#   2. navigateur    → cookies instagram.com (Firefox, Chrome, etc.)
+#
+# Comment récupérer sessionid et ds_user_id :
+#   1. Connecte-toi sur https://www.instagram.com
+#   2. Ouvre les outils développeur (F12)
+#   3. Application → Cookies → instagram.com
+#   4. Copie les valeurs de sessionid et ds_user_id ci-dessous
+#
+# Chaque personne doit utiliser SON propre compte Instagram.
+# Les requêtes passent par ce compte (rate limits inclus).
+
+[instagram]
+sessionid = ""
+ds_user_id = ""
