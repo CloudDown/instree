@@ -1,5 +1,6 @@
 """Instree — OSINT Instagram : noms + comptes clés."""
 import argparse
+import json
 import re
 import sys
 import time
@@ -12,7 +13,11 @@ from instagrapi.exceptions import LoginRequired, PleaseWaitFewMinutes
 
 # -------config-------
 
-CONFIG = Path(__file__).resolve().parent / "session.toml"
+ROOT = Path(__file__).resolve().parent
+CONFIG = ROOT / "session.toml"
+CACHE_DIR = ROOT / ".cache"
+CACHE_TTL = 24 * 3600  # recherches
+ACCOUNT_TTL = 7 * 86400  # métadonnées compte
 TTY = sys.stdout.isatty()
 RESET = "\033[0m" if TTY else ""
 DIM = "\033[2m" if TTY else ""
@@ -47,6 +52,40 @@ def _bold(s):
 def _titre(label: str, color: str) -> None:
     """Titre de section coloré, contenu en dessous en blanc."""
     print(f"\n{color}── {label} ──{RESET}")
+
+
+# -------cache-------
+
+def _cache_file(*parts: str) -> Path:
+    safe = [re.sub(r"[^\w.-]+", "_", p) for p in parts]
+    return CACHE_DIR.joinpath(*safe).with_suffix(".json")
+
+
+def _cache_load(path: Path, ttl: int | None) -> dict | None:
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    if ttl is not None and time.time() - data.get("ts", 0) > ttl:
+        return None
+    return data
+
+
+def _cache_load_any(path: Path) -> dict | None:
+    if not path.is_file():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def _cache_save(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload["ts"] = time.time()
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
 
 # -------session-------
@@ -114,15 +153,16 @@ def _ig_call(label: str, fn, *args, **kwargs):
     try:
         return fn(*args, **kwargs)
     except PleaseWaitFewMinutes:
-        raise RuntimeError(f"{label} : Instagram demande d'attendre quelques minutes (rate limit)") from None
+        raise RuntimeError(f"{label} : rate limit Instagram") from None
     except Exception as e:
         msg = str(e)
         if "feedback_required" in msg:
-            raise RuntimeError(
-                f"{label} : rate limit Instagram — trop de requêtes. "
-                "Réessaie plus tard ou espace les comptes clés."
-            ) from None
+            raise RuntimeError(f"{label} : rate limit Instagram") from None
         raise
+
+
+def _rate_limited(err: Exception) -> bool:
+    return "rate limit" in str(err).lower()
 
 
 class ComptePublic:
@@ -133,25 +173,41 @@ class ComptePublic:
         self.follower_count = follower_count
         self.following_count = following_count
 
-    def chercher(self, nom: str) -> tuple[str, list]:
-        """Recherche « nom » via search_followers ou search_following (comme l'app IG)."""
-        if self.follower_count >= self.following_count:
-            source = "abonnés"
-            users = _ig_call(
-                f"@{self.username} / abonnés",
-                self._ig.search_followers,
-                self.pk,
-                nom,
-            )
-        else:
-            source = "abonnements"
-            users = _ig_call(
-                f"@{self.username} / abonnements",
-                self._ig.search_following,
-                self.pk,
-                nom,
-            )
-        return source, [_u(x) for x in users]
+    def _source(self) -> str:
+        return "abonnés" if self.follower_count >= self.following_count else "abonnements"
+
+    def _cache_path(self, nom: str) -> Path:
+        return _cache_file("search", self.username, self._source(), _norm(nom) or nom)
+
+    def chercher(self, nom: str, *, refresh: bool = False) -> tuple[str, list, str]:
+        """Retourne (source, users, origine) — origine : api | cache | cache expiré."""
+        source = self._source()
+        path = self._cache_path(nom)
+
+        if not refresh:
+            hit = _cache_load(path, CACHE_TTL)
+            if hit:
+                return source, hit["users"], "cache"
+
+        label = f"@{self.username} / {source}"
+        try:
+            if source == "abonnés":
+                raw = _ig_call(label, self._ig.search_followers, self.pk, nom)
+            else:
+                raw = _ig_call(label, self._ig.search_following, self.pk, nom)
+            users = [_u(x) for x in raw]
+            _cache_save(path, {"source": source, "users": users})
+            return source, users, "api"
+        except RuntimeError as e:
+            if not _rate_limited(e):
+                raise
+            stale = _cache_load_any(path)
+            if stale:
+                return source, stale["users"], "cache expiré"
+            raise RuntimeError(
+                f"{label} : rate limit — aucune entrée en cache. "
+                "Attends 15–30 min ou relance quand une recherche aura réussi une fois."
+            ) from None
 
 
 class ComptePrive:
@@ -160,25 +216,67 @@ class ComptePrive:
     def __init__(self, pk, username, ig):
         self.pk, self.username, self._ig = pk, username, ig
 
-    def chercher(self, nom: str) -> tuple[str, list]:
-        raw = _ig_call(
-            f"@{self.username} / recommandations",
-            self._ig.user_similar_accounts,
-            self.pk,
-        )
-        users = [_u(x) for x in raw if _match(nom, _u(x))]
-        return "recommandations", users
+    def _cache_path(self) -> Path:
+        return _cache_file("recos", self.username)
+
+    def chercher(self, nom: str, *, refresh: bool = False) -> tuple[str, list, str]:
+        path = self._cache_path()
+
+        def _filter(users: list) -> list:
+            return [u for u in users if _match(nom, u)]
+
+        if not refresh:
+            hit = _cache_load(path, CACHE_TTL)
+            if hit:
+                return "recommandations", _filter(hit["users"]), "cache"
+
+        label = f"@{self.username} / recommandations"
+        try:
+            raw = _ig_call(label, self._ig.user_similar_accounts, self.pk)
+            users = [_u(x) for x in raw]
+            _cache_save(path, {"users": users})
+            return "recommandations", _filter(users), "api"
+        except RuntimeError as e:
+            if not _rate_limited(e):
+                raise
+            stale = _cache_load_any(path)
+            if stale:
+                return "recommandations", _filter(stale["users"]), "cache expiré"
+            raise RuntimeError(f"{label} : rate limit — aucune entrée en cache") from None
 
 
-def charger(ig, user):
+def charger(ig, user, *, refresh: bool = False):
     """Charge un compte et retourne ComptePublic ou ComptePrive selon is_private."""
-    u = ig.user_info_by_username(user.lstrip("@").strip())
-    if u.is_private:
-        return ComptePrive(str(u.pk), u.username, ig)
+    username = user.lstrip("@").strip()
+    path = _cache_file("account", username)
+
+    if not refresh:
+        hit = _cache_load(path, ACCOUNT_TTL)
+        if hit:
+            if hit["is_private"]:
+                return ComptePrive(hit["pk"], hit["username"], ig)
+            return ComptePublic(
+                hit["pk"], hit["username"], ig,
+                follower_count=hit["follower_count"],
+                following_count=hit["following_count"],
+            )
+
+    u = _ig_call(f"@{username}", ig.user_info_by_username, username)
+    data = {
+        "pk": str(u.pk),
+        "username": u.username,
+        "is_private": bool(u.is_private),
+        "follower_count": int(getattr(u, "follower_count", 0) or 0),
+        "following_count": int(getattr(u, "following_count", 0) or 0),
+    }
+    _cache_save(path, data)
+
+    if data["is_private"]:
+        return ComptePrive(data["pk"], data["username"], ig)
     return ComptePublic(
-        str(u.pk), u.username, ig,
-        follower_count=int(getattr(u, "follower_count", 0) or 0),
-        following_count=int(getattr(u, "following_count", 0) or 0),
+        data["pk"], data["username"], ig,
+        follower_count=data["follower_count"],
+        following_count=data["following_count"],
     )
 
 
@@ -263,11 +361,12 @@ def _afficher_resultats(tous_resultats):
 
 # -------recherche-------
 
-def chercher(ig, names, keys):
+def chercher(ig, names, keys, *, refresh: bool = False):
     """
     Pour chaque nom × compte clé :
     - public  → search_followers ou search_following (1 requête, comme la barre IG)
     - privé   → recommandations filtrées
+    Résultats mis en cache dans .cache/ (24 h).
     """
     names = [n.strip() for n in names if n.strip()]
     keys = [k.lstrip("@").strip() for k in keys if k.strip()]
@@ -286,7 +385,7 @@ def chercher(ig, names, keys):
         for i_cle, cle in enumerate(keys):
             is_last_cle = i_cle == len(keys) - 1
             try:
-                compte = charger(ig, cle)
+                compte = charger(ig, cle, refresh=refresh)
             except Exception as e:
                 _tree_line(p_nom, is_last_cle, f"@{cle}  {_dim('! Erreur :')} {e}")
                 continue
@@ -295,22 +394,25 @@ def chercher(ig, names, keys):
             p_cle = _tree_line(p_nom, is_last_cle, f"@{compte.username}  {_dim(f'({kind})')}")
 
             try:
-                source, matches = compte.chercher(nom)
+                source, matches, origine = compte.chercher(nom, refresh=refresh)
             except RuntimeError as e:
                 _tree_list(p_cle, [_dim(str(e))])
                 continue
 
-            # L'API filtre déjà par query ; on affine côté client pour les noms composés
             matches = [u for u in matches if _match(nom, u)]
             resultat.extend(matches)
 
+            origine_label = _dim(f"via {origine}")
             if isinstance(compte, ComptePublic):
                 labels = [
                     _dim(f"choix: {source}  ({compte.follower_count} ab. / {compte.following_count} abo.)"),
-                    _dim(f"résultats API: {len(matches)}"),
+                    _dim(f"{len(matches)} match(s)  {origine_label}"),
                 ]
             else:
-                labels = [_dim(f"{source}: {len(matches)} match(s)")]
+                labels = [_dim(f"{source}: {len(matches)} match(s)  {origine_label}")]
+
+            if origine == "cache expiré":
+                labels.append(_dim("rate limit — données cache (peuvent être anciennes)"))
 
             if matches:
                 labels += [_bold(f"→ @{u['username']}  {u['full_name']}") for u in matches]
@@ -319,7 +421,7 @@ def chercher(ig, names, keys):
             _tree_list(p_cle, labels)
 
             if i_cle < len(keys) - 1:
-                time.sleep(1)
+                time.sleep(2)
 
         tous_resultats[nom] = _agreger(resultat)
 
@@ -373,6 +475,11 @@ def _run():
         default=[],
         help='compte clé, ex: -k @ecole (répétable, virgules ok)',
     )
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="ignorer le cache et refaire les requêtes Instagram",
+    )
     args = parser.parse_args()
 
     aucun_argument = (len(args.name) == 0 and len(args.key) == 0)
@@ -396,6 +503,7 @@ def _run():
             client_instagram,
             liste_noms,
             liste_comptes_cles,
+            refresh=args.refresh,
         )
     except Exception as erreur:
         print(f"! Erreur : {erreur}")
