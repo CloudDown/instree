@@ -2,11 +2,12 @@
 import argparse
 import re
 import sys
+import time
 import unicodedata
 from pathlib import Path
 
 from instagrapi import Client
-from instagrapi.exceptions import LoginRequired
+from instagrapi.exceptions import LoginRequired, PleaseWaitFewMinutes
 
 
 # -------config-------
@@ -66,7 +67,6 @@ def _login(jar: dict) -> Client:
 
 def connect() -> Client:
     """Récupère une session : session.toml d'abord, sinon cookies navigateur."""
-    # 1. session.toml
     if CONFIG.is_file():
         try:
             import tomllib
@@ -77,7 +77,6 @@ def connect() -> Client:
         except (LoginRequired, Exception):
             pass
 
-    # 2. cookies navigateur (firefox, chrome, chromium…)
     import browser_cookie3
     for b in ("firefox", "chrome", "chromium", "brave", "edge", "opera", "vivaldi", "librewolf"):
         try:
@@ -110,60 +109,65 @@ def _u(x):
     }
 
 
+def _ig_call(label: str, fn, *args, **kwargs):
+    """Appel API avec message clair en cas de rate limit Instagram."""
+    try:
+        return fn(*args, **kwargs)
+    except PleaseWaitFewMinutes:
+        raise RuntimeError(f"{label} : Instagram demande d'attendre quelques minutes (rate limit)") from None
+    except Exception as e:
+        msg = str(e)
+        if "feedback_required" in msg:
+            raise RuntimeError(
+                f"{label} : rate limit Instagram — trop de requêtes. "
+                "Réessaie plus tard ou espace les comptes clés."
+            ) from None
+        raise
+
+
 class ComptePublic:
-    """Compte public : accès abonnés ou abonnements (le plus grand des deux)."""
+    """Compte public : recherche native dans abonnés ou abonnements (1 requête)."""
 
     def __init__(self, pk, username, ig, follower_count=0, following_count=0):
         self.pk, self.username, self._ig = pk, username, ig
         self.follower_count = follower_count
         self.following_count = following_count
 
-    def _fetch(self, kind: str, n: int, prefix: str) -> list:
-        """Récupère abonnés ou abonnements (pagination Instagram ~200/requête)."""
-        amount = 0 if n <= 0 else n
-        if kind == "abonnés":
-            total = self.follower_count or amount
-            it = self._ig.iter_user_followers_v1(self.pk, amount=amount)
-        else:
-            total = self.following_count or amount
-            it = self._ig.iter_user_following_v1(self.pk, amount=amount)
-
-        prog = Progress(prefix, kind, total)
-        prog.set(0)
-        users = []
-        for x in it:
-            users.append(_u(x))
-            # mise à jour par page API (~200), pas à chaque profil
-            if len(users) % 200 == 0:
-                prog.set(len(users))
-        prog.set(len(users))
-        prog.finish()
-        return users
-
-    def get_reseau(self, n=0, prefix="") -> tuple[str, list]:
-        """Retourne (source, profils) — uniquement max(abonnés, abonnements)."""
+    def chercher(self, nom: str) -> tuple[str, list]:
+        """Recherche « nom » via search_followers ou search_following (comme l'app IG)."""
         if self.follower_count >= self.following_count:
-            return "abonnés", self._fetch("abonnés", n, prefix)
-        return "abonnements", self._fetch("abonnements", n, prefix)
+            source = "abonnés"
+            users = _ig_call(
+                f"@{self.username} / abonnés",
+                self._ig.search_followers,
+                self.pk,
+                nom,
+            )
+        else:
+            source = "abonnements"
+            users = _ig_call(
+                f"@{self.username} / abonnements",
+                self._ig.search_following,
+                self.pk,
+                nom,
+            )
+        return source, [_u(x) for x in users]
 
 
 class ComptePrive:
-    """Compte privé : accès recommandations uniquement."""
+    """Compte privé : recommandations filtrées localement."""
 
     def __init__(self, pk, username, ig):
         self.pk, self.username, self._ig = pk, username, ig
 
-    def get_recommandations(self, prefix=""):
-        prog = Progress(prefix, "recommandations", 0)
-        try:
-            raw = list(self._ig.user_similar_accounts(self.pk))
-            users = [_u(x) for x in raw]
-            prog.set(len(users))
-            prog.finish()
-            return users
-        except Exception:
-            prog.finish()
-            return []
+    def chercher(self, nom: str) -> tuple[str, list]:
+        raw = _ig_call(
+            f"@{self.username} / recommandations",
+            self._ig.user_similar_accounts,
+            self.pk,
+        )
+        users = [_u(x) for x in raw if _match(nom, _u(x))]
+        return "recommandations", users
 
 
 def charger(ig, user):
@@ -208,31 +212,6 @@ def _tree_list(prefix: str, labels: list[str]) -> None:
     """Affiche des lignes sœurs sous le même parent."""
     for i, label in enumerate(labels):
         _tree_line(prefix, i == len(labels) - 1, label)
-
-
-class Progress:
-    """Barre de progression inline (sous une branche d'arbre)."""
-
-    def __init__(self, prefix: str, label: str, total: int = 0):
-        self.prefix = prefix
-        self.label = label
-        self.total = max(total, 0)
-        self.current = 0
-        self.width = 22
-
-    def set(self, current: int) -> None:
-        self.current = current
-        if self.total:
-            n = int(self.width * min(current / self.total, 1.0))
-            info = f" {current}/{self.total}"
-        else:
-            n = min(current % (self.width + 1), self.width)
-            info = f" {current}"
-        bar = "█" * n + "░" * (self.width - n)
-        print(f"\r{self.prefix}│   [{bar}]{info}  {self.label}   ", end="", flush=True)
-
-    def finish(self) -> None:
-        print()
 
 
 # -------interface-------
@@ -284,12 +263,11 @@ def _afficher_resultats(tous_resultats):
 
 # -------recherche-------
 
-def chercher(ig, names, keys, limit=0):
+def chercher(ig, names, keys):
     """
-    Pour chaque nom, explore chaque compte clé :
-    - public  → max(abonnés, abonnements) — une seule liste
-    - privé   → recommandations
-    limit=0 récupère toute la liste (pagination ~200/requête côté Instagram).
+    Pour chaque nom × compte clé :
+    - public  → search_followers ou search_following (1 requête, comme la barre IG)
+    - privé   → recommandations filtrées
     """
     names = [n.strip() for n in names if n.strip()]
     keys = [k.lstrip("@").strip() for k in keys if k.strip()]
@@ -307,50 +285,41 @@ def chercher(ig, names, keys, limit=0):
 
         for i_cle, cle in enumerate(keys):
             is_last_cle = i_cle == len(keys) - 1
-            compte = charger(ig, cle)
+            try:
+                compte = charger(ig, cle)
+            except Exception as e:
+                _tree_line(p_nom, is_last_cle, f"@{cle}  {_dim('! Erreur :')} {e}")
+                continue
+
             kind = "privé" if isinstance(compte, ComptePrive) else "public"
             p_cle = _tree_line(p_nom, is_last_cle, f"@{compte.username}  {_dim(f'({kind})')}")
 
+            try:
+                source, matches = compte.chercher(nom)
+            except RuntimeError as e:
+                _tree_list(p_cle, [_dim(str(e))])
+                continue
+
+            # L'API filtre déjà par query ; on affine côté client pour les noms composés
+            matches = [u for u in matches if _match(nom, u)]
+            resultat.extend(matches)
+
             if isinstance(compte, ComptePublic):
-                source, pool = compte.get_reseau(limit, prefix=p_cle)
-
-                prog = Progress(p_cle, f"analyse «{nom}»", len(pool))
-                matches = []
-                for i, u in enumerate(pool, 1):
-                    if _match(nom, u):
-                        matches.append(u)
-                    if i % 500 == 0 or i == len(pool):
-                        prog.set(i)
-                prog.finish()
-                resultat.extend(matches)
-
-                total = compte.follower_count if source == "abonnés" else compte.following_count
                 labels = [
                     _dim(f"choix: {source}  ({compte.follower_count} ab. / {compte.following_count} abo.)"),
-                    _dim(f"récupérés: {len(pool)} / {total}"),
+                    _dim(f"résultats API: {len(matches)}"),
                 ]
-                if matches:
-                    labels += [_bold(f"→ @{u['username']}  {u['full_name']}") for u in matches]
-                else:
-                    labels.append(_dim("aucun match"))
-                _tree_list(p_cle, labels)
             else:
-                pool = compte.get_recommandations(prefix=p_cle)
-                prog = Progress(p_cle, f"analyse «{nom}»", len(pool) or 1)
-                matches = []
-                for i, u in enumerate(pool, 1):
-                    if _match(nom, u):
-                        matches.append(u)
-                    prog.set(i)
-                prog.finish()
-                resultat.extend(matches)
+                labels = [_dim(f"{source}: {len(matches)} match(s)")]
 
-                labels = [_dim(f"recommandations  {len(pool)}")]
-                if matches:
-                    labels += [_bold(f"→ @{u['username']}  {u['full_name']}") for u in matches]
-                else:
-                    labels.append(_dim("aucun match"))
-                _tree_list(p_cle, labels)
+            if matches:
+                labels += [_bold(f"→ @{u['username']}  {u['full_name']}") for u in matches]
+            else:
+                labels.append(_dim("aucun match"))
+            _tree_list(p_cle, labels)
+
+            if i_cle < len(keys) - 1:
+                time.sleep(1)
 
         tous_resultats[nom] = _agreger(resultat)
 
@@ -387,19 +356,8 @@ def main():
 
 
 def _run():
-    """
-    Point d'entrée du programme.
+    """Point d'entrée : session → recherche native → résultats."""
 
-    Étapes :
-        1. Lire les options de la ligne de commande (-n, -k, -l)
-        2. Récupérer les noms et comptes clés (interactif ou CLI)
-        3. Vérifier que les deux listes ne sont pas vides
-        4. Se connecter à Instagram
-        5. Lancer la recherche
-        6. Afficher les résultats
-    """
-
-    # --- Étape 1 : configurer et lire la ligne de commande ---
     parser = argparse.ArgumentParser(
         description="Instree — chercher des personnes via des comptes clés",
     )
@@ -415,16 +373,8 @@ def _run():
         default=[],
         help='compte clé, ex: -k @ecole (répétable, virgules ok)',
     )
-    parser.add_argument(
-        "-l", "--limit",
-        type=int,
-        default=0,
-        help="max abonnés/abonnements par compte public (0 = tout récupérer)",
-    )
     args = parser.parse_args()
 
-    # --- Étape 2 : remplir les deux listes ---
-    # Pas de -n ni -k → on pose les questions à l'utilisateur
     aucun_argument = (len(args.name) == 0 and len(args.key) == 0)
 
     if aucun_argument:
@@ -432,34 +382,25 @@ def _run():
     else:
         liste_noms, liste_comptes_cles = _lire_entrees_cli(args)
 
-    # --- Étape 3 : vérifier les entrées ---
-    noms_manquants = (len(liste_noms) == 0)
-    comptes_manquants = (len(liste_comptes_cles) == 0)
-
-    if noms_manquants or comptes_manquants:
+    if not liste_noms or not liste_comptes_cles:
         print("! Erreur : il faut au moins un nom ET un compte clé.")
         print('  Exemple : instree -n "Jean Dupont" -k @mon_ecole')
         sys.exit(1)
 
-    # --- Étape 4 : connexion Instagram ---
     _titre("session", BLUE)
     client_instagram = connect()
     print(f"  connecté en {_bold('@' + session_user(client_instagram))}")
 
-    # --- Étape 5 : recherche ---
-    limite = args.limit
     try:
         resultats = chercher(
             client_instagram,
             liste_noms,
             liste_comptes_cles,
-            limite,
         )
     except Exception as erreur:
         print(f"! Erreur : {erreur}")
         sys.exit(1)
 
-    # --- Étape 6 : affichage ---
     _afficher_resultats(resultats)
 
 
