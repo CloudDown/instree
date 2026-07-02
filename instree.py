@@ -8,7 +8,7 @@ import unicodedata
 from pathlib import Path
 
 from instagrapi import Client
-from instagrapi.exceptions import LoginRequired, PleaseWaitFewMinutes
+from instagrapi.exceptions import InvalidTargetUser, LoginRequired, PleaseWaitFewMinutes
 
 
 # -------config-------
@@ -177,12 +177,38 @@ def _u(x):
     }
 
 
+def _udict(d: dict) -> dict:
+    """Convertit un user dict brut (chaining) en dict simple."""
+    return {
+        "pk": str(d.get("pk", d.get("id", ""))),
+        "username": d.get("username", ""),
+        "full_name": d.get("full_name", "") or "",
+    }
+
+
+def _parse_chaining(payload: dict) -> list:
+    """Extrait les profils du carousel « Suggestions pour vous » sous un profil."""
+    users = []
+    for item in payload.get("items", []):
+        u = item.get("user")
+        if u and u.get("username"):
+            users.append(_udict(u))
+    if users:
+        return users
+    for u in payload.get("users", []):
+        if u.get("username"):
+            users.append(_udict(u))
+    return users
+
+
 def _ig_call(label: str, fn, *args, **kwargs):
     """Appel API avec message clair en cas de rate limit Instagram."""
     try:
         return fn(*args, **kwargs)
     except PleaseWaitFewMinutes:
         raise RuntimeError(f"{label} : rate limit Instagram") from None
+    except InvalidTargetUser:
+        raise RuntimeError(f"{label} : recommandations indisponibles pour ce profil") from None
     except Exception as e:
         msg = str(e)
         if "feedback_required" in msg:
@@ -208,15 +234,16 @@ class ComptePublic:
     def _cache_path(self, nom: str) -> Path:
         return _cache_file("search", self.username, self._source(), _norm(nom) or nom)
 
-    def chercher(self, nom: str, *, refresh: bool = False) -> tuple[str, list, str]:
-        """Retourne (source, users, origine) — origine : api | cache | cache expiré."""
+    def chercher(self, nom: str, *, refresh: bool = False) -> tuple[str, list, str, int]:
+        """Retourne (source, users, origine, total_pool)."""
         source = self._source()
         path = self._cache_path(nom)
 
         if not refresh:
             hit = _cache_load(path, CACHE_TTL)
             if hit:
-                return source, hit["users"], "cache"
+                users = hit["users"]
+                return source, users, "cache", len(users)
 
         label = f"@{self.username} / {source}"
         try:
@@ -226,13 +253,14 @@ class ComptePublic:
                 raw = _ig_call(label, self._ig.search_following, self.pk, nom)
             users = [_u(x) for x in raw]
             _cache_save(path, {"source": source, "users": users})
-            return source, users, "api"
+            return source, users, "api", len(users)
         except RuntimeError as e:
             if not _rate_limited(e):
                 raise
             stale = _cache_load_any(path)
             if stale:
-                return source, stale["users"], "cache expiré"
+                users = stale["users"]
+                return source, users, "cache expiré", len(users)
             raise RuntimeError(
                 f"{label} : rate limit — aucune entrée en cache. "
                 "Attends 15–30 min ou relance quand une recherche aura réussi une fois."
@@ -240,15 +268,19 @@ class ComptePublic:
 
 
 class ComptePrive:
-    """Compte privé : recommandations filtrées localement."""
+    """Compte privé : carousel « Suggestions pour vous » sous le profil (chaining IG)."""
 
     def __init__(self, pk, username, ig):
         self.pk, self.username, self._ig = pk, username, ig
 
     def _cache_path(self) -> Path:
-        return _cache_file("recos", self.username)
+        return _cache_file("chaining", self.username)
 
-    def chercher(self, nom: str, *, refresh: bool = False) -> tuple[str, list, str]:
+    def _fetch_recommandations(self) -> list:
+        raw = self._ig.user_suggested_profiles(self.pk, expand_suggestion=True)
+        return _parse_chaining(raw)
+
+    def chercher(self, nom: str, *, refresh: bool = False) -> tuple[str, list, str, int]:
         path = self._cache_path()
 
         def _filter(users: list) -> list:
@@ -257,20 +289,21 @@ class ComptePrive:
         if not refresh:
             hit = _cache_load(path, CACHE_TTL)
             if hit:
-                return "recommandations", _filter(hit["users"]), "cache"
+                users = hit["users"]
+                return "recommandations", _filter(users), "cache", len(users)
 
         label = f"@{self.username} / recommandations"
         try:
-            raw = _ig_call(label, self._ig.user_similar_accounts, self.pk)
-            users = [_u(x) for x in raw]
+            users = _ig_call(label, self._fetch_recommandations)
             _cache_save(path, {"users": users})
-            return "recommandations", _filter(users), "api"
+            return "recommandations", _filter(users), "api", len(users)
         except RuntimeError as e:
             if not _rate_limited(e):
                 raise
             stale = _cache_load_any(path)
             if stale:
-                return "recommandations", _filter(stale["users"]), "cache expiré"
+                users = stale["users"]
+                return "recommandations", _filter(users), "cache expiré", len(users)
             raise RuntimeError(f"{label} : rate limit — aucune entrée en cache") from None
 
 
@@ -423,9 +456,9 @@ def chercher(ig, names, keys, *, refresh: bool = False):
             p_cle = _tree_line(p_nom, is_last_cle, f"@{compte.username}  {_dim(f'({kind})')}")
 
             try:
-                source, matches, origine = compte.chercher(nom, refresh=refresh)
-            except RuntimeError as e:
-                _tree_list(p_cle, [_dim(str(e))])
+                source, matches, origine, pool = compte.chercher(nom, refresh=refresh)
+            except Exception as e:
+                _tree_list(p_cle, [_dim(f"! Erreur : {e}")])
                 continue
 
             matches = [u for u in matches if _match(nom, u)]
@@ -438,7 +471,9 @@ def chercher(ig, names, keys, *, refresh: bool = False):
                     _dim(f"{len(matches)} match(s)  {origine_label}"),
                 ]
             else:
-                labels = [_dim(f"{source}: {len(matches)} match(s)  {origine_label}")]
+                labels = [
+                    _dim(f"{source}: {len(matches)} match(s) sur {pool} profils  {origine_label}"),
+                ]
 
             if origine == "cache expiré":
                 labels.append(_dim("rate limit — données cache (peuvent être anciennes)"))
