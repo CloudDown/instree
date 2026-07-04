@@ -234,8 +234,8 @@ class ComptePublic:
     def _cache_path(self, nom: str) -> Path:
         return _cache_file("search", self.username, self._source(), _norm(nom) or nom)
 
-    def chercher(self, nom: str, *, refresh: bool = False) -> tuple[str, list, str, int]:
-        """Retourne (source, users, origine, total_pool)."""
+    def chercher(self, nom: str, *, refresh: bool = False) -> tuple[str, list, str, int, str]:
+        """Retourne (source, users, origine, total_pool, texte_profil)."""
         source = self._source()
         path = self._cache_path(nom)
 
@@ -243,7 +243,7 @@ class ComptePublic:
             hit = _cache_load(path, CACHE_TTL)
             if hit:
                 users = hit["users"]
-                return source, users, "cache", len(users)
+                return source, users, "cache", len(users), ""
 
         label = f"@{self.username} / {source}"
         try:
@@ -253,14 +253,14 @@ class ComptePublic:
                 raw = _ig_call(label, self._ig.search_following, self.pk, nom)
             users = [_u(x) for x in raw]
             _cache_save(path, {"source": source, "users": users})
-            return source, users, "api", len(users)
+            return source, users, "api", len(users), ""
         except RuntimeError as e:
             if not _rate_limited(e):
                 raise
             stale = _cache_load_any(path)
             if stale:
                 users = stale["users"]
-                return source, users, "cache expiré", len(users)
+                return source, users, "cache expiré", len(users), ""
             raise RuntimeError(
                 f"{label} : rate limit — aucune entrée en cache. "
                 "Attends 15–30 min ou relance quand une recherche aura réussi une fois."
@@ -268,42 +268,82 @@ class ComptePublic:
 
 
 class ComptePrive:
-    """Compte privé : carousel « Suggestions pour vous » sous le profil (chaining IG)."""
+    """Compte privé : texte « Suivi(e) par… » + carousel de comptes liés (pas les abonnés)."""
 
     def __init__(self, pk, username, ig):
         self.pk, self.username, self._ig = pk, username, ig
 
     def _cache_path(self) -> Path:
-        return _cache_file("chaining", self.username)
+        return _cache_file("liens", self.username)
 
-    def _fetch_recommandations(self) -> list:
-        raw = self._ig.user_suggested_profiles(self.pk, expand_suggestion=True)
-        return _parse_chaining(raw)
+    def _fetch_liens(self) -> dict:
+        """
+        Ce qu'Instagram expose sur un profil privé (sans le suivre) :
+        - profile_context + facepile : texte « Suivi(e) par… »
+        - discover/chaining (check=true) : carousel sous le profil (~20 comptes)
+        """
+        info = _ig_call(
+            f"@{self.username} / profil",
+            self._ig.private_request,
+            f"users/{self.pk}/info/",
+            params={"from_module": "profile", "entry_point": "profile"},
+        )
+        user = info.get("user", {})
+        context = user.get("profile_context", "") or ""
 
-    def chercher(self, nom: str, *, refresh: bool = False) -> tuple[str, list, str, int]:
+        facepile = []
+        for u in user.get("profile_context_facepile_users", []):
+            if u.get("username"):
+                entry = _udict(u)
+                entry["sur_profil"] = True
+                facepile.append(entry)
+
+        raw = _ig_call(
+            f"@{self.username} / comptes liés",
+            self._ig.private_request,
+            "discover/chaining/",
+            params={
+                "module": "profile",
+                "target_id": str(self.pk),
+                "profile_chaining_check": "true",
+                "eligible_for_threads_cta": "false",
+            },
+        )
+        carousel = [_udict(u) for u in raw.get("users", []) if u.get("username")]
+
+        seen = set()
+        users = []
+        for u in facepile + carousel:
+            if u["username"] in seen:
+                continue
+            seen.add(u["username"])
+            users.append(u)
+
+        return {"context": context, "users": users}
+
+    def chercher(self, nom: str, *, refresh: bool = False) -> tuple[str, list, str, int, str]:
+        """Retourne (source, profils, origine, total, texte_profil)."""
         path = self._cache_path()
-
-        def _filter(users: list) -> list:
-            return [u for u in users if _match(nom, u)]
 
         if not refresh:
             hit = _cache_load(path, CACHE_TTL)
             if hit:
                 users = hit["users"]
-                return "recommandations", _filter(users), "cache", len(users)
+                return "liens du profil", users, "cache", len(users), hit.get("context", "")
 
-        label = f"@{self.username} / recommandations"
+        label = f"@{self.username} / liens du profil"
         try:
-            users = _ig_call(label, self._fetch_recommandations)
-            _cache_save(path, {"users": users})
-            return "recommandations", _filter(users), "api", len(users)
+            data = _ig_call(label, self._fetch_liens)
+            _cache_save(path, data)
+            users = data["users"]
+            return "liens du profil", users, "api", len(users), data.get("context", "")
         except RuntimeError as e:
             if not _rate_limited(e):
                 raise
             stale = _cache_load_any(path)
             if stale:
                 users = stale["users"]
-                return "recommandations", _filter(users), "cache expiré", len(users)
+                return "liens du profil", users, "cache expiré", len(users), stale.get("context", "")
             raise RuntimeError(f"{label} : rate limit — aucune entrée en cache") from None
 
 
@@ -427,7 +467,7 @@ def chercher(ig, names, keys, *, refresh: bool = False):
     """
     Pour chaque nom × compte clé :
     - public  → search_followers ou search_following (1 requête, comme la barre IG)
-    - privé   → recommandations filtrées
+    - privé   → liens visibles sur le profil (pas les abonnés)
     Résultats mis en cache dans .cache/ (24 h).
     """
     names = [n.strip() for n in names if n.strip()]
@@ -456,32 +496,44 @@ def chercher(ig, names, keys, *, refresh: bool = False):
             p_cle = _tree_line(p_nom, is_last_cle, f"@{compte.username}  {_dim(f'({kind})')}")
 
             try:
-                source, matches, origine, pool = compte.chercher(nom, refresh=refresh)
+                source, profils, origine, pool, texte_profil = compte.chercher(nom, refresh=refresh)
             except Exception as e:
                 _tree_list(p_cle, [_dim(f"! Erreur : {e}")])
                 continue
 
-            matches = [u for u in matches if _match(nom, u)]
-            resultat.extend(matches)
-
             origine_label = _dim(f"via {origine}")
-            if isinstance(compte, ComptePublic):
+            if isinstance(compte, ComptePrive):
+                matches = [u for u in profils if _match(nom, u)]
+                resultat.extend(matches)
+                labels = []
+                if texte_profil:
+                    labels.append(_dim(texte_profil))
+                labels.append(
+                    _dim(f"{len(matches)} match(s) sur {pool} comptes liés  {origine_label}"),
+                )
+                labels.append(
+                    _dim("compte privé : IG ne montre pas ses abonnés — carousel personnalisé pour ton compte"),
+                )
+                if origine == "cache expiré":
+                    labels.append(_dim("rate limit — données cache (peuvent être anciennes)"))
+                for u in profils:
+                    ligne = f"@{u['username']}  {u['full_name']}"
+                    if u.get("sur_profil"):
+                        ligne += f"  {_dim('(sur le profil)')}"
+                    labels.append(_bold(f"→ {ligne}") if _match(nom, u) else f"  {ligne}")
+            else:
+                matches = [u for u in profils if _match(nom, u)]
+                resultat.extend(matches)
                 labels = [
                     _dim(f"choix: {source}  ({compte.follower_count} ab. / {compte.following_count} abo.)"),
                     _dim(f"{len(matches)} match(s)  {origine_label}"),
                 ]
-            else:
-                labels = [
-                    _dim(f"{source}: {len(matches)} match(s) sur {pool} profils  {origine_label}"),
-                ]
-
-            if origine == "cache expiré":
-                labels.append(_dim("rate limit — données cache (peuvent être anciennes)"))
-
-            if matches:
-                labels += [_bold(f"→ @{u['username']}  {u['full_name']}") for u in matches]
-            else:
-                labels.append(_dim("aucun match"))
+                if origine == "cache expiré":
+                    labels.append(_dim("rate limit — données cache (peuvent être anciennes)"))
+                if matches:
+                    labels += [_bold(f"→ @{u['username']}  {u['full_name']}") for u in matches]
+                else:
+                    labels.append(_dim("aucun match"))
             _tree_list(p_cle, labels)
 
             if i_cle < len(keys) - 1:
