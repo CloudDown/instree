@@ -32,25 +32,18 @@ def create_app() -> FastAPI:
         data = get_scan(scan_id)
         if not data:
             raise HTTPException(404, "Scan introuvable")
-        enriched = []
-        for snap in data["snapshots"]:
-            friend = snap["friend_username"]
-            friend_changes = [c for c in data["changes"] if c["friend_username"] == friend]
-            adds = [c for c in friend_changes if c["op"] == "add"]
-            removes = [c for c in friend_changes if c["op"] == "remove"]
-            old = None
-            if adds or removes:
-                old = snap["following_count"] - len(adds) + len(removes)
-            enriched.append({
-                **snap,
-                "old_count": old,
-                "adds": adds,
-                "removes": removes,
-            })
+        scan = data["scan"]
+        adds = [c for c in data["changes"] if c["op"] == "add"]
+        removes = [c for c in data["changes"] if c["op"] == "remove"]
+        old_count = None
+        if adds or removes:
+            old_count = scan["following_count"] - len(adds) + len(removes)
         return {
             **data,
-            "snapshots_enriched": enriched,
-            "has_changes": len(data["changes"]) > 0,
+            "adds": adds,
+            "removes": removes,
+            "old_count": old_count,
+            "has_changes": bool(data["changes"]),
         }
 
     @app.get("/api/scans/{scan_id}/neighbors")

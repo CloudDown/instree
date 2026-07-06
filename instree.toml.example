@@ -17,7 +17,7 @@ ds_user_id = ""
 username = ""
 
 # Nombre d'abonnements à suivre (0 = tous)
-n = 200
+n = 100
 
 # Pause entre pages API Instagram (secondes)
 page_sleep = 0.6

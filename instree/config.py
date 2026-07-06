@@ -15,7 +15,7 @@ class Settings:
     sessionid: str = ""
     ds_user_id: str = ""
     username: str = ""
-    n: int = 0
+    n: int = 100
     page_sleep: float = 0.6
     host: str = "127.0.0.1"
     port: int = 8765
@@ -33,7 +33,7 @@ def load_settings(path: Path | None = None) -> Settings:
         sessionid=str(ig.get("sessionid", "")).strip(),
         ds_user_id=str(ig.get("ds_user_id", "")).strip(),
         username=str(scan.get("username", "")).strip().lstrip("@"),
-        n=max(0, int(scan.get("n", 0))),
+        n=max(0, int(scan.get("n", 100))),
         page_sleep=float(scan.get("page_sleep", 0.6)),
         host=str(web.get("host", "127.0.0.1")),
         port=int(web.get("port", 8765)),

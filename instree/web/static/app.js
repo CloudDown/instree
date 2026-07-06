@@ -28,11 +28,12 @@ async function showScan(id) {
 
   const scan = detail.scan;
   elDate.textContent = scan.label;
-  elMeta.textContent = `Scan #${scan.id} · ${neighbors.index + 1}/${neighbors.total}`;
+  elMeta.textContent =
+    `@${scan.username} · ${scan.tracked_count}/${scan.following_count} · ` +
+    `#${scan.id} · ${neighbors.index + 1}/${neighbors.total}`;
 
   btnPrev.disabled = neighbors.prev_id == null;
   btnNext.disabled = neighbors.next_id == null;
-
   btnPrev.onclick = () => neighbors.prev_id && showScan(neighbors.prev_id);
   btnNext.onclick = () => neighbors.next_id && showScan(neighbors.next_id);
 
@@ -40,28 +41,32 @@ async function showScan(id) {
 }
 
 function renderDetail(detail) {
-  const withChanges = detail.snapshots_enriched.filter(
-    (s) => s.adds.length || s.removes.length,
-  );
+  const scan = detail.scan;
 
-  if (!detail.has_changes || withChanges.length === 0) {
-    elContent.innerHTML = '<p class="empty">Aucun changement d\'abonnement ce scan.</p>';
+  if (!detail.has_changes) {
+    elContent.innerHTML =
+      `<p class="empty">Aucun changement · ${scan.tracked_count} abonnements suivis.</p>`;
     return;
   }
 
-  elContent.innerHTML = withChanges
-    .map((s) => {
-      const oldC = s.old_count != null ? s.old_count : "?";
-      const header = `@${s.friend_username} <span class="count">(${oldC} → ${s.following_count})</span>`;
-      const adds = s.adds
-        .map((c) => `<div class="change-line add">+ @${c.target_username}  ${escapeHtml(c.full_name)}</div>`)
-        .join("");
-      const removes = s.removes
-        .map((c) => `<div class="change-line remove">- @${c.target_username}  ${escapeHtml(c.full_name)}</div>`)
-        .join("");
-      return `<section class="friend-block"><div class="friend-header">${header}</div>${adds}${removes}</section>`;
-    })
+  const oldC = detail.old_count != null ? detail.old_count : "?";
+  const header =
+    `@${scan.username} <span class="count">(${oldC} → ${scan.following_count})</span>`;
+  const adds = detail.adds
+    .map(
+      (c) =>
+        `<div class="change-line add">+ @${c.username}  ${escapeHtml(c.full_name)}</div>`,
+    )
     .join("");
+  const removes = detail.removes
+    .map(
+      (c) =>
+        `<div class="change-line remove">- @${c.username}  ${escapeHtml(c.full_name)}</div>`,
+    )
+    .join("");
+
+  elContent.innerHTML =
+    `<section class="scan-block"><div class="scan-header">${header}</div>${adds}${removes}</section>`;
 }
 
 function escapeHtml(s) {

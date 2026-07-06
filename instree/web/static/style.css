@@ -104,20 +104,19 @@ main {
   padding: 3rem 1rem;
 }
 
-.friend-block {
-  margin-bottom: 1.5rem;
+.scan-block {
   padding: 1rem;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
 }
 
-.friend-header {
+.scan-header {
   font-weight: 600;
   margin-bottom: 0.75rem;
 }
 
-.friend-header .count {
+.scan-header .count {
   color: var(--muted);
   font-weight: 400;
   font-size: 0.875rem;
