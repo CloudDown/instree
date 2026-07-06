@@ -6,9 +6,20 @@ let lastJobState = "idle";
 const elSessionUser = document.getElementById("session-user");
 const elSessionBadge = document.getElementById("session-badge");
 const elSub = document.getElementById("header-sub");
-const elCfgN = document.getElementById("cfg-n");
-const elCfgWatchN = document.getElementById("cfg-watch-n");
-const elCfgSchedule = document.getElementById("cfg-schedule");
+const configForm = document.getElementById("config-form");
+const elCfgUsername = document.getElementById("cfg-username");
+const elCfgSessionid = document.getElementById("cfg-sessionid");
+const elCfgDsUserId = document.getElementById("cfg-ds-user-id");
+const elCfgNInput = document.getElementById("cfg-n-input");
+const elCfgWatchNInput = document.getElementById("cfg-watch-n-input");
+const elCfgPageSleep = document.getElementById("cfg-page-sleep");
+const elCfgScheduleInput = document.getElementById("cfg-schedule-input");
+const elCfgHost = document.getElementById("cfg-host");
+const elCfgPort = document.getElementById("cfg-port");
+const elConfigMsg = document.getElementById("config-msg");
+const btnSaveConfig = document.getElementById("btn-save-config");
+const btnTestSession = document.getElementById("btn-test-session");
+const btnScheduleInstall = document.getElementById("btn-schedule-install");
 const elJobPanel = document.getElementById("job-panel");
 const elJobText = document.getElementById("job-text");
 const elJobBar = document.getElementById("job-bar");
@@ -31,6 +42,77 @@ function setScanButtonsDisabled(disabled) {
   btnScan.disabled = disabled;
   btnInit.disabled = disabled;
   btnFull.disabled = disabled;
+  btnSaveConfig.disabled = disabled;
+  btnTestSession.disabled = disabled;
+  btnScheduleInstall.disabled = disabled;
+}
+
+function showConfigMsg(text, ok = true) {
+  elConfigMsg.textContent = text;
+  elConfigMsg.className = ok ? "config-msg ok" : "config-msg err";
+  elConfigMsg.classList.remove("hidden");
+  setTimeout(() => elConfigMsg.classList.add("hidden"), 4000);
+}
+
+function fillConfigForm(config) {
+  elCfgUsername.value = config.username || "";
+  elCfgNInput.value = config.n;
+  elCfgWatchNInput.value = config.watch_n;
+  elCfgPageSleep.value = config.page_sleep;
+  elCfgScheduleInput.value = (config.schedule_times || []).join(", ");
+  elCfgHost.value = config.host || "127.0.0.1";
+  elCfgPort.value = config.port || 8765;
+  elCfgSessionid.placeholder = config.sessionid_set
+    ? "Déjà configuré — laisser vide pour conserver"
+    : "Coller le sessionid Instagram";
+  elCfgDsUserId.placeholder = config.ds_user_id_set
+    ? "Déjà configuré — laisser vide pour conserver"
+    : "Coller le ds_user_id";
+  elCfgSessionid.value = "";
+  elCfgDsUserId.value = "";
+}
+
+function parseScheduleTimes(raw) {
+  return raw
+    .split(/[,;\s]+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+async function loadConfig() {
+  const config = await fetch("/api/config").then((r) => r.json());
+  fillConfigForm(config);
+  return config;
+}
+
+async function saveConfig(e) {
+  e.preventDefault();
+  const body = {
+    username: elCfgUsername.value.trim().replace(/^@/, ""),
+    n: Number(elCfgNInput.value),
+    watch_n: Number(elCfgWatchNInput.value),
+    page_sleep: Number(elCfgPageSleep.value),
+    host: elCfgHost.value.trim(),
+    port: Number(elCfgPort.value),
+    schedule_times: parseScheduleTimes(elCfgScheduleInput.value),
+    sessionid: elCfgSessionid.value.trim(),
+    ds_user_id: elCfgDsUserId.value.trim(),
+  };
+  const res = await fetch("/api/config", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showConfigMsg(err.detail || "Erreur lors de l'enregistrement", false);
+    return;
+  }
+  const data = await res.json();
+  fillConfigForm(data.config);
+  showConfigMsg("Configuration enregistrée");
+  const status = await fetchStatus();
+  renderStatus(status);
 }
 
 function askConfirm(title, message) {
@@ -216,7 +298,7 @@ function escapeHtml(s) {
 }
 
 function renderStatus(status) {
-  const { session, config, job } = status;
+  const { session, job } = status;
 
   if (session.ok) {
     elSessionUser.textContent = `@${session.username}`;
@@ -225,12 +307,8 @@ function renderStatus(status) {
   } else {
     elSessionUser.textContent = "Non connecté";
     elSessionBadge.className = "session-dot err";
-    elSub.textContent = session.error || "Configurer instree.local.toml";
+    elSub.textContent = session.error || "Configurer la session ci-dessous";
   }
-
-  elCfgN.textContent = config.n > 0 ? config.n : "tous";
-  elCfgWatchN.textContent = config.watch_n > 0 ? config.watch_n : "tous";
-  elCfgSchedule.textContent = config.schedule_times.join(", ");
 
   if (job.state === "running") {
     setScanButtonsDisabled(true);
@@ -337,6 +415,41 @@ btnFull.onclick = async () => {
   if (ok) triggerScan({ init: false, full: true });
 };
 
+configForm.addEventListener("submit", saveConfig);
+
+btnTestSession.onclick = async () => {
+  btnTestSession.disabled = true;
+  btnTestSession.textContent = "Test…";
+  const session = await fetch("/api/session/test", { method: "POST" }).then((r) => r.json());
+  btnTestSession.textContent = "Tester la connexion";
+  btnTestSession.disabled = false;
+  const status = await fetchStatus();
+  renderStatus({ ...status, session });
+  if (session.ok) {
+    showConfigMsg(`Connecté en tant que @${session.username}`);
+  } else {
+    showConfigMsg(session.error || "Connexion impossible", false);
+  }
+};
+
+btnScheduleInstall.onclick = async () => {
+  const ok = await askConfirm(
+    "Installer le timer systemd ?",
+    "Génère les unités systemd dans ~/.config/systemd/user/ avec les heures configurées. Puis lance : systemctl --user daemon-reload && systemctl --user enable --now instree-scan.timer",
+  );
+  if (!ok) return;
+  btnScheduleInstall.disabled = true;
+  const res = await fetch("/api/schedule/install", { method: "POST" });
+  btnScheduleInstall.disabled = false;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showConfigMsg(err.detail || "Installation impossible", false);
+    return;
+  }
+  const data = await res.json();
+  showConfigMsg(`Timer installé (${data.times.join(", ")})`);
+};
+
 document.addEventListener("keydown", (e) => {
   if (dialog.open) return;
   if (e.key === "ArrowLeft") btnPrev.click();
@@ -344,6 +457,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 (async function init() {
+  await loadConfig();
   const status = await fetchStatus();
   renderStatus(status);
   await loadScans();

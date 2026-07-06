@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from instree.config import load_settings
+from instree.config import config_for_api, load_settings, save_config
 from instree.session import connect
 from instree.store import get_scan, has_scans, init_db, list_scans, scan_neighbors
 from instree.web.runner import job_status, reset_job, start_scan
@@ -23,7 +23,24 @@ class ScanRequest(BaseModel):
     full: bool = False
 
 
+class ConfigUpdate(BaseModel):
+    username: str = ""
+    n: int = 100
+    watch_n: int = 0
+    page_sleep: float = 0.6
+    host: str = "127.0.0.1"
+    port: int = 8765
+    schedule_times: list[str] = ["08:00", "20:00"]
+    sessionid: str = ""
+    ds_user_id: str = ""
+
+
 _session_cache: dict | None = None
+
+
+def clear_session_cache() -> None:
+    global _session_cache
+    _session_cache = None
 
 
 def _session_info() -> dict:
@@ -75,14 +92,56 @@ def create_app() -> FastAPI:
         session = _session_info()
         return {
             "session": session,
-            "config": {
-                "n": settings.n,
-                "watch_n": settings.watch_n,
-                "schedule_times": list(settings.schedule_times),
-                "page_sleep": settings.page_sleep,
-            },
+            "config": config_for_api(),
             "has_scans": has_scans(),
             "job": job_status(),
+        }
+
+    @app.get("/api/config")
+    async def api_config_get():
+        return config_for_api()
+
+    @app.put("/api/config")
+    async def api_config_put(body: ConfigUpdate):
+        if job_status().get("state") == "running":
+            raise HTTPException(409, "Impossible de modifier la config pendant un scan")
+        try:
+            save_config(
+                username=body.username,
+                n=body.n,
+                watch_n=body.watch_n,
+                page_sleep=body.page_sleep,
+                host=body.host,
+                port=body.port,
+                schedule_times=body.schedule_times,
+                sessionid=body.sessionid or None,
+                ds_user_id=body.ds_user_id or None,
+            )
+        except (ValueError, OSError) as e:
+            raise HTTPException(400, str(e)) from e
+        clear_session_cache()
+        return {"ok": True, "config": config_for_api()}
+
+    @app.post("/api/session/test")
+    async def api_session_test():
+        clear_session_cache()
+        return _session_info()
+
+    @app.post("/api/schedule/install")
+    async def api_schedule_install():
+        from instree.schedule import install_systemd
+
+        settings = load_settings()
+        try:
+            unit_dir, root, exec_start = install_systemd(settings)
+        except RuntimeError as e:
+            raise HTTPException(400, str(e)) from e
+        return {
+            "ok": True,
+            "unit_dir": str(unit_dir),
+            "root": str(root),
+            "exec_start": exec_start,
+            "times": list(settings.schedule_times),
         }
 
     @app.get("/api/scans")
@@ -142,8 +201,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/scan")
     async def api_scan_start(body: ScanRequest):
-        global _session_cache
-        _session_cache = None
+        clear_session_cache()
         try:
             start_scan(init=body.init, full=body.full)
         except RuntimeError as e:

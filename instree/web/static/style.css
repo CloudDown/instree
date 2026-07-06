@@ -32,7 +32,7 @@ body {
 /* ── Sidebar ─────────────────────────────────── */
 
 .sidebar {
-  width: 17rem;
+  width: 19rem;
   flex-shrink: 0;
   background: var(--surface);
   border-right: 1px solid var(--border);
@@ -123,7 +123,109 @@ body {
   color: var(--muted);
 }
 
-/* Config */
+/* Config form */
+
+.config-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.config-fieldset {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.65rem 0.75rem 0.75rem;
+  margin: 0;
+}
+
+.config-fieldset legend {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding: 0 0.25rem;
+}
+
+.config-advanced {
+  margin-top: 0;
+}
+
+.field {
+  display: block;
+  margin-bottom: 0.55rem;
+}
+
+.field:last-child {
+  margin-bottom: 0;
+}
+
+.field-label {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-bottom: 0.2rem;
+}
+
+.field input {
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-family: ui-monospace, monospace;
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--border-light);
+}
+
+.field-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.68rem;
+  color: var(--dim);
+  line-height: 1.35;
+}
+
+.field-hint.inline {
+  display: inline;
+  margin: 0 0 0 0.35rem;
+  font-size: 0.65rem;
+}
+
+.btn-sm {
+  margin-top: 0.35rem;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.config-msg {
+  font-size: 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.config-msg.ok {
+  border-color: var(--border-light);
+  color: var(--text);
+}
+
+.config-msg.err {
+  border-color: var(--border-light);
+  color: var(--muted);
+}
+
+.config-msg.hidden {
+  display: none;
+}
+
+/* Config (legacy list — unused) */
 
 .config-list {
   margin: 0;

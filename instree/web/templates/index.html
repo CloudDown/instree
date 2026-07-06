@@ -27,11 +27,79 @@
 
       <section class="panel" aria-label="Configuration">
         <h2 class="panel-title">Configuration</h2>
-        <dl class="config-list" id="config-list">
-          <div><dt>Abonnements</dt><dd id="cfg-n">—</dd></div>
-          <div><dt>Par personne</dt><dd id="cfg-watch-n">—</dd></div>
-          <div><dt>Planifié</dt><dd id="cfg-schedule">—</dd></div>
-        </dl>
+        <form id="config-form" class="config-form">
+          <fieldset class="config-fieldset">
+            <legend>Instagram</legend>
+            <label class="field">
+              <span class="field-label">Session ID</span>
+              <input type="password" id="cfg-sessionid" name="sessionid" autocomplete="off"
+                     placeholder="Laisser vide pour conserver">
+            </label>
+            <label class="field">
+              <span class="field-label">User ID</span>
+              <input type="password" id="cfg-ds-user-id" name="ds_user_id" autocomplete="off"
+                     placeholder="Laisser vide pour conserver">
+            </label>
+            <p class="field-hint">Ou connecte-toi sur instagram.com dans ton navigateur.</p>
+            <button type="button" id="btn-test-session" class="btn btn-ghost btn-sm">
+              Tester la connexion
+            </button>
+          </fieldset>
+
+          <fieldset class="config-fieldset">
+            <legend>Scan</legend>
+            <label class="field">
+              <span class="field-label">Compte à suivre</span>
+              <input type="text" id="cfg-username" name="username" placeholder="@toi ou vide = session">
+            </label>
+            <label class="field">
+              <span class="field-label">Nb de suivis</span>
+              <input type="number" id="cfg-n-input" name="n" min="0" step="1" value="100">
+              <span class="field-hint inline">0 = tous</span>
+            </label>
+            <label class="field">
+              <span class="field-label">Abos / personne</span>
+              <input type="number" id="cfg-watch-n-input" name="watch_n" min="0" step="1" value="0">
+              <span class="field-hint inline">0 = tous</span>
+            </label>
+            <label class="field">
+              <span class="field-label">Pause API (s)</span>
+              <input type="number" id="cfg-page-sleep" name="page_sleep" min="0" step="0.1" value="0.6">
+            </label>
+          </fieldset>
+
+          <fieldset class="config-fieldset">
+            <legend>Planification</legend>
+            <label class="field">
+              <span class="field-label">Heures</span>
+              <input type="text" id="cfg-schedule-input" name="schedule_times"
+                     placeholder="08:00, 20:00">
+            </label>
+            <button type="button" id="btn-schedule-install" class="btn btn-ghost btn-sm">
+              Installer le timer systemd
+            </button>
+          </fieldset>
+
+          <details class="advanced config-advanced">
+            <summary>Interface web</summary>
+            <div class="advanced-body">
+              <label class="field">
+                <span class="field-label">Hôte</span>
+                <input type="text" id="cfg-host" name="host" value="127.0.0.1">
+              </label>
+              <label class="field">
+                <span class="field-label">Port</span>
+                <input type="number" id="cfg-port" name="port" min="1" max="65535" value="8765">
+              </label>
+              <p class="field-hint">Changer le port nécessite un redémarrage du serveur.</p>
+            </div>
+          </details>
+
+          <div id="config-msg" class="config-msg hidden" role="status"></div>
+          <button type="submit" id="btn-save-config" class="btn btn-main">
+            Enregistrer
+          </button>
+        </form>
       </section>
 
       <section class="panel" aria-label="Actions">
