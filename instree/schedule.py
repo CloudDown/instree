@@ -1,4 +1,5 @@
 """Installation du timer systemd depuis instree.toml."""
+
 import shutil
 import sys
 from pathlib import Path

@@ -1,12 +1,12 @@
 """Exécution des scans en arrière-plan pour l'interface web."""
+
 from __future__ import annotations
 
 import threading
 from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Callable
 
-from instree.config import Settings, load_settings
+from instree.config import load_settings
 from instree.scan import ScanSummary, run_scan
 from instree.session import connect
 
@@ -87,8 +87,7 @@ def _worker(init: bool, full: bool, mode: str) -> None:
             _job.state = "done"
             _job.result = _summary_dict(summary)
             _job.message = (
-                "Inchangé" if summary.unchanged
-                else f"Scan #{summary.scan_id} terminé"
+                "Inchangé" if summary.unchanged else f"Scan #{summary.scan_id} terminé"
             )
             _job.finished_at = datetime.now().isoformat(timespec="seconds")
     except Exception as e:

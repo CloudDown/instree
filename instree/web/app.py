@@ -1,4 +1,5 @@
 """FastAPI — historique et gestion des scans."""
+
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -33,6 +34,7 @@ def _session_info() -> dict:
     try:
         ig, source, _note = connect()
         from instree.session import session_user
+
         target = settings.username or session_user(ig)
         _session_cache = {"ok": True, "source": source, "username": target}
     except RuntimeError as e:

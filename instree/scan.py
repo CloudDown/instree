@@ -1,4 +1,5 @@
 """Scan incrémental : ta liste d'abonnements + évolution des comptes suivis."""
+
 import time
 from dataclasses import dataclass
 
@@ -83,12 +84,14 @@ def _poll_counts(
         if not is_baseline and e.username in stored_map:
             old_fc = stored_map[e.username].following_count
             if old_fc > 0 and profile.following_count != old_fc:
-                changes.append(CountChange(
-                    username=profile.username,
-                    full_name=entry.full_name,
-                    old_count=old_fc,
-                    new_count=profile.following_count,
-                ))
+                changes.append(
+                    CountChange(
+                        username=profile.username,
+                        full_name=entry.full_name,
+                        old_count=old_fc,
+                        new_count=profile.following_count,
+                    )
+                )
 
         if i + 1 < len(entries):
             time.sleep(sleep)
@@ -118,11 +121,7 @@ def run_scan(
 
     old_total, stored_list = latest_following(profile.username)
     stored_map = {e.username: e for e in stored_list}
-    need_list = (
-        force_full
-        or old_total is None
-        or profile.following_count != old_total
-    )
+    need_list = force_full or old_total is None or profile.following_count != old_total
 
     added: list[FollowingEntry] = []
     removed: list[FollowingEntry] = []

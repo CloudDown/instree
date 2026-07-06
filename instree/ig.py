@@ -1,4 +1,5 @@
 """Appels Instagram : profil et abonnements."""
+
 import time
 from dataclasses import dataclass
 
@@ -52,12 +53,14 @@ def fetch_following(
             if not upk or not username or upk in seen:
                 continue
             seen.add(upk)
-            users.append(IgUser(
-                pk=upk,
-                username=username,
-                full_name=u.get("full_name") or "",
-                following_count=0,
-            ))
+            users.append(
+                IgUser(
+                    pk=upk,
+                    username=username,
+                    full_name=u.get("full_name") or "",
+                    following_count=0,
+                )
+            )
             if limit > 0 and len(users) >= limit:
                 return users[:limit]
         max_id = result.get("next_max_id")

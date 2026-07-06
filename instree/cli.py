@@ -1,4 +1,5 @@
 """CLI instree scan | instree serve."""
+
 import argparse
 import sys
 
@@ -51,7 +52,9 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
     print()
     if summary.unchanged:
-        print(f"  @{summary.username} inchangé ({summary.tracked}/{summary.following_count})")
+        print(
+            f"  @{summary.username} inchangé ({summary.tracked}/{summary.following_count})"
+        )
         print("  aucun nouveau scan enregistré")
     else:
         print(f"  scan #{summary.scan_id} terminé")
@@ -124,7 +127,9 @@ def main() -> None:
 
     p_schedule = sub.add_parser("schedule", help="planification systemd")
     p_schedule_sub = p_schedule.add_subparsers(dest="schedule_cmd", required=True)
-    p_install = p_schedule_sub.add_parser("install", help="génère le timer depuis instree.toml")
+    p_install = p_schedule_sub.add_parser(
+        "install", help="génère le timer depuis instree.toml"
+    )
     p_install.set_defaults(func=cmd_schedule_install)
 
     args = parser.parse_args()
