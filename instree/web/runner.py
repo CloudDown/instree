@@ -1,0 +1,106 @@
+"""Exécution des scans en arrière-plan pour l'interface web."""
+from __future__ import annotations
+
+import threading
+from dataclasses import asdict, dataclass
+from datetime import datetime
+from typing import Callable
+
+from instree.config import Settings, load_settings
+from instree.scan import ScanSummary, run_scan
+from instree.session import connect
+
+
+@dataclass
+class ScanJob:
+    state: str = "idle"
+    mode: str = ""
+    progress_current: int = 0
+    progress_total: int = 0
+    progress_user: str = ""
+    message: str = ""
+    result: dict | None = None
+    started_at: str | None = None
+    finished_at: str | None = None
+
+
+_lock = threading.Lock()
+_job = ScanJob()
+
+
+def _summary_dict(s: ScanSummary) -> dict:
+    return {
+        "scan_id": s.scan_id,
+        "username": s.username,
+        "tracked": s.tracked,
+        "following_count": s.following_count,
+        "added": s.added,
+        "removed": s.removed,
+        "counts": s.counts,
+        "unchanged": s.unchanged,
+        "journal_path": s.journal_path,
+    }
+
+
+def job_status() -> dict:
+    with _lock:
+        return asdict(_job)
+
+
+def start_scan(*, init: bool = False, full: bool = False) -> None:
+    with _lock:
+        if _job.state == "running":
+            raise RuntimeError("Un scan est déjà en cours")
+
+    mode = "init" if init else "full" if full else "incremental"
+    thread = threading.Thread(target=_worker, args=(init, full, mode), daemon=True)
+    thread.start()
+
+
+def _worker(init: bool, full: bool, mode: str) -> None:
+    global _job
+
+    def on_progress(current: int, total: int, username: str) -> None:
+        with _lock:
+            _job.progress_current = current
+            _job.progress_total = total
+            _job.progress_user = username
+
+    with _lock:
+        _job = ScanJob(
+            state="running",
+            mode=mode,
+            started_at=datetime.now().isoformat(timespec="seconds"),
+        )
+
+    try:
+        settings = load_settings()
+        ig, _source, _note = connect()
+        summary = run_scan(
+            ig,
+            settings,
+            init=init,
+            full=full,
+            on_progress=on_progress,
+        )
+        with _lock:
+            _job.state = "done"
+            _job.result = _summary_dict(summary)
+            _job.message = (
+                "Inchangé" if summary.unchanged
+                else f"Scan #{summary.scan_id} terminé"
+            )
+            _job.finished_at = datetime.now().isoformat(timespec="seconds")
+    except Exception as e:
+        with _lock:
+            _job.state = "error"
+            _job.message = str(e)
+            _job.finished_at = datetime.now().isoformat(timespec="seconds")
+
+
+def reset_job() -> None:
+    """Remet l'état à idle après affichage du résultat."""
+    global _job
+    with _lock:
+        if _job.state != "running":
+            _job = ScanJob()

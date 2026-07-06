@@ -7,10 +7,27 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <header>
-    <h1>Instree</h1>
-    <p class="subtitle">Tes abonnements</p>
+  <header class="top">
+    <div class="top-left">
+      <h1>Instree</h1>
+      <p class="subtitle" id="header-sub">—</p>
+    </div>
+    <div class="top-right">
+      <span id="session-badge" class="badge">—</span>
+    </div>
   </header>
+
+  <section class="toolbar" aria-label="Actions scan">
+    <div class="toolbar-actions">
+      <button id="btn-scan" type="button" class="btn primary">Scanner</button>
+      <button id="btn-init" type="button" class="btn">Baseline</button>
+      <button id="btn-full" type="button" class="btn">Complet</button>
+    </div>
+    <div id="job-panel" class="job-panel hidden">
+      <div class="job-text" id="job-text">—</div>
+      <div class="progress-track"><div id="job-bar" class="progress-bar"></div></div>
+    </div>
+  </section>
 
   <nav class="timeline" aria-label="Navigation scans">
     <button id="btn-prev" type="button" title="Scan précédent" disabled>←</button>
@@ -21,13 +38,18 @@
     <button id="btn-next" type="button" title="Scan suivant" disabled>→</button>
   </nav>
 
-  <main id="content">
-    <p class="empty">Chargement…</p>
-  </main>
+  <div class="layout">
+    <aside class="history" aria-label="Historique">
+      <h2>Historique</h2>
+      <ul id="history-list"></ul>
+    </aside>
 
-  <footer>
-    <code>.venv/bin/instree scan</code> pour mettre à jour
-  </footer>
+    <main id="content">
+      <p class="empty">Chargement…</p>
+    </main>
+  </div>
+
+  <footer id="footer-config">—</footer>
 
   <script src="/static/app.js"></script>
 </body>

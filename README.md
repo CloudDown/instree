@@ -41,14 +41,13 @@ pip install -e .
 
 Toujours lancer depuis la racine du dépôt (là où se trouve `instree.toml`).
 
-## Usage CLI
+## Lancer le site web
 
 ```bash
-./run                        # interface web (recommandé)
-uv run instree scan          # incrémental
-uv run instree scan -q       # silencieux (systemd)
-uv run instree serve         # idem que ./run
+./run
 ```
+
+Ouvre [http://127.0.0.1:8765](http://127.0.0.1:8765) — interface pour lancer les scans, voir l'historique et les changements (`+` / `-` / `~`).
 
 ## Configuration
 
