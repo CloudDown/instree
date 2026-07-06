@@ -1,0 +1,28 @@
+# Copie ce fichier → instree.toml (ne pas commiter instree.toml)
+#
+# Instree surveille les abonnements d'un compte Instagram
+# et journalise les ajouts (+) / retraits (-) entre chaque scan.
+
+# ── Session Instagram ─────────────────────────────────────────────
+# Ordre : 1) instree.toml  2) cookies navigateur (Firefox, Chrome…)
+# Récupère sessionid + ds_user_id : F12 → Application → Cookies → instagram.com
+
+[instagram]
+sessionid = ""
+ds_user_id = ""
+
+# ── Scan ──────────────────────────────────────────────────────────
+[scan]
+# Compte à surveiller (vide = compte connecté)
+username = ""
+
+# Nombre d'abonnements à suivre (0 = tous)
+n = 200
+
+# Pause entre pages API Instagram (secondes)
+page_sleep = 0.6
+
+# ── Interface web (uv run instree serve) ──────────────────────────
+[web]
+host = "127.0.0.1"
+port = 8765

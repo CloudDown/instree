@@ -1,8 +1,8 @@
-"""Connexion Instagram (session.toml ou cookies navigateur)."""
+"""Connexion Instagram (instree.toml ou cookies navigateur)."""
 from instagrapi import Client
 from instagrapi.exceptions import LoginRequired
 
-from instree.config import CONFIG
+from instree.config import CONFIG_PATH, load_settings
 
 
 def _login(jar: dict) -> Client:
@@ -20,23 +20,21 @@ def _login(jar: dict) -> Client:
 
 def connect() -> tuple[Client, str, str | None]:
     """Retourne (client, source, note)."""
-    toml_present = CONFIG.is_file()
+    settings = load_settings()
+    toml_present = CONFIG_PATH.is_file()
     toml_empty = False
 
-    if toml_present:
+    if toml_present and settings.sessionid:
         try:
-            import tomllib
-            ig_cfg = tomllib.loads(CONFIG.read_text()).get("instagram", {})
-            sid = str(ig_cfg.get("sessionid", "")).strip()
-            if sid:
-                client = _login({
-                    "sessionid": sid,
-                    "ds_user_id": str(ig_cfg.get("ds_user_id", "")).strip(),
-                })
-                return client, "session.toml", None
-            toml_empty = True
+            client = _login({
+                "sessionid": settings.sessionid,
+                "ds_user_id": settings.ds_user_id,
+            })
+            return client, "instree.toml", None
         except (LoginRequired, Exception):
             toml_empty = True
+    elif toml_present:
+        toml_empty = True
 
     import browser_cookie3
     for b in ("firefox", "chrome", "chromium", "brave", "edge", "opera", "vivaldi", "librewolf"):
@@ -51,8 +49,8 @@ def connect() -> tuple[Client, str, str | None]:
                 note = None
                 if toml_empty:
                     note = (
-                        "session.toml présent mais vide — cookies navigateur utilisés "
-                        "(voir session.toml.example)"
+                        "instree.toml présent mais vide — cookies navigateur utilisés "
+                        "(voir instree.toml.example)"
                     )
                 return client, f"navigateur ({b})", note
         except Exception:
@@ -60,11 +58,11 @@ def connect() -> tuple[Client, str, str | None]:
 
     if toml_empty:
         raise RuntimeError(
-            "session.toml vide et aucun cookie Instagram dans le navigateur — "
-            "remplis session.toml ou connecte-toi sur instagram.com"
+            "instree.toml vide et aucun cookie Instagram dans le navigateur — "
+            "remplis instree.toml ou connecte-toi sur instagram.com"
         )
     raise RuntimeError(
-        "Pas de session — copie session.toml.example → session.toml, "
+        "Pas de session — copie instree.toml.example → instree.toml, "
         "ou connecte-toi à instagram.com dans ton navigateur"
     )
 
