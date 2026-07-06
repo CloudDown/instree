@@ -29,6 +29,79 @@ body {
   min-height: 100vh;
 }
 
+.topbar {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.topbar-inner {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0.9rem 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.brand-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+}
+
+.brand-line h1 {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.topnav {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.topnav-link {
+  padding: 0.4rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.78rem;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+
+.topnav-link:hover {
+  border-color: var(--border-light);
+  color: var(--text);
+  background: var(--bg);
+}
+
+.topnav-link.active {
+  border-color: var(--text);
+  color: var(--text);
+}
+
+.page {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 1.2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.page-wide {
+  max-width: 70rem;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 0.95rem 1rem;
+}
+
 /* ── Sidebar ─────────────────────────────────── */
 
 .sidebar {

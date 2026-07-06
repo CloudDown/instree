@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Instree · Actions</title>
+  <link rel="stylesheet" href="/static/style.css?v={{ v }}">
+</head>
+<body data-page="{{ page }}">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand-line">
+        <h1>Instree</h1>
+        <span class="brand-sub">Actions</span>
+      </div>
+      <nav class="topnav" aria-label="Navigation principale">
+        <a href="/settings" class="topnav-link">Settings</a>
+        <a href="/changes" class="topnav-link">Visualisation</a>
+        <a href="/actions" class="topnav-link active">Actions</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="card">
+      <h2 class="panel-title">Session</h2>
+      <div id="session-box" class="session-box">
+        <span id="session-badge" class="session-dot" aria-hidden="true"></span>
+        <div>
+          <div id="session-user" class="session-user">—</div>
+          <div id="header-sub" class="session-source">—</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="panel-title">Lancer un scan</h2>
+      <p class="panel-hint">Mode simple : incrémental. Tu peux aussi lancer baseline ou complet.</p>
+
+      <button id="btn-scan" type="button" class="btn btn-main">Lancer un scan</button>
+
+      <details class="advanced" id="advanced-actions">
+        <summary>Actions avancées</summary>
+        <div class="advanced-body">
+          <p class="panel-hint warn">Plus lent et plus d'appels API.</p>
+          <button id="btn-init" type="button" class="btn btn-ghost">
+            Baseline
+            <span class="btn-desc">Premier scan ou repartir de zéro</span>
+          </button>
+          <button id="btn-full" type="button" class="btn btn-ghost">
+            Complet
+            <span class="btn-desc">Re-télécharger toute la liste</span>
+          </button>
+        </div>
+      </details>
+
+      <div id="job-panel" class="job-panel hidden" role="status" aria-live="polite">
+        <div class="job-label">Scan en cours</div>
+        <div class="job-text" id="job-text">—</div>
+        <div class="progress-track"><div id="job-bar" class="progress-bar"></div></div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="confirm-dialog" class="dialog">
+    <form method="dialog" class="dialog-box">
+      <h3 id="confirm-title">Confirmer</h3>
+      <p id="confirm-message"></p>
+      <div class="dialog-actions">
+        <button type="submit" class="btn btn-ghost" value="cancel">Annuler</button>
+        <button type="submit" class="btn btn-main" id="confirm-ok" value="ok">Confirmer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/static/app.js?v={{ v }}"></script>
+</body>
+</html>

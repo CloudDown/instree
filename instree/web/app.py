@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -80,15 +80,30 @@ def create_app() -> FastAPI:
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-    @app.get("/", response_class=HTMLResponse)
-    async def index(request: Request):
+    @app.get("/", include_in_schema=False)
+    async def root():
+        return RedirectResponse("/changes", status_code=307)
+
+    @app.get("/settings", response_class=HTMLResponse)
+    async def settings_page(request: Request):
         return templates.TemplateResponse(
-            request, "index.html", {"v": _asset_version()}
+            request, "settings.html", {"v": _asset_version(), "page": "settings"}
+        )
+
+    @app.get("/changes", response_class=HTMLResponse)
+    async def changes_page(request: Request):
+        return templates.TemplateResponse(
+            request, "changes.html", {"v": _asset_version(), "page": "changes"}
+        )
+
+    @app.get("/actions", response_class=HTMLResponse)
+    async def actions_page(request: Request):
+        return templates.TemplateResponse(
+            request, "actions.html", {"v": _asset_version(), "page": "actions"}
         )
 
     @app.get("/api/status")
     async def api_status():
-        settings = load_settings()
         session = _session_info()
         return {
             "session": session,
