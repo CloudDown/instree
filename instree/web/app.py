@@ -47,6 +47,16 @@ def _session_info() -> dict:
     return _session_cache
 
 
+def _asset_version() -> str:
+    """Empreinte basée sur la date de modification des fichiers statiques."""
+    latest = 0.0
+    for name in ("app.js", "style.css"):
+        f = STATIC_DIR / name
+        if f.is_file():
+            latest = max(latest, f.stat().st_mtime)
+    return str(int(latest))
+
+
 def create_app() -> FastAPI:
     init_db()
     app = FastAPI(title="Instree", docs_url=None, redoc_url=None)
@@ -55,7 +65,9 @@ def create_app() -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request):
-        return templates.TemplateResponse(request, "index.html")
+        return templates.TemplateResponse(
+            request, "index.html", {"v": _asset_version()}
+        )
 
     @app.get("/api/status")
     async def api_status():
