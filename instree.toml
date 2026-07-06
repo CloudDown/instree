@@ -1,5 +1,6 @@
 # Instree — configuration
 #
+# Surveille les abonnements d'un compte Instagram (ajouts, retraits, évolutions).
 # Secrets : copier instree.local.toml.example → instree.local.toml (gitignored)
 # Planification : uv run instree schedule install
 

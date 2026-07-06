@@ -1,6 +1,14 @@
 # Instree
 
-Suivi des abonnements Instagram : ajouts (`+`), retraits (`-`), évolutions de comptes suivis (`~`).
+Outil local pour **surveiller ta liste d'abonnements Instagram** (ou celle d'un compte configuré).
+
+À chaque scan, Instree compare les N derniers abonnements (100 par défaut) avec le précédent et journalise :
+
+- `+` nouveaux abonnements
+- `-` désabonnements
+- `~` évolution du nombre d'abonnements des comptes que tu suis
+
+Historique en SQLite, journaux texte, interface web et scans planifiés (systemd).
 
 ## Prérequis (Linux)
 
