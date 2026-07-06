@@ -1,30 +1,20 @@
-# Instree — configuration
-#
-# Surveille les abonnements d'un compte Instagram (ajouts, retraits, évolutions).
-# Secrets : copier instree.local.toml.example → instree.local.toml (gitignored)
-# Planification : uv run instree schedule install
-
-# ── Session Instagram ─────────────────────────────────────────────
-# Ordre : 1) instree.local.toml / instree.toml  2) cookies navigateur
-# sessionid + ds_user_id : F12 → Application → Cookies → instagram.com
+# Instree — configuration (éditable via l'interface web)
+# Secrets : instree.local.toml (gitignored)
+# n / watch_n : nombre ou MAX (= tous les abonnements)
 
 [instagram]
 sessionid = ""
 ds_user_id = ""
 
-# ── Scan ──────────────────────────────────────────────────────────
 [scan]
 username = ""
 n = 100
-# Abonnements fetchés par personne suivie (nombre ou MAX = tous)
 watch_n = "MAX"
 page_sleep = 0.6
 
-# ── Interface web (uv run instree serve) ──────────────────────────
 [web]
 host = "127.0.0.1"
 port = 8765
 
-# ── Planification (systemd user timer) ────────────────────────────
 [schedule]
-times = ["08:00", "20:00"]
+times = ["08:00"]
