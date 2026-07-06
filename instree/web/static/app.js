@@ -65,7 +65,7 @@ function renderSession(session) {
   if (session.ok) {
     elSessionUser.textContent = `@${session.username}`;
     elSessionBadge.className = "session-dot ok";
-    elSub.textContent = session.source;
+    elSub.textContent = session.note ? `${session.source} · ${session.note}` : session.source;
   } else {
     elSessionUser.textContent = "Non connecté";
     elSessionBadge.className = "session-dot err";
@@ -91,8 +91,8 @@ function parseScheduleTimes(raw) {
 function fillConfigForm(config) {
   if (!configForm) return;
   elCfgUsername.value = config.username || "";
-  elCfgNInput.value = config.n;
-  elCfgWatchNInput.value = config.watch_n;
+  elCfgNInput.value = String(config.n ?? "100");
+  elCfgWatchNInput.value = String(config.watch_n ?? "MAX");
   elCfgPageSleep.value = config.page_sleep;
   elCfgScheduleInput.value = (config.schedule_times || []).join(", ");
   elCfgHost.value = config.host || "127.0.0.1";
@@ -118,8 +118,8 @@ async function saveConfig(e) {
   e.preventDefault();
   const body = {
     username: elCfgUsername.value.trim().replace(/^@/, ""),
-    n: Number(elCfgNInput.value),
-    watch_n: Number(elCfgWatchNInput.value),
+    n: elCfgNInput.value.trim(),
+    watch_n: elCfgWatchNInput.value.trim(),
     page_sleep: Number(elCfgPageSleep.value),
     host: elCfgHost.value.trim(),
     port: Number(elCfgPort.value),
@@ -393,8 +393,11 @@ async function initSettingsPage() {
       btnTestSession.disabled = false;
       btnTestSession.textContent = "Tester la connexion";
       renderSession(session);
-      if (session.ok) showConfigMsg(`Connecté en tant que @${session.username}`);
-      else showConfigMsg(session.error || "Connexion impossible", false);
+      if (session.ok) {
+        if (session.note) showConfigMsg(session.note);
+        else showConfigMsg(`Connecté en tant que @${session.username}`);
+        await loadConfig();
+      } else showConfigMsg(session.error || "Connexion impossible", false);
     };
   }
   if (btnScheduleInstall) {

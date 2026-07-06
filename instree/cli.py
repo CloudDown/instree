@@ -19,8 +19,10 @@ def cmd_scan(args: argparse.Namespace) -> int:
         return 1
 
     target = settings.username or session_user(ig)
-    n_label = str(settings.n) if settings.n > 0 else "tous"
-    watch_label = str(settings.watch_n) if settings.watch_n > 0 else "tous"
+    from instree.config import format_limit
+
+    n_label = format_limit(settings.n)
+    watch_label = format_limit(settings.watch_n)
 
     print("── scan abonnements ──", flush=True)
     print(f"  compte   @{target}", flush=True)

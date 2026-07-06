@@ -46,25 +46,24 @@
             <span class="field-label">User ID</span>
             <input type="password" id="cfg-ds-user-id" name="ds_user_id" autocomplete="off" placeholder="Laisser vide pour conserver">
           </label>
-          <p class="field-hint">Tu peux aussi te connecter sur instagram.com dans le navigateur.</p>
+          <p class="field-hint">Sans session ici, Instree lit Chromium/Chrome une fois puis enregistre dans instree.local.toml.</p>
           <button type="button" id="btn-test-session" class="btn btn-ghost btn-sm">Tester la connexion</button>
         </fieldset>
 
         <fieldset class="config-fieldset">
           <legend>Scan</legend>
+          <p class="field-hint">Pour les limites d'abonnements, entre un nombre (ex. 100) ou <strong>MAX</strong> pour tout récupérer.</p>
           <label class="field">
             <span class="field-label">Compte à suivre</span>
             <input type="text" id="cfg-username" name="username" placeholder="@toi ou vide = session">
           </label>
           <label class="field">
             <span class="field-label">Nombre de suivis</span>
-            <input type="number" id="cfg-n-input" name="n" min="0" step="1" value="100">
-            <span class="field-hint inline">0 = tous</span>
+            <input type="text" id="cfg-n-input" name="n" inputmode="numeric" placeholder="100 ou MAX" value="100">
           </label>
           <label class="field">
             <span class="field-label">Abonnements par personne</span>
-            <input type="number" id="cfg-watch-n-input" name="watch_n" min="0" step="1" value="0">
-            <span class="field-hint inline">0 = tous</span>
+            <input type="text" id="cfg-watch-n-input" name="watch_n" inputmode="numeric" placeholder="MAX" value="MAX">
           </label>
           <label class="field">
             <span class="field-label">Pause API (secondes)</span>

@@ -53,6 +53,28 @@ def _read_toml(path: Path) -> dict:
     return tomllib.loads(path.read_text(encoding="utf-8"))
 
 
+_MAX_ALIASES = frozenset({"max", "tous", "all", "∞"})
+
+
+def parse_limit(raw) -> int:
+    """Convertit un nombre ou MAX → limite interne (0 = tous)."""
+    if isinstance(raw, bool):
+        raise ValueError("valeur invalide")
+    if isinstance(raw, int):
+        return max(0, raw)
+    s = str(raw).strip().lower()
+    if not s or s in _MAX_ALIASES or s == "0":
+        return 0
+    if s.isdigit():
+        return int(s)
+    raise ValueError(f"limite invalide : {raw!r} (utilise un nombre ou MAX)")
+
+
+def format_limit(n: int) -> str:
+    """Affichage : 0 → MAX."""
+    return "MAX" if n <= 0 else str(n)
+
+
 def _parse_times(raw) -> tuple[str, ...]:
     if not raw:
         return ("08:00", "20:00")
@@ -94,8 +116,8 @@ def load_settings(path: Path | None = None) -> Settings:
         sessionid=str(ig.get("sessionid", "")).strip(),
         ds_user_id=str(ig.get("ds_user_id", "")).strip(),
         username=str(scan.get("username", "")).strip().lstrip("@"),
-        n=max(0, int(scan.get("n", 100))),
-        watch_n=max(0, int(scan.get("watch_n", 0))),
+        n=parse_limit(scan.get("n", 100)),
+        watch_n=parse_limit(scan.get("watch_n", 0)),
         page_sleep=float(scan.get("page_sleep", 0.6)),
         host=str(web.get("host", "127.0.0.1")),
         port=int(web.get("port", 8765)),
@@ -108,8 +130,8 @@ def config_for_api() -> dict:
     s = load_settings()
     return {
         "username": s.username,
-        "n": s.n,
-        "watch_n": s.watch_n,
+        "n": format_limit(s.n),
+        "watch_n": format_limit(s.watch_n),
         "page_sleep": s.page_sleep,
         "host": s.host,
         "port": s.port,
@@ -127,6 +149,10 @@ def _toml_str(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def _toml_limit(n: int) -> str:
+    return _toml_str("MAX") if n <= 0 else str(n)
+
+
 def _format_main_toml(
     *,
     username: str,
@@ -140,6 +166,7 @@ def _format_main_toml(
     times = ", ".join(_toml_str(t) for t in schedule_times)
     return f"""# Instree — configuration (éditable via l'interface web)
 # Secrets : instree.local.toml (gitignored)
+# n / watch_n : nombre ou MAX (= tous les abonnements)
 
 [instagram]
 sessionid = ""
@@ -147,8 +174,8 @@ ds_user_id = ""
 
 [scan]
 username = {_toml_str(username)}
-n = {n}
-watch_n = {watch_n}
+n = {_toml_limit(n)}
+watch_n = {_toml_limit(watch_n)}
 page_sleep = {page_sleep}
 
 [web]
@@ -173,8 +200,8 @@ ds_user_id = {_toml_str(ds_user_id)}
 def save_config(
     *,
     username: str = "",
-    n: int = 100,
-    watch_n: int = 0,
+    n: int | str = 100,
+    watch_n: int | str = 0,
     page_sleep: float = 0.6,
     host: str = "127.0.0.1",
     port: int = 8765,
@@ -202,8 +229,8 @@ def save_config(
     main_path.write_text(
         _format_main_toml(
             username=username.strip().lstrip("@"),
-            n=max(0, n),
-            watch_n=max(0, watch_n),
+            n=parse_limit(n),
+            watch_n=parse_limit(watch_n),
             page_sleep=max(0.0, float(page_sleep)),
             host=host.strip() or "127.0.0.1",
             port=max(1, min(65535, int(port))),
@@ -213,8 +240,18 @@ def save_config(
     )
 
     if new_sessionid or new_ds_user_id:
-        local_path.write_text(
-            _format_local_toml(sessionid=new_sessionid, ds_user_id=new_ds_user_id),
-            encoding="utf-8",
-        )
+        save_session_credentials(new_sessionid, new_ds_user_id)
+
+
+def save_session_credentials(sessionid: str, ds_user_id: str = "") -> None:
+    """Enregistre la session Instagram dans instree.local.toml (gitignored)."""
+    local_path = local_config_path()
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+    local_path.write_text(
+        _format_local_toml(
+            sessionid=sessionid.strip(),
+            ds_user_id=ds_user_id.strip(),
+        ),
+        encoding="utf-8",
+    )
 

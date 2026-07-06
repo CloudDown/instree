@@ -25,8 +25,8 @@ class ScanRequest(BaseModel):
 
 class ConfigUpdate(BaseModel):
     username: str = ""
-    n: int = 100
-    watch_n: int = 0
+    n: str | int = 100
+    watch_n: str | int = "MAX"
     page_sleep: float = 0.6
     host: str = "127.0.0.1"
     port: int = 8765
@@ -53,7 +53,12 @@ def _session_info() -> dict:
         from instree.session import session_user
 
         target = settings.username or session_user(ig)
-        _session_cache = {"ok": True, "source": source, "username": target}
+        _session_cache = {
+            "ok": True,
+            "source": source,
+            "username": target,
+            "note": _note,
+        }
     except RuntimeError as e:
         _session_cache = {
             "ok": False,
