@@ -20,10 +20,12 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
     target = settings.username or session_user(ig)
     n_label = str(settings.n) if settings.n > 0 else "tous"
+    watch_label = str(settings.watch_n) if settings.watch_n > 0 else "tous"
 
     print("── scan abonnements ──", flush=True)
     print(f"  compte   @{target}", flush=True)
     print(f"  suivis   {n_label}", flush=True)
+    print(f"  watch_n  {watch_label}", flush=True)
     print(f"  source   {source}", flush=True)
     if note:
         print(f"  note     {note}", flush=True)
@@ -35,8 +37,10 @@ def cmd_scan(args: argparse.Namespace) -> int:
         print("  mode     incrémental")
     print()
 
-    def _progress(current, total, username):
-        print(f"  [{current}/{total}] @{username}…", flush=True)
+    def _progress(current, total, username, phase="profile"):
+        labels = {"profile": "profil", "baseline": "baseline", "fetch": "liste"}
+        label = labels.get(phase, phase)
+        print(f"  [{current}/{total}] @{username} ({label})…", flush=True)
 
     try:
         summary = run_scan(
@@ -62,6 +66,8 @@ def cmd_scan(args: argparse.Namespace) -> int:
         print(f"  ajouts        : {summary.added}")
         print(f"  retraits      : {summary.removed}")
         print(f"  évolutions    : {summary.counts}")
+        print(f"  abos +        : {summary.person_added}")
+        print(f"  abos −        : {summary.person_removed}")
         if summary.journal_path:
             print(f"  journal       : {summary.journal_path}")
     print()

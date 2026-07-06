@@ -16,6 +16,8 @@ ds_user_id = ""
 [scan]
 username = ""
 n = 100
+# Abonnements fetchés par personne suivie (0 = tous)
+watch_n = 0
 page_sleep = 0.6
 
 # ── Interface web (uv run instree serve) ──────────────────────────

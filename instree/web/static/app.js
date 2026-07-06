@@ -7,6 +7,7 @@ const elSessionUser = document.getElementById("session-user");
 const elSessionBadge = document.getElementById("session-badge");
 const elSub = document.getElementById("header-sub");
 const elCfgN = document.getElementById("cfg-n");
+const elCfgWatchN = document.getElementById("cfg-watch-n");
 const elCfgSchedule = document.getElementById("cfg-schedule");
 const elJobPanel = document.getElementById("job-panel");
 const elJobText = document.getElementById("job-text");
@@ -121,12 +122,16 @@ function renderDetail(detail) {
   }
 
   const oldC = detail.old_count != null ? detail.old_count : "?";
-  const header = `@${escapeHtml(scan.username)}`;
-  const sub = `${oldC} → ${scan.following_count} abonnements`;
+  const hasListChanges = detail.adds.length || detail.removes.length;
+  const header = hasListChanges ? `@${escapeHtml(scan.username)}` : "";
+  const sub = hasListChanges ? `${oldC} → ${scan.following_count} abonnements` : "";
 
   const sections = [];
   if (detail.adds.length) {
     sections.push(renderGroup("Nouveaux suivis", detail.adds, "add"));
+  }
+  if (detail.person_changes && detail.person_changes.length) {
+    sections.push(renderPersonSection(detail.person_changes));
   }
   if (detail.counts.length) {
     sections.push(renderGroup("Évolutions", detail.counts, "count"));
@@ -135,11 +140,50 @@ function renderDetail(detail) {
     sections.push(renderGroup("Suivis retirés", detail.removes, "remove"));
   }
 
+  const cardHeader = header
+    ? `<header class="changes-card-header">${header}<div class="sub">${sub}</div></header>`
+    : "";
+
   elContent.innerHTML =
     `<article class="changes-card">` +
-    `<header class="changes-card-header">${header}<div class="sub">${sub}</div></header>` +
+    cardHeader +
     sections.join("") +
     `</article>`;
+}
+
+function renderPersonSection(groups) {
+  const blocks = groups.map((g) => {
+    const countLabel =
+      g.old_count != null && g.new_count != null
+        ? `${g.old_count} → ${g.new_count} abonnements`
+        : "";
+    const title =
+      `<div class="changes-group-title">` +
+      `@${escapeHtml(g.username)}` +
+      (countLabel ? ` <span class="change-detail">${countLabel}</span>` : "") +
+      `</div>`;
+    const lines = [];
+    for (const a of g.adds) {
+      lines.push(
+        `<div class="change-line add">` +
+        `<span class="change-op"></span>` +
+        `<span><span class="change-user">@${escapeHtml(a.username)}</span> ` +
+        `<span class="change-name">${escapeHtml(a.full_name)}</span></span>` +
+        `</div>`,
+      );
+    }
+    for (const r of g.removes) {
+      lines.push(
+        `<div class="change-line remove">` +
+        `<span class="change-op"></span>` +
+        `<span><span class="change-user">@${escapeHtml(r.username)}</span> ` +
+        `<span class="change-name">${escapeHtml(r.full_name)}</span></span>` +
+        `</div>`,
+      );
+    }
+    return `<div class="changes-group person-group">${title}${lines.join("")}</div>`;
+  }).join("");
+  return `<div class="changes-section"><div class="changes-group-title section-title">Abonnements des suivis</div>${blocks}</div>`;
 }
 
 function renderGroup(title, items, type) {
@@ -185,6 +229,7 @@ function renderStatus(status) {
   }
 
   elCfgN.textContent = config.n > 0 ? config.n : "tous";
+  elCfgWatchN.textContent = config.watch_n > 0 ? config.watch_n : "tous";
   elCfgSchedule.textContent = config.schedule_times.join(", ");
 
   if (job.state === "running") {
@@ -193,8 +238,12 @@ function renderStatus(status) {
     const pct = job.progress_total
       ? Math.round((job.progress_current / job.progress_total) * 100)
       : 0;
+    const phaseLabels = { profile: "profil", baseline: "baseline", fetch: "liste" };
+    const phase = job.progress_phase
+      ? ` · ${phaseLabels[job.progress_phase] || job.progress_phase}`
+      : "";
     elJobText.textContent = job.progress_user
-      ? `[${job.progress_current}/${job.progress_total}] @${job.progress_user}`
+      ? `[${job.progress_current}/${job.progress_total}] @${job.progress_user}${phase}`
       : "Connexion Instagram…";
     elJobBar.style.width = `${pct}%`;
     startPolling();

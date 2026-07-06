@@ -18,6 +18,7 @@ class ScanJob:
     progress_current: int = 0
     progress_total: int = 0
     progress_user: str = ""
+    progress_phase: str = ""
     message: str = ""
     result: dict | None = None
     started_at: str | None = None
@@ -37,6 +38,8 @@ def _summary_dict(s: ScanSummary) -> dict:
         "added": s.added,
         "removed": s.removed,
         "counts": s.counts,
+        "person_added": s.person_added,
+        "person_removed": s.person_removed,
         "unchanged": s.unchanged,
         "journal_path": s.journal_path,
     }
@@ -60,11 +63,12 @@ def start_scan(*, init: bool = False, full: bool = False) -> None:
 def _worker(init: bool, full: bool, mode: str) -> None:
     global _job
 
-    def on_progress(current: int, total: int, username: str) -> None:
+    def on_progress(current: int, total: int, username: str, phase: str = "profile") -> None:
         with _lock:
             _job.progress_current = current
             _job.progress_total = total
             _job.progress_user = username
+            _job.progress_phase = phase
 
     with _lock:
         _job = ScanJob(

@@ -77,6 +77,7 @@ def create_app() -> FastAPI:
             "session": session,
             "config": {
                 "n": settings.n,
+                "watch_n": settings.watch_n,
                 "schedule_times": list(settings.schedule_times),
                 "page_sleep": settings.page_sleep,
             },
@@ -97,6 +98,29 @@ def create_app() -> FastAPI:
         adds = [c for c in data["changes"] if c["op"] == "add"]
         removes = [c for c in data["changes"] if c["op"] == "remove"]
         counts = [c for c in data["changes"] if c["op"] == "count"]
+        sub_adds = [c for c in data["changes"] if c["op"] == "sub_add"]
+        sub_removes = [c for c in data["changes"] if c["op"] == "sub_remove"]
+
+        person_groups: dict[str, dict] = {}
+        for c in sub_adds + sub_removes:
+            subject = c["subject_username"] or ""
+            if subject not in person_groups:
+                count_info = next((x for x in counts if x["username"] == subject), None)
+                person_groups[subject] = {
+                    "username": subject,
+                    "old_count": count_info["old_count"] if count_info else None,
+                    "new_count": count_info["new_count"] if count_info else None,
+                    "adds": [],
+                    "removes": [],
+                }
+            if c["op"] == "sub_add":
+                person_groups[subject]["adds"].append(c)
+            else:
+                person_groups[subject]["removes"].append(c)
+
+        subjects_with_detail = set(person_groups)
+        counts_fallback = [c for c in counts if c["username"] not in subjects_with_detail]
+
         old_count = None
         if adds or removes:
             old_count = scan["following_count"] - len(adds) + len(removes)
@@ -104,7 +128,10 @@ def create_app() -> FastAPI:
             **data,
             "adds": adds,
             "removes": removes,
-            "counts": counts,
+            "counts": counts_fallback,
+            "sub_adds": sub_adds,
+            "sub_removes": sub_removes,
+            "person_changes": list(person_groups.values()),
             "old_count": old_count,
             "has_changes": bool(data["changes"]),
         }

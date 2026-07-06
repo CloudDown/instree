@@ -11,7 +11,11 @@ from instree.session import session_user
 from instree.store import (
     CountChange,
     FollowingEntry,
+    PersonChange,
     ScanResult,
+    delete_person_snapshot,
+    get_person_following,
+    get_person_snapshot,
     has_scans,
     init_db,
     latest_following,
@@ -28,6 +32,8 @@ class ScanSummary:
     added: int
     removed: int
     counts: int
+    person_added: int
+    person_removed: int
     unchanged: bool
     journal_path: str | None
 
@@ -52,25 +58,49 @@ def _diff(
     return added, removed
 
 
-def _poll_counts(
+def _fetch_person_following(
+    ig: Client,
+    pk: str,
+    *,
+    limit: int,
+    page_sleep: float,
+) -> list[FollowingEntry]:
+    users = fetch_following(ig, pk, limit=limit, page_sleep=page_sleep)
+    return [_to_entry(u) for u in users]
+
+
+def _watch_persons(
     ig: Client,
     entries: list[FollowingEntry],
-    stored_map: dict[str, FollowingEntry],
     *,
-    sleep: float,
+    watch_n: int,
+    page_sleep: float,
     is_baseline: bool,
+    force_full: bool,
+    new_usernames: set[str],
     on_progress=None,
-) -> tuple[list[CountChange], list[FollowingEntry]]:
-    changes: list[CountChange] = []
+) -> tuple[
+    list[CountChange],
+    list[PersonChange],
+    list[FollowingEntry],
+    list[tuple[str, list[FollowingEntry], int]],
+]:
+    count_changes: list[CountChange] = []
+    person_changes: list[PersonChange] = []
     updated: list[FollowingEntry] = []
+    snapshots: list[tuple[str, list[FollowingEntry], int]] = []
+    fetch_limit = watch_n if watch_n > 0 else 0
 
     for i, e in enumerate(entries):
         if on_progress:
-            on_progress(i + 1, len(entries), e.username)
+            on_progress(i + 1, len(entries), e.username, "profile")
+
         try:
             profile = user_profile(ig, e.username)
         except Exception:
             updated.append(e)
+            if i + 1 < len(entries):
+                time.sleep(page_sleep)
             continue
 
         entry = FollowingEntry(
@@ -81,22 +111,83 @@ def _poll_counts(
         )
         updated.append(entry)
 
-        if not is_baseline and e.username in stored_map:
-            old_fc = stored_map[e.username].following_count
-            if old_fc > 0 and profile.following_count != old_fc:
-                changes.append(
-                    CountChange(
-                        username=profile.username,
-                        full_name=entry.full_name,
-                        old_count=old_fc,
-                        new_count=profile.following_count,
-                    )
+        snapshot = get_person_snapshot(profile.username)
+        need_baseline = (
+            force_full
+            or is_baseline
+            or snapshot is None
+            or profile.username in new_usernames
+        )
+        need_diff = (
+            not need_baseline
+            and snapshot is not None
+            and profile.following_count != snapshot.following_count
+        )
+
+        if need_baseline or need_diff:
+            if on_progress:
+                phase = "baseline" if need_baseline else "fetch"
+                on_progress(i + 1, len(entries), profile.username, phase)
+            try:
+                live = _fetch_person_following(
+                    ig,
+                    profile.pk,
+                    limit=fetch_limit,
+                    page_sleep=page_sleep,
                 )
+            except Exception:
+                if need_diff and snapshot is not None:
+                    count_changes.append(
+                        CountChange(
+                            username=profile.username,
+                            full_name=entry.full_name,
+                            old_count=snapshot.following_count,
+                            new_count=profile.following_count,
+                        )
+                    )
+                if i + 1 < len(entries):
+                    time.sleep(page_sleep)
+                continue
+
+            snapshots.append((profile.username, live, profile.following_count))
+
+            if need_diff and snapshot is not None:
+                stored = get_person_following(profile.username)
+                added, removed = _diff(stored, live)
+                for a in added:
+                    person_changes.append(
+                        PersonChange(
+                            subject_username=profile.username,
+                            subject_full_name=entry.full_name,
+                            username=a.username,
+                            full_name=a.full_name,
+                            op="sub_add",
+                        )
+                    )
+                for r in removed:
+                    person_changes.append(
+                        PersonChange(
+                            subject_username=profile.username,
+                            subject_full_name=entry.full_name,
+                            username=r.username,
+                            full_name=r.full_name,
+                            op="sub_remove",
+                        )
+                    )
+                if not added and not removed:
+                    count_changes.append(
+                        CountChange(
+                            username=profile.username,
+                            full_name=entry.full_name,
+                            old_count=snapshot.following_count,
+                            new_count=profile.following_count,
+                        )
+                    )
 
         if i + 1 < len(entries):
-            time.sleep(sleep)
+            time.sleep(page_sleep)
 
-    return changes, updated
+    return count_changes, person_changes, updated, snapshots
 
 
 def run_scan(
@@ -144,14 +235,24 @@ def run_scan(
     else:
         live = list(stored_list)
 
-    count_changes, following = _poll_counts(
+    for r in removed:
+        delete_person_snapshot(r.username)
+
+    new_usernames = {a.username for a in added}
+
+    count_changes, person_changes, following, person_snapshots = _watch_persons(
         ig,
         live,
-        stored_map,
-        sleep=settings.page_sleep,
+        watch_n=settings.watch_n,
+        page_sleep=settings.page_sleep,
         is_baseline=is_baseline,
+        force_full=force_full,
+        new_usernames=new_usernames,
         on_progress=on_progress,
     )
+
+    person_added = sum(1 for c in person_changes if c.op == "sub_add")
+    person_removed = sum(1 for c in person_changes if c.op == "sub_remove")
 
     if (
         not is_baseline
@@ -159,6 +260,8 @@ def run_scan(
         and not added
         and not removed
         and not count_changes
+        and not person_changes
+        and not person_snapshots
     ):
         return ScanSummary(
             scan_id=None,
@@ -168,6 +271,8 @@ def run_scan(
             added=0,
             removed=0,
             counts=0,
+            person_added=0,
+            person_removed=0,
             unchanged=True,
             journal_path=None,
         )
@@ -181,8 +286,16 @@ def run_scan(
         added=added,
         removed=removed,
         count_changes=count_changes,
-        unchanged=not added and not removed and not count_changes and not is_baseline,
+        person_changes=person_changes,
+        unchanged=(
+            not added
+            and not removed
+            and not count_changes
+            and not person_changes
+            and not is_baseline
+        ),
         skipped=False,
+        person_snapshots=person_snapshots if person_snapshots else None,
     )
     scan_id, journal_path = save_scan(result, following)
 
@@ -194,6 +307,8 @@ def run_scan(
         added=len(added),
         removed=len(removed),
         counts=len(count_changes),
+        person_added=person_added,
+        person_removed=person_removed,
         unchanged=False,
         journal_path=str(journal_path),
     )
