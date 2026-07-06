@@ -1,4 +1,4 @@
-"""Scan incrémental : ta liste d'abonnements + évolution des comptes suivis."""
+"""Scan incrémental : abonnements mutuels + évolution de leurs abonnements."""
 
 import time
 from dataclasses import dataclass
@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from instagrapi import Client
 
 from instree.config import Settings
-from instree.ig import fetch_following, user_profile
+from instree.ig import fetch_following, fetch_mutuals, user_profile
 from instree.session import session_user
 from instree.store import (
     CountChange,
@@ -210,23 +210,28 @@ def run_scan(
     except Exception as e:
         raise RuntimeError(f"Impossible de charger @{username} : {e}") from e
 
-    old_total, stored_list = latest_following(profile.username)
+    old_total, old_followers, stored_list = latest_following(profile.username)
     stored_map = {e.username: e for e in stored_list}
-    need_list = force_full or old_total is None or profile.following_count != old_total
+    counts_changed = (
+        old_total is None
+        or profile.following_count != old_total
+        or profile.follower_count != old_followers
+    )
+    need_list = force_full or not stored_list or counts_changed
 
     added: list[FollowingEntry] = []
     removed: list[FollowingEntry] = []
 
     if need_list:
         try:
-            live_users = fetch_following(
+            live_users = fetch_mutuals(
                 ig,
                 profile.pk,
                 limit=limit,
                 page_sleep=settings.page_sleep,
             )
         except Exception as e:
-            raise RuntimeError(f"Erreur fetch abonnements : {e}") from e
+            raise RuntimeError(f"Erreur fetch abonnements mutuels : {e}") from e
         live = [_to_entry(u) for u in live_users]
         if is_baseline or not stored_list:
             added, removed = [], []
@@ -282,6 +287,7 @@ def run_scan(
         user_pk=profile.pk,
         old_count=old_total,
         following_count=profile.following_count,
+        follower_count=profile.follower_count,
         tracked_count=len(following),
         added=added,
         removed=removed,

@@ -222,7 +222,7 @@ function renderDetail(detail) {
   if (!detail.has_changes) {
     elContent.innerHTML =
       `<p class="empty"><strong>Rien de nouveau</strong> sur ce scan.<br>` +
-      `${scan.tracked_count} abonnements suivis sur ${scan.following_count} au total.</p>`;
+      `${scan.tracked_count} mutuels suivis.</p>`;
     return;
   }
 
@@ -231,10 +231,10 @@ function renderDetail(detail) {
   const header = hasListChanges ? `@${esc(scan.username)}` : "";
   const sub = hasListChanges ? `${oldC} → ${scan.following_count} abonnements` : "";
   const sections = [];
-  if (detail.adds.length) sections.push(renderGroup("Nouveaux suivis", detail.adds, "add"));
+  if (detail.adds.length) sections.push(renderGroup("Nouveaux mutuels", detail.adds, "add"));
   if (detail.person_changes?.length) sections.push(renderPersonSection(detail.person_changes));
   if (detail.counts.length) sections.push(renderGroup("Évolutions", detail.counts, "count"));
-  if (detail.removes.length) sections.push(renderGroup("Suivis retirés", detail.removes, "remove"));
+  if (detail.removes.length) sections.push(renderGroup("Mutuels perdus", detail.removes, "remove"));
 
   elContent.innerHTML =
     `<article class="changes-card">` +
@@ -275,7 +275,7 @@ async function showScan(id) {
   ]);
   if (elDate) elDate.textContent = detail.scan.label;
   if (elMeta) {
-    elMeta.textContent = `@${detail.scan.username} · ${detail.scan.tracked_count}/${detail.scan.following_count} · ${neighbors.index + 1}/${neighbors.total}`;
+    elMeta.textContent = `@${detail.scan.username} · ${detail.scan.tracked_count} mutuels · ${neighbors.index + 1}/${neighbors.total}`;
   }
   if (btnPrev) {
     btnPrev.disabled = neighbors.prev_id == null;

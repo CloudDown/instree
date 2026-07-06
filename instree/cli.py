@@ -26,7 +26,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
     print("── scan abonnements ──", flush=True)
     print(f"  compte   @{target}", flush=True)
-    print(f"  suivis   {n_label}", flush=True)
+    print(f"  mutuels      {n_label}", flush=True)
     print(f"  watch_n  {watch_label}", flush=True)
     print(f"  source   {source}", flush=True)
     if note:

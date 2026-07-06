@@ -46,6 +46,7 @@ class ScanResult:
     user_pk: str
     old_count: int | None
     following_count: int
+    follower_count: int
     tracked_count: int
     added: list[FollowingEntry]
     removed: list[FollowingEntry]
@@ -92,6 +93,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE changes ADD COLUMN new_count INTEGER")
     if "subject_username" not in cols:
         conn.execute("ALTER TABLE changes ADD COLUMN subject_username TEXT")
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(scans)")}
+    if "follower_count" not in cols:
+        conn.execute("ALTER TABLE scans ADD COLUMN follower_count INTEGER NOT NULL DEFAULT 0")
 
 
 def init_db() -> None:
@@ -153,11 +157,11 @@ def has_scans() -> bool:
         return conn.execute("SELECT 1 FROM scans LIMIT 1").fetchone() is not None
 
 
-def latest_following(username: str) -> tuple[int | None, list[FollowingEntry]]:
+def latest_following(username: str) -> tuple[int | None, int | None, list[FollowingEntry]]:
     with _connect() as conn:
         row = conn.execute(
             """
-            SELECT s.id, s.following_count
+            SELECT s.id, s.following_count, s.follower_count
             FROM scans s
             WHERE s.username = ?
             ORDER BY s.id DESC LIMIT 1
@@ -165,7 +169,7 @@ def latest_following(username: str) -> tuple[int | None, list[FollowingEntry]]:
             (username,),
         ).fetchone()
         if not row:
-            return None, []
+            return None, None, []
         rows = conn.execute(
             """
             SELECT username, pk, full_name, following_count
@@ -184,7 +188,7 @@ def latest_following(username: str) -> tuple[int | None, list[FollowingEntry]]:
             )
             for r in rows
         ]
-        return row["following_count"], entries
+        return row["following_count"], row["follower_count"], entries
 
 
 def get_person_snapshot(person_username: str) -> PersonSnapshot | None:
@@ -282,14 +286,15 @@ def save_scan(result: ScanResult, following: list[FollowingEntry]) -> tuple[int,
     with _connect() as conn:
         cur = conn.execute(
             """
-            INSERT INTO scans (scanned_at, label, username, following_count, tracked_count)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO scans (scanned_at, label, username, following_count, follower_count, tracked_count)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 scanned_at,
                 label,
                 result.username,
                 result.following_count,
+                result.follower_count,
                 result.tracked_count,
             ),
         )
