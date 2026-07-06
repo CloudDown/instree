@@ -6,6 +6,7 @@
   --muted: #8b92a5;
   --add: #3dd68c;
   --remove: #f87171;
+  --count: #fbbf24;
   --accent: #7c9cff;
 }
 
@@ -134,6 +135,10 @@ main {
 
 .change-line.remove {
   color: var(--remove);
+}
+
+.change-line.count {
+  color: var(--count);
 }
 
 footer {

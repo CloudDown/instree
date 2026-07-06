@@ -9,9 +9,8 @@ wheels/
 # Virtual environments
 .venv
 
-# Secrets
-instree.toml
-session.toml
+# Secrets locaux
+instree.local.toml
 
 # Données locales (snapshots, journal)
 data/

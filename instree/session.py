@@ -2,7 +2,7 @@
 from instagrapi import Client
 from instagrapi.exceptions import LoginRequired
 
-from instree.config import CONFIG_PATH, load_settings
+from instree.config import load_settings, project_root
 
 
 def _login(jar: dict) -> Client:
@@ -21,7 +21,8 @@ def _login(jar: dict) -> Client:
 def connect() -> tuple[Client, str, str | None]:
     """Retourne (client, source, note)."""
     settings = load_settings()
-    toml_present = CONFIG_PATH.is_file()
+    root = project_root()
+    toml_present = (root / "instree.toml").is_file() or (root / "instree.local.toml").is_file()
     toml_empty = False
 
     if toml_present and settings.sessionid:
@@ -50,7 +51,7 @@ def connect() -> tuple[Client, str, str | None]:
                 if toml_empty:
                     note = (
                         "instree.toml présent mais vide — cookies navigateur utilisés "
-                        "(voir instree.toml.example)"
+                        "(remplis sessionid ou utilise instree.local.toml)"
                     )
                 return client, f"navigateur ({b})", note
         except Exception:
@@ -62,7 +63,7 @@ def connect() -> tuple[Client, str, str | None]:
             "remplis instree.toml ou connecte-toi sur instagram.com"
         )
     raise RuntimeError(
-        "Pas de session — copie instree.toml.example → instree.toml, "
+        "Pas de session — remplis sessionid dans instree.toml / instree.local.toml, "
         "ou connecte-toi à instagram.com dans ton navigateur"
     )
 

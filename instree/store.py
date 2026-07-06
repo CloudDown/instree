@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from instree.config import DB_PATH, JOURNAL_DIR
+from instree.config import db_path, journal_dir
 
 
 @dataclass
@@ -12,6 +12,15 @@ class FollowingEntry:
     username: str
     pk: str
     full_name: str
+    following_count: int = 0
+
+
+@dataclass
+class CountChange:
+    username: str
+    full_name: str
+    old_count: int
+    new_count: int
 
 
 @dataclass
@@ -23,14 +32,16 @@ class ScanResult:
     tracked_count: int
     added: list[FollowingEntry]
     removed: list[FollowingEntry]
+    count_changes: list[CountChange]
     unchanged: bool
     skipped: bool
     skip_reason: str = ""
 
 
 def _connect() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    path = db_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
@@ -47,6 +58,19 @@ def _drop_legacy(conn: sqlite3.Connection) -> None:
             DROP TABLE IF EXISTS snapshots;
             DROP TABLE IF EXISTS scans;
         """)
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(following)")}
+    if "following_count" not in cols:
+        conn.execute(
+            "ALTER TABLE following ADD COLUMN following_count INTEGER NOT NULL DEFAULT 0"
+        )
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(changes)")}
+    if "old_count" not in cols:
+        conn.execute("ALTER TABLE changes ADD COLUMN old_count INTEGER")
+    if "new_count" not in cols:
+        conn.execute("ALTER TABLE changes ADD COLUMN new_count INTEGER")
 
 
 def init_db() -> None:
@@ -67,6 +91,7 @@ def init_db() -> None:
                 username TEXT NOT NULL,
                 pk TEXT NOT NULL,
                 full_name TEXT NOT NULL,
+                following_count INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (scan_id, username),
                 FOREIGN KEY (scan_id) REFERENCES scans(id)
             );
@@ -76,10 +101,13 @@ def init_db() -> None:
                 op TEXT NOT NULL,
                 username TEXT NOT NULL,
                 full_name TEXT NOT NULL,
+                old_count INTEGER,
+                new_count INTEGER,
                 FOREIGN KEY (scan_id) REFERENCES scans(id)
             );
             CREATE INDEX IF NOT EXISTS idx_changes_scan ON changes(scan_id);
         """)
+        _migrate(conn)
 
 
 def has_scans() -> bool:
@@ -102,7 +130,7 @@ def latest_following(username: str) -> tuple[int | None, list[FollowingEntry]]:
             return None, []
         rows = conn.execute(
             """
-            SELECT username, pk, full_name
+            SELECT username, pk, full_name, following_count
             FROM following
             WHERE scan_id = ?
             ORDER BY position
@@ -110,7 +138,12 @@ def latest_following(username: str) -> tuple[int | None, list[FollowingEntry]]:
             (row["id"],),
         ).fetchall()
         entries = [
-            FollowingEntry(username=r["username"], pk=r["pk"], full_name=r["full_name"])
+            FollowingEntry(
+                username=r["username"],
+                pk=r["pk"],
+                full_name=r["full_name"],
+                following_count=int(r["following_count"] or 0),
+            )
             for r in rows
         ]
         return row["following_count"], entries
@@ -140,10 +173,11 @@ def save_scan(result: ScanResult, following: list[FollowingEntry]) -> tuple[int,
         for i, e in enumerate(following):
             conn.execute(
                 """
-                INSERT INTO following (scan_id, position, username, pk, full_name)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO following
+                (scan_id, position, username, pk, full_name, following_count)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (scan_id, i, e.username, e.pk, e.full_name),
+                (scan_id, i, e.username, e.pk, e.full_name, e.following_count),
             )
         for c in result.added:
             conn.execute(
@@ -155,12 +189,21 @@ def save_scan(result: ScanResult, following: list[FollowingEntry]) -> tuple[int,
                 "INSERT INTO changes (scan_id, op, username, full_name) VALUES (?, 'remove', ?, ?)",
                 (scan_id, c.username, c.full_name),
             )
+        for c in result.count_changes:
+            conn.execute(
+                """
+                INSERT INTO changes (scan_id, op, username, full_name, old_count, new_count)
+                VALUES (?, 'count', ?, ?, ?, ?)
+                """,
+                (scan_id, c.username, c.full_name, c.old_count, c.new_count),
+            )
         conn.commit()
 
     return scan_id, write_journal(scan_id, label, result)
 
 
 def write_journal(scan_id: int, label: str, result: ScanResult) -> Path:
+    JOURNAL_DIR = journal_dir()
     JOURNAL_DIR.mkdir(parents=True, exist_ok=True)
     safe = label.replace(":", "-").replace(" ", "T")
     path = JOURNAL_DIR / f"{safe}.log"
@@ -173,7 +216,7 @@ def write_journal(scan_id: int, label: str, result: ScanResult) -> Path:
             f"@{result.username}  inchangé "
             f"({result.tracked_count}/{result.following_count} abonnements suivis)"
         )
-    elif not result.added and not result.removed:
+    elif not result.added and not result.removed and not result.count_changes:
         old = result.old_count if result.old_count is not None else "?"
         lines.append(
             f"@{result.username}  baseline "
@@ -186,6 +229,8 @@ def write_journal(scan_id: int, label: str, result: ScanResult) -> Path:
             lines.append(f"+ @{c.username}  {c.full_name}")
         for c in result.removed:
             lines.append(f"- @{c.username}  {c.full_name}")
+        for c in result.count_changes:
+            lines.append(f"~ @{c.username}  {c.old_count} → {c.new_count} abonnements")
 
     path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
     return path
@@ -212,9 +257,11 @@ def get_scan(scan_id: int) -> dict | None:
             return None
         changes = conn.execute(
             """
-            SELECT op, username, full_name
+            SELECT op, username, full_name, old_count, new_count
             FROM changes WHERE scan_id = ?
-            ORDER BY op DESC, username
+            ORDER BY
+                CASE op WHEN 'add' THEN 0 WHEN 'count' THEN 1 WHEN 'remove' THEN 2 END,
+                username
             """,
             (scan_id,),
         ).fetchall()

@@ -35,6 +35,7 @@ def create_app() -> FastAPI:
         scan = data["scan"]
         adds = [c for c in data["changes"] if c["op"] == "add"]
         removes = [c for c in data["changes"] if c["op"] == "remove"]
+        counts = [c for c in data["changes"] if c["op"] == "count"]
         old_count = None
         if adds or removes:
             old_count = scan["following_count"] - len(adds) + len(removes)
@@ -42,6 +43,7 @@ def create_app() -> FastAPI:
             **data,
             "adds": adds,
             "removes": removes,
+            "counts": counts,
             "old_count": old_count,
             "has_changes": bool(data["changes"]),
         }

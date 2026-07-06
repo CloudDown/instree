@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Lance l'interface web Instree — usage : ./run
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT"
+
+if [[ ! -f instree.toml ]]; then
+  echo "! Lance ./run depuis la racine du dépôt (instree.toml introuvable)"
+  exit 1
+fi
+
+if [[ ! -x .venv/bin/instree ]]; then
+  echo "── première installation ──"
+  if command -v uv &>/dev/null; then
+    uv sync
+  else
+    echo "  uv non trouvé — création du venv avec python3"
+    python3 -m venv .venv
+    .venv/bin/pip install -q -e .
+  fi
+fi
+
+exec .venv/bin/instree serve "$@"

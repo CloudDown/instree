@@ -58,6 +58,13 @@ function renderDetail(detail) {
         `<div class="change-line add">+ @${c.username}  ${escapeHtml(c.full_name)}</div>`,
     )
     .join("");
+  const counts = detail.counts
+    .map(
+      (c) =>
+        `<div class="change-line count">~ @${c.username}  ` +
+        `${c.old_count} → ${c.new_count} abonnements</div>`,
+    )
+    .join("");
   const removes = detail.removes
     .map(
       (c) =>
@@ -66,7 +73,7 @@ function renderDetail(detail) {
     .join("");
 
   elContent.innerHTML =
-    `<section class="scan-block"><div class="scan-header">${header}</div>${adds}${removes}</section>`;
+    `<section class="scan-block"><div class="scan-header">${header}</div>${adds}${counts}${removes}</section>`;
 }
 
 function escapeHtml(s) {
