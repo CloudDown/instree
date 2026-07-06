@@ -12,5 +12,5 @@ wheels/
 # Secrets
 session.toml
 
-# Cache local (résultats de recherche)
-.cache/
+# Données locales (snapshots, journal)
+data/

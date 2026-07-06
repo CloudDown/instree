@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Instree — abonnements</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>Instree</h1>
+    <p class="subtitle">Abonnements close friends</p>
+  </header>
+
+  <nav class="timeline" aria-label="Navigation scans">
+    <button id="btn-prev" type="button" title="Scan précédent" disabled>←</button>
+    <div class="timeline-center">
+      <time id="scan-date">—</time>
+      <span id="scan-meta" class="meta"></span>
+    </div>
+    <button id="btn-next" type="button" title="Scan suivant" disabled>→</button>
+  </nav>
+
+  <main id="content">
+    <p class="empty">Chargement…</p>
+  </main>
+
+  <footer>
+    <code>uv run instree scan</code> pour mettre à jour
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

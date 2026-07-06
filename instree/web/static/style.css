@@ -1,0 +1,150 @@
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --border: #2a2f3d;
+  --text: #e8eaef;
+  --muted: #8b92a5;
+  --add: #3dd68c;
+  --remove: #f87171;
+  --accent: #7c9cff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  padding: 1.5rem 1.5rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.timeline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.timeline button {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
+.timeline button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.timeline button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.timeline-center {
+  text-align: center;
+  min-width: 12rem;
+}
+
+#scan-date {
+  display: block;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.meta {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 0.25rem;
+}
+
+main {
+  flex: 1;
+  padding: 1.5rem;
+  max-width: 42rem;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.empty {
+  color: var(--muted);
+  text-align: center;
+  padding: 3rem 1rem;
+}
+
+.friend-block {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.friend-header {
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.friend-header .count {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 0.875rem;
+}
+
+.change-line {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.8125rem;
+  padding: 0.2rem 0;
+}
+
+.change-line.add {
+  color: var(--add);
+}
+
+.change-line.remove {
+  color: var(--remove);
+}
+
+footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+footer code {
+  color: var(--accent);
+}
