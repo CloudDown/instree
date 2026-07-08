@@ -1,6 +1,6 @@
 # Instree — configuration (éditable via l'interface web)
 # Secrets : instree.local.toml (gitignored)
-# n = nombre de mutuels suivis (nombre ou MAX = tous)
+# n / watch_n : nombre ou MAX (= tous les abonnements)
 
 [instagram]
 sessionid = ""
