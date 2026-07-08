@@ -8,7 +8,7 @@ ds_user_id = ""
 
 [scan]
 username = ""
-n = 100
+n = "MAX"
 watch_n = "MAX"
 page_sleep = 0.6
 
