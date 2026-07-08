@@ -11,6 +11,7 @@ wheels/
 
 # Secrets locaux
 instree.local.toml
+session.toml
 
 # Données locales (snapshots, journal)
 data/
