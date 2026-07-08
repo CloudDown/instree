@@ -4,6 +4,7 @@ let pollTimer = null;
 let lastJobState = "idle";
 
 const page = document.body.dataset.page || "";
+const t = (key, vars) => I18n.t(key, vars);
 
 const elSessionUser = document.getElementById("session-user");
 const elSessionBadge = document.getElementById("session-badge");
@@ -25,12 +26,14 @@ const btnTestSession = document.getElementById("btn-test-session");
 const btnScheduleInstall = document.getElementById("btn-schedule-install");
 
 const elJobPanel = document.getElementById("job-panel");
-const elJobText = document.getElementById("job-text");
-const elJobBar = document.getElementById("job-bar");
+const elJobTextProfiles = document.getElementById("job-text-profiles");
+const elJobBarProfiles = document.getElementById("job-bar-profiles");
+const elJobWatchBlock = document.getElementById("job-watch-block");
+const elJobTextWatch = document.getElementById("job-text-watch");
+const elJobBarWatch = document.getElementById("job-bar-watch");
 const btnScan = document.getElementById("btn-scan");
 const btnStopScan = document.getElementById("btn-stop-scan");
 const btnInit = document.getElementById("btn-init");
-const btnFull = document.getElementById("btn-full");
 
 const elDate = document.getElementById("scan-date");
 const elMeta = document.getElementById("scan-meta");
@@ -54,7 +57,7 @@ async function fetchStatus() {
 }
 
 function setControlsDisabled(disabled) {
-  [btnScan, btnInit, btnFull, btnSaveConfig, btnTestSession, btnScheduleInstall]
+  [btnScan, btnInit, btnSaveConfig, btnTestSession, btnScheduleInstall]
     .filter(Boolean)
     .forEach((el) => {
       el.disabled = disabled;
@@ -72,9 +75,9 @@ function renderSession(session) {
     elSessionBadge.className = "session-dot ok";
     elSub.textContent = session.note ? `${session.source} · ${session.note}` : session.source;
   } else {
-    elSessionUser.textContent = "Non connecté";
+    elSessionUser.textContent = t("session.notConnected");
     elSessionBadge.className = "session-dot err";
-    elSub.textContent = session.error || "Configurer la session";
+    elSub.textContent = session.error || t("session.configure");
   }
 }
 
@@ -89,7 +92,7 @@ function showConfigMsg(text, ok = true) {
 function parseScheduleTimes(raw) {
   return raw
     .split(/[,;\s]+/)
-    .map((t) => t.trim())
+    .map((s) => s.trim())
     .filter(Boolean);
 }
 
@@ -103,11 +106,11 @@ function fillConfigForm(config) {
   elCfgHost.value = config.host || "127.0.0.1";
   elCfgPort.value = config.port || 8765;
   elCfgSessionid.placeholder = config.sessionid_set
-    ? "Déjà configuré — laisser vide pour conserver"
-    : "Coller le sessionid Instagram";
+    ? t("settings.sessionKeep")
+    : t("settings.sessionPaste");
   elCfgDsUserId.placeholder = config.ds_user_id_set
-    ? "Déjà configuré — laisser vide pour conserver"
-    : "Coller le ds_user_id";
+    ? t("settings.sessionKeep")
+    : t("settings.userIdPaste");
   elCfgSessionid.value = "";
   elCfgDsUserId.value = "";
 }
@@ -139,12 +142,12 @@ async function saveConfig(e) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    showConfigMsg(err.detail || "Erreur lors de l'enregistrement", false);
+    showConfigMsg(err.detail || t("settings.saveError"), false);
     return;
   }
   const data = await res.json();
   fillConfigForm(data.config);
-  showConfigMsg("Configuration enregistrée");
+  showConfigMsg(t("settings.saved"));
   const status = await fetchStatus();
   renderSession(status.session);
 }
@@ -172,7 +175,7 @@ function renderGroup(title, items, type) {
           `<div class="change-line ${type}">` +
           `<span class="change-op"></span>` +
           `<span><span class="change-user">@${esc(c.username)}</span> ` +
-          `<span class="change-detail">${c.old_count} → ${c.new_count} abonnements</span></span>` +
+          `<span class="change-detail">${c.old_count} → ${c.new_count} ${t("changes.subscriptions")}</span></span>` +
           `</div>`
         );
       }
@@ -193,7 +196,7 @@ function renderPersonSection(groups) {
     .map((g) => {
       const countLabel =
         g.old_count != null && g.new_count != null
-          ? `${g.old_count} → ${g.new_count} abonnements`
+          ? `${g.old_count} → ${g.new_count} ${t("changes.subscriptions")}`
           : "";
       const title =
         `<div class="changes-group-title">` +
@@ -218,7 +221,7 @@ function renderPersonSection(groups) {
       return `<div class="changes-group person-group">${title}${lines.join("")}</div>`;
     })
     .join("");
-  return `<div class="changes-section"><div class="changes-group-title">Abonnements des suivis</div>${blocks}</div>`;
+  return `<div class="changes-section"><div class="changes-group-title">${t("changes.personSection")}</div>${blocks}</div>`;
 }
 
 function renderDetail(detail) {
@@ -226,20 +229,20 @@ function renderDetail(detail) {
   const scan = detail.scan;
   if (!detail.has_changes) {
     elContent.innerHTML =
-      `<p class="empty"><strong>Rien de nouveau</strong> sur ce scan.<br>` +
-      `${scan.tracked_count} mutuels suivis.</p>`;
+      `<p class="empty"><strong>${t("changes.nothingNew")}</strong> ${t("changes.nothingNewHint")}<br>` +
+      `${t("changes.mutualsTracked", { count: scan.tracked_count })}</p>`;
     return;
   }
 
   const oldC = detail.old_count != null ? detail.old_count : "?";
   const hasListChanges = detail.adds.length || detail.removes.length;
   const header = hasListChanges ? `@${esc(scan.username)}` : "";
-  const sub = hasListChanges ? `${oldC} → ${scan.following_count} abonnements` : "";
+  const sub = hasListChanges ? `${oldC} → ${scan.following_count} ${t("changes.subscriptions")}` : "";
   const sections = [];
-  if (detail.adds.length) sections.push(renderGroup("Nouveaux mutuels", detail.adds, "add"));
+  if (detail.adds.length) sections.push(renderGroup(t("changes.newMutuals"), detail.adds, "add"));
   if (detail.person_changes?.length) sections.push(renderPersonSection(detail.person_changes));
-  if (detail.counts.length) sections.push(renderGroup("Évolutions", detail.counts, "count"));
-  if (detail.removes.length) sections.push(renderGroup("Mutuels perdus", detail.removes, "remove"));
+  if (detail.counts.length) sections.push(renderGroup(t("changes.evolutions"), detail.counts, "count"));
+  if (detail.removes.length) sections.push(renderGroup(t("changes.lostMutuals"), detail.removes, "remove"));
 
   elContent.innerHTML =
     `<article class="changes-card">` +
@@ -280,7 +283,7 @@ async function showScan(id) {
   ]);
   if (elDate) elDate.textContent = detail.scan.label;
   if (elMeta) {
-    elMeta.textContent = `@${detail.scan.username} · ${detail.scan.tracked_count} mutuels · ${neighbors.index + 1}/${neighbors.total}`;
+    elMeta.textContent = `@${detail.scan.username} · ${detail.scan.tracked_count} ${t("changes.mutualsMeta")} · ${neighbors.index + 1}/${neighbors.total}`;
   }
   if (btnPrev) {
     btnPrev.disabled = neighbors.prev_id == null;
@@ -299,10 +302,10 @@ async function loadScans() {
   scans = await fetch("/api/scans").then((r) => r.json());
   renderHistory();
   if (scans.length === 0) {
-    if (elDate) elDate.textContent = "Aucun scan";
+    if (elDate) elDate.textContent = t("changes.noScan");
     if (elMeta) elMeta.textContent = "";
     elContent.innerHTML =
-      '<p class="empty"><strong>Aucune donnée.</strong><br>Lance un scan depuis la page Actions pour commencer.</p>';
+      `<p class="empty"><strong>${t("changes.noDataTitle")}</strong><br>${t("changes.noDataHint")}</p>`;
     if (btnPrev) btnPrev.disabled = true;
     if (btnNext) btnNext.disabled = true;
     return;
@@ -326,18 +329,68 @@ function startPolling() {
   }, 800);
 }
 
+function jobMessage(job) {
+  if (job.message_key) {
+    if (job.message_key === "job.done" && job.result?.scan_id) {
+      return t("job.done", { id: job.result.scan_id });
+    }
+    return t(job.message_key);
+  }
+  return job.message || "";
+}
+
+function phaseLabel(phase) {
+  const map = {
+    profile: t("job.profilePhase"),
+    baseline: t("job.baselinePhase"),
+    fetch: t("job.fetchPhase"),
+    mutuals: t("job.loadingMutuals"),
+  };
+  return map[phase] || phase;
+}
+
 function renderJob(job) {
-  if (!elJobPanel || !elJobText || !elJobBar) return;
+  if (!elJobPanel) return;
+
   if (job.state === "running") {
     setControlsDisabled(true);
     elJobPanel.classList.remove("hidden", "job-error");
-    const pct = job.progress_total ? Math.round((job.progress_current / job.progress_total) * 100) : 0;
-    const phaseLabels = { profile: "profil", baseline: "baseline", fetch: "liste" };
-    const phase = job.progress_phase ? ` · ${phaseLabels[job.progress_phase] || job.progress_phase}` : "";
-    elJobText.textContent = job.progress_user
-      ? `[${job.progress_current}/${job.progress_total}] @${job.progress_user}${phase}`
-      : "Connexion Instagram…";
-    elJobBar.style.width = `${pct}%`;
+
+    if (elJobTextProfiles && elJobBarProfiles) {
+      const phase = job.progress_phase;
+      if (phase === "mutuals") {
+        elJobTextProfiles.textContent = t("job.loadingMutuals");
+        elJobBarProfiles.style.width = "30%";
+      } else if (job.progress_user) {
+        const pct = job.progress_total
+          ? Math.round((job.progress_current / job.progress_total) * 100)
+          : 0;
+        const phaseSuffix = phase && phase !== "profile" ? ` · ${phaseLabel(phase)}` : "";
+        elJobTextProfiles.textContent = `[${job.progress_current}/${job.progress_total}] @${job.progress_user}${phaseSuffix}`;
+        elJobBarProfiles.style.width = `${pct}%`;
+      } else {
+        elJobTextProfiles.textContent = t("job.connecting");
+        elJobBarProfiles.style.width = "5%";
+      }
+    }
+
+    const watchActive =
+      job.watch_user &&
+      (job.watch_phase === "baseline" || job.watch_phase === "fetch" || job.watch_phase === "page");
+    if (elJobWatchBlock) {
+      elJobWatchBlock.classList.toggle("hidden", !watchActive);
+    }
+    if (watchActive && elJobTextWatch && elJobBarWatch) {
+      const pct = job.watch_total
+        ? Math.round((job.watch_current / job.watch_total) * 100)
+        : job.watch_current > 0
+          ? 50
+          : 0;
+      const phaseSuffix = job.watch_phase ? ` · ${phaseLabel(job.watch_phase)}` : "";
+      elJobTextWatch.textContent = `@${job.watch_user} [${job.watch_current}/${job.watch_total || "?"}]${phaseSuffix}`;
+      elJobBarWatch.style.width = `${Math.min(pct, 100)}%`;
+    }
+
     startPolling();
     lastJobState = "running";
     return;
@@ -346,10 +399,13 @@ function renderJob(job) {
   setControlsDisabled(false);
   stopPolling();
 
+  const msg = jobMessage(job);
+
   if (job.state === "done" && lastJobState === "running") {
     elJobPanel.classList.remove("hidden");
-    elJobBar.style.width = "100%";
-    elJobText.textContent = job.message;
+    if (elJobBarProfiles) elJobBarProfiles.style.width = "100%";
+    if (elJobTextProfiles) elJobTextProfiles.textContent = msg;
+    if (elJobWatchBlock) elJobWatchBlock.classList.add("hidden");
     lastJobState = "done";
     setTimeout(() => {
       elJobPanel.classList.add("hidden");
@@ -358,8 +414,9 @@ function renderJob(job) {
   } else if (job.state === "error" && lastJobState === "running") {
     elJobPanel.classList.remove("hidden");
     elJobPanel.classList.add("job-error");
-    elJobBar.style.width = "0%";
-    elJobText.textContent = job.message;
+    if (elJobBarProfiles) elJobBarProfiles.style.width = "0%";
+    if (elJobTextProfiles) elJobTextProfiles.textContent = msg;
+    if (elJobWatchBlock) elJobWatchBlock.classList.add("hidden");
     lastJobState = "error";
     setTimeout(() => {
       elJobPanel.classList.add("hidden");
@@ -368,8 +425,9 @@ function renderJob(job) {
     }, 5000);
   } else if (job.state === "cancelled" && lastJobState === "running") {
     elJobPanel.classList.remove("hidden");
-    elJobBar.style.width = "0%";
-    elJobText.textContent = job.message || "Scan annulé";
+    if (elJobBarProfiles) elJobBarProfiles.style.width = "0%";
+    if (elJobTextProfiles) elJobTextProfiles.textContent = msg;
+    if (elJobWatchBlock) elJobWatchBlock.classList.add("hidden");
     lastJobState = "cancelled";
     setTimeout(() => {
       elJobPanel.classList.add("hidden");
@@ -389,7 +447,7 @@ async function triggerScan(body) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    showConfigMsg(err.detail || "Impossible de lancer le scan.", false);
+    showConfigMsg(err.detail || t("actions.scanError"), false);
     return;
   }
   lastJobState = "idle";
@@ -404,33 +462,30 @@ async function initSettingsPage() {
   if (btnTestSession) {
     btnTestSession.onclick = async () => {
       btnTestSession.disabled = true;
-      btnTestSession.textContent = "Test…";
+      btnTestSession.textContent = t("settings.testing");
       const session = await fetch("/api/session/test", { method: "POST" }).then((r) => r.json());
       btnTestSession.disabled = false;
-      btnTestSession.textContent = "Tester la connexion";
+      btnTestSession.textContent = t("settings.testSession");
       renderSession(session);
       if (session.ok) {
         if (session.note) showConfigMsg(session.note);
-        else showConfigMsg(`Connecté en tant que @${session.username}`);
+        else showConfigMsg(t("settings.connectedAs", { user: session.username }));
         await loadConfig();
-      } else showConfigMsg(session.error || "Connexion impossible", false);
+      } else showConfigMsg(session.error || t("settings.connectionFailed"), false);
     };
   }
   if (btnScheduleInstall) {
     btnScheduleInstall.onclick = async () => {
-      const ok = await askConfirm(
-        "Installer le timer systemd ?",
-        "Génère les unités systemd user avec les heures configurées.",
-      );
+      const ok = await askConfirm(t("settings.scheduleConfirmTitle"), t("settings.scheduleConfirmMsg"));
       if (!ok) return;
       const res = await fetch("/api/schedule/install", { method: "POST" });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        showConfigMsg(err.detail || "Installation impossible", false);
+        showConfigMsg(err.detail || t("settings.scheduleFailed"), false);
         return;
       }
       const data = await res.json();
-      showConfigMsg(`Timer installé (${data.times.join(", ")})`);
+      showConfigMsg(t("settings.scheduleInstalled", { times: data.times.join(", ") }));
     };
   }
 }
@@ -438,39 +493,24 @@ async function initSettingsPage() {
 async function initActionsPage() {
   if (btnScan) {
     btnScan.onclick = async () => {
-      const ok = await askConfirm(
-        "Lancer un scan ?",
-        "Compare tes abonnements avec le dernier enregistrement.",
-      );
-      if (ok) triggerScan({ init: false, full: false });
+      const ok = await askConfirm(t("actions.confirmScanTitle"), t("actions.confirmScanMsg"));
+      if (ok) triggerScan({ init: false });
     };
   }
   if (btnInit) {
     btnInit.onclick = async () => {
-      const ok = await askConfirm(
-        "Baseline complète ?",
-        "Référence propre, sans afficher de changement.",
-      );
-      if (ok) triggerScan({ init: true, full: false });
-    };
-  }
-  if (btnFull) {
-    btnFull.onclick = async () => {
-      const ok = await askConfirm(
-        "Scan complet ?",
-        "Re-télécharge toute la liste, plus lent.",
-      );
-      if (ok) triggerScan({ init: false, full: true });
+      const ok = await askConfirm(t("actions.confirmBaselineTitle"), t("actions.confirmBaselineMsg"));
+      if (ok) triggerScan({ init: true });
     };
   }
   if (btnStopScan) {
     btnStopScan.onclick = async () => {
       btnStopScan.disabled = true;
-      btnStopScan.textContent = "Arrêt en cours…";
+      btnStopScan.textContent = t("actions.stopping");
       const res = await fetch("/api/scan/cancel", { method: "POST" });
       if (!res.ok) {
         btnStopScan.disabled = false;
-        btnStopScan.textContent = "Arrêter le scan";
+        btnStopScan.textContent = t("actions.stopScan");
         return;
       }
       renderJob(await res.json());
@@ -486,7 +526,27 @@ async function initChangesPage() {
   });
 }
 
-(async function init() {
+function initLangSwitch() {
+  document.querySelectorAll("[data-lang]").forEach((btn) => {
+    btn.onclick = async () => {
+      await I18n.setLocale(btn.dataset.lang);
+    };
+  });
+}
+
+function onLocaleChange() {
+  I18n.applyI18n();
+  if (page === "settings") loadConfig();
+  if (page === "changes" && currentId) showScan(currentId);
+  else if (page === "changes") loadScans();
+  if (btnStopScan && !btnStopScan.disabled) btnStopScan.textContent = t("actions.stopScan");
+}
+
+async function init() {
+  await I18n.ready;
+  initLangSwitch();
+  window.addEventListener("instree:locale", onLocaleChange);
+
   const status = await fetchStatus();
   renderSession(status.session);
   renderJob(status.job);
@@ -494,4 +554,6 @@ async function initChangesPage() {
   if (page === "settings") await initSettingsPage();
   if (page === "actions") await initActionsPage();
   if (page === "changes") await initChangesPage();
-})();
+}
+
+init();

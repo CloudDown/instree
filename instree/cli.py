@@ -33,23 +33,32 @@ def cmd_scan(args: argparse.Namespace) -> int:
         print(f"  note     {note}", flush=True)
     if args.init:
         print("  mode     baseline (--init)")
-    elif args.full:
-        print("  mode     complet (--full)")
     else:
         print("  mode     incrémental")
     print()
 
-    def _progress(current, total, username, phase="profile"):
-        labels = {"profile": "profil", "baseline": "baseline", "fetch": "liste"}
+    def _progress(current, total, username, phase="profile", track="profiles"):
+        if track == "watch" and phase == "page":
+            print(f"  @{username} abonnements [{current}/{total or '?'}]…", flush=True)
+            return
+        labels = {
+            "profile": "profil",
+            "baseline": "baseline",
+            "fetch": "liste",
+            "mutuals": "mutuels",
+        }
         label = labels.get(phase, phase)
-        print(f"  [{current}/{total}] @{username} ({label})…", flush=True)
+        prefix = "profils" if track == "profiles" else "abos"
+        if phase == "mutuals":
+            print(f"  ({prefix}) chargement mutuels…", flush=True)
+        elif username:
+            print(f"  ({prefix}) [{current}/{total}] @{username} ({label})…", flush=True)
 
     try:
         summary = run_scan(
             ig,
             settings,
             init=args.init,
-            full=args.full,
             on_progress=_progress if not args.quiet else None,
         )
     except RuntimeError as e:
@@ -124,7 +133,6 @@ def main() -> None:
 
     p_scan = sub.add_parser("scan", help="scanner les abonnements")
     p_scan.add_argument("--init", action="store_true", help="baseline complète")
-    p_scan.add_argument("--full", action="store_true", help="re-télécharger la liste")
     p_scan.add_argument("-q", "--quiet", action="store_true", help="sans progression")
     p_scan.set_defaults(func=cmd_scan)
 

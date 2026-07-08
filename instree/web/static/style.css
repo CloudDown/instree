@@ -42,6 +42,42 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.lang-switch {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.lang-btn {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.lang-btn:hover {
+  color: var(--text);
+  border-color: var(--border-light);
+}
+
+.lang-btn.active {
+  color: var(--text);
+  border-color: var(--border-light);
+  background: var(--surface-2);
 }
 
 .brand-line {
@@ -427,7 +463,23 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted);
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.job-progress {
+  margin-bottom: 0.65rem;
+}
+
+.job-progress.hidden {
+  display: none;
+}
+
+.job-sublabel {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--dim);
+  margin-bottom: 0.25rem;
 }
 
 .job-text {

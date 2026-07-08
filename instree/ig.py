@@ -37,10 +37,13 @@ def _paginate_friendships(
     limit: int = 0,
     page_sleep: float = 0.6,
     should_cancel: Callable[[], bool] | None = None,
+    on_page: Callable[[int, int], None] | None = None,
+    total_hint: int = 0,
 ) -> list[IgUser]:
     users: list[IgUser] = []
     max_id = ""
     seen: set[str] = set()
+    target = limit if limit > 0 else total_hint
 
     while True:
         if should_cancel and should_cancel():
@@ -69,7 +72,11 @@ def _paginate_friendships(
                 )
             )
             if limit > 0 and len(users) >= limit:
+                if on_page:
+                    on_page(len(users), target or len(users))
                 return users[:limit]
+        if on_page:
+            on_page(len(users), target)
         max_id = result.get("next_max_id")
         if not max_id:
             break
@@ -87,10 +94,19 @@ def fetch_following(
     limit: int = 0,
     page_sleep: float = 0.6,
     should_cancel: Callable[[], bool] | None = None,
+    on_page: Callable[[int, int], None] | None = None,
+    total_hint: int = 0,
 ) -> list[IgUser]:
     """Paginer friendships/{pk}/following/ (limit=0 → tous)."""
     return _paginate_friendships(
-        ig, pk, "following", limit=limit, page_sleep=page_sleep, should_cancel=should_cancel
+        ig,
+        pk,
+        "following",
+        limit=limit,
+        page_sleep=page_sleep,
+        should_cancel=should_cancel,
+        on_page=on_page,
+        total_hint=total_hint,
     )
 
 

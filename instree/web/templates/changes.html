@@ -7,23 +7,11 @@
   <link rel="stylesheet" href="/static/style.css?v={{ v }}">
 </head>
 <body data-page="{{ page }}">
-  <header class="topbar">
-    <div class="topbar-inner">
-      <div class="brand-line">
-        <h1>Instree</h1>
-        <span class="brand-sub">Visualisation</span>
-      </div>
-      <nav class="topnav" aria-label="Navigation principale">
-        <a href="/settings" class="topnav-link">Settings</a>
-        <a href="/changes" class="topnav-link active">Visualisation</a>
-        <a href="/actions" class="topnav-link">Actions</a>
-      </nav>
-    </div>
-  </header>
+  {% include "_header.html" %}
 
   <main class="page page-wide">
     <section class="card">
-      <h2 class="panel-title">Session</h2>
+      <h2 class="panel-title" data-i18n="session.title">Session</h2>
       <div id="session-box" class="session-box">
         <span id="session-badge" class="session-dot" aria-hidden="true"></span>
         <div>
@@ -36,32 +24,33 @@
     <section class="card">
       <header class="scan-header-bar">
         <div class="scan-nav">
-          <button id="btn-prev" type="button" class="nav-btn" title="Scan précédent" disabled aria-label="Scan précédent">←</button>
+          <button id="btn-prev" type="button" class="nav-btn" data-i18n-title="changes.prevScan" title="Scan précédent" disabled aria-label="Scan précédent">←</button>
           <div class="scan-info">
             <time id="scan-date" class="scan-date">—</time>
             <span id="scan-meta" class="scan-meta"></span>
           </div>
-          <button id="btn-next" type="button" class="nav-btn" title="Scan suivant" disabled aria-label="Scan suivant">→</button>
+          <button id="btn-next" type="button" class="nav-btn" data-i18n-title="changes.nextScan" title="Scan suivant" disabled aria-label="Scan suivant">→</button>
         </div>
       </header>
 
       <div id="content" class="content">
-        <p class="empty">Chargement…</p>
+        <p class="empty" data-i18n="changes.loading">Chargement…</p>
       </div>
       <footer class="legend" aria-label="Légende">
-        <span><strong>+</strong> nouveau mutuel</span>
-        <span><strong>−</strong> mutuel perdu</span>
-        <span><strong>~</strong> évolution abonnements</span>
+        <span><strong>+</strong> <span data-i18n="changes.legendAdd">nouveau mutuel</span></span>
+        <span><strong>−</strong> <span data-i18n="changes.legendRemove">mutuel perdu</span></span>
+        <span><strong>~</strong> <span data-i18n="changes.legendEvolve">évolution abonnements</span></span>
       </footer>
     </section>
 
     <section class="card">
-      <h2 class="panel-title">Historique</h2>
+      <h2 class="panel-title" data-i18n="changes.history">Historique</h2>
       <ul id="history-list" class="history-list"></ul>
-      <p id="history-empty" class="history-empty hidden">Aucun scan pour l'instant.</p>
+      <p id="history-empty" class="history-empty hidden" data-i18n="changes.historyEmpty">Aucun scan pour l'instant.</p>
     </section>
   </main>
 
+  <script src="/static/i18n.js?v={{ v }}"></script>
   <script src="/static/app.js?v={{ v }}"></script>
 </body>
 </html>

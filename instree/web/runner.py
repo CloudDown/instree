@@ -20,7 +20,12 @@ class ScanJob:
     progress_total: int = 0
     progress_user: str = ""
     progress_phase: str = ""
+    watch_current: int = 0
+    watch_total: int = 0
+    watch_user: str = ""
+    watch_phase: str = ""
     message: str = ""
+    message_key: str = ""
     result: dict | None = None
     started_at: str | None = None
     finished_at: str | None = None
@@ -52,14 +57,14 @@ def job_status() -> dict:
         return asdict(_job)
 
 
-def start_scan(*, init: bool = False, full: bool = False) -> None:
+def start_scan(*, init: bool = False) -> None:
     with _lock:
         if _job.state == "running":
             raise RuntimeError("Un scan est déjà en cours")
 
     _cancel.clear()
-    mode = "init" if init else "full" if full else "incremental"
-    thread = threading.Thread(target=_worker, args=(init, full, mode), daemon=True)
+    mode = "init" if init else "incremental"
+    thread = threading.Thread(target=_worker, args=(init, mode), daemon=True)
     thread.start()
 
 
@@ -72,15 +77,28 @@ def cancel_scan() -> bool:
     return True
 
 
-def _worker(init: bool, full: bool, mode: str) -> None:
+def _worker(init: bool, mode: str) -> None:
     global _job
 
-    def on_progress(current: int, total: int, username: str, phase: str = "profile") -> None:
+    def on_progress(
+        current: int,
+        total: int,
+        username: str,
+        phase: str = "profile",
+        *,
+        track: str = "profiles",
+    ) -> None:
         with _lock:
-            _job.progress_current = current
-            _job.progress_total = total
-            _job.progress_user = username
-            _job.progress_phase = phase
+            if track == "watch":
+                _job.watch_current = current
+                _job.watch_total = total
+                _job.watch_user = username
+                _job.watch_phase = phase
+            else:
+                _job.progress_current = current
+                _job.progress_total = total
+                _job.progress_user = username
+                _job.progress_phase = phase
 
     def should_cancel() -> bool:
         return _cancel.is_set()
@@ -99,25 +117,29 @@ def _worker(init: bool, full: bool, mode: str) -> None:
             ig,
             settings,
             init=init,
-            full=full,
             on_progress=on_progress,
             should_cancel=should_cancel,
         )
         with _lock:
             _job.state = "done"
             _job.result = _summary_dict(summary)
-            _job.message = (
-                "Inchangé" if summary.unchanged else f"Scan #{summary.scan_id} terminé"
-            )
+            if summary.unchanged:
+                _job.message_key = "job.unchanged"
+                _job.message = "Inchangé"
+            else:
+                _job.message_key = "job.done"
+                _job.message = f"Scan #{summary.scan_id} terminé"
             _job.finished_at = datetime.now().isoformat(timespec="seconds")
     except ScanCancelled:
         with _lock:
             _job.state = "cancelled"
+            _job.message_key = "job.cancelled"
             _job.message = "Scan annulé"
             _job.finished_at = datetime.now().isoformat(timespec="seconds")
     except Exception as e:
         with _lock:
             _job.state = "error"
+            _job.message_key = ""
             _job.message = str(e)
             _job.finished_at = datetime.now().isoformat(timespec="seconds")
     finally:

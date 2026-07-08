@@ -7,23 +7,11 @@
   <link rel="stylesheet" href="/static/style.css?v={{ v }}">
 </head>
 <body data-page="{{ page }}">
-  <header class="topbar">
-    <div class="topbar-inner">
-      <div class="brand-line">
-        <h1>Instree</h1>
-        <span class="brand-sub">Paramètres</span>
-      </div>
-      <nav class="topnav" aria-label="Navigation principale">
-        <a href="/settings" class="topnav-link active">Settings</a>
-        <a href="/changes" class="topnav-link">Visualisation</a>
-        <a href="/actions" class="topnav-link">Actions</a>
-      </nav>
-    </div>
-  </header>
+  {% include "_header.html" %}
 
   <main class="page">
     <section class="card">
-      <h2 class="panel-title">Session</h2>
+      <h2 class="panel-title" data-i18n="session.title">Session</h2>
       <div id="session-box" class="session-box">
         <span id="session-badge" class="session-dot" aria-hidden="true"></span>
         <div>
@@ -34,84 +22,85 @@
     </section>
 
     <section class="card">
-      <h2 class="panel-title">Configuration</h2>
+      <h2 class="panel-title" data-i18n="settings.config">Configuration</h2>
       <form id="config-form" class="config-form">
         <fieldset class="config-fieldset">
-          <legend>Instagram</legend>
+          <legend data-i18n="settings.instagram">Instagram</legend>
           <label class="field">
-            <span class="field-label">Session ID</span>
-            <input type="password" id="cfg-sessionid" name="sessionid" autocomplete="off" placeholder="Laisser vide pour conserver">
+            <span class="field-label" data-i18n="settings.sessionId">Session ID</span>
+            <input type="password" id="cfg-sessionid" name="sessionid" autocomplete="off" data-i18n-placeholder="settings.sessionPaste" placeholder="Coller le sessionid Instagram">
           </label>
           <label class="field">
-            <span class="field-label">User ID</span>
-            <input type="password" id="cfg-ds-user-id" name="ds_user_id" autocomplete="off" placeholder="Laisser vide pour conserver">
+            <span class="field-label" data-i18n="settings.userId">User ID</span>
+            <input type="password" id="cfg-ds-user-id" name="ds_user_id" autocomplete="off" data-i18n-placeholder="settings.userIdPaste" placeholder="Coller le ds_user_id">
           </label>
-          <p class="field-hint">Sans session ici, Instree lit Chromium/Chrome une fois puis enregistre dans instree.local.toml.</p>
-          <button type="button" id="btn-test-session" class="btn btn-ghost btn-sm">Tester la connexion</button>
+          <p class="field-hint" data-i18n="settings.sessionHint">Sans session ici, Instree lit Chromium/Chrome une fois puis enregistre dans instree.local.toml.</p>
+          <button type="button" id="btn-test-session" class="btn btn-ghost btn-sm" data-i18n="settings.testSession">Tester la connexion</button>
         </fieldset>
 
         <fieldset class="config-fieldset">
-          <legend>Scan</legend>
-          <p class="field-hint">Seuls les <strong>abonnements mutuels</strong> sont suivis (tu les suis et ils te suivent). Entre un nombre ou <strong>MAX</strong>.</p>
+          <legend data-i18n="settings.scan">Scan</legend>
+          <p class="field-hint" data-i18n="settings.mutualsHint">Seuls les abonnements mutuels sont suivis (tu les suis et ils te suivent). Entre un nombre ou MAX.</p>
           <label class="field">
-            <span class="field-label">Compte à suivre</span>
-            <input type="text" id="cfg-username" name="username" placeholder="@toi ou vide = session">
+            <span class="field-label" data-i18n="settings.account">Compte à suivre</span>
+            <input type="text" id="cfg-username" name="username" data-i18n-placeholder="settings.accountPlaceholder" placeholder="@toi ou vide = session">
           </label>
           <label class="field">
-            <span class="field-label">Nombre de mutuels</span>
-            <input type="text" id="cfg-n-input" name="n" inputmode="numeric" placeholder="100 ou MAX" value="100">
+            <span class="field-label" data-i18n="settings.mutualsCount">Nombre de mutuels</span>
+            <input type="text" id="cfg-n-input" name="n" inputmode="numeric" data-i18n-placeholder="settings.mutualsPlaceholder" placeholder="100 ou MAX" value="100">
           </label>
           <label class="field">
-            <span class="field-label">Abonnements par personne</span>
+            <span class="field-label" data-i18n="settings.watchN">Abonnements par personne</span>
             <input type="text" id="cfg-watch-n-input" name="watch_n" inputmode="numeric" placeholder="MAX" value="MAX">
           </label>
           <label class="field">
-            <span class="field-label">Pause API (secondes)</span>
+            <span class="field-label" data-i18n="settings.pageSleep">Pause API (secondes)</span>
             <input type="number" id="cfg-page-sleep" name="page_sleep" min="0" step="0.1" value="0.6">
           </label>
         </fieldset>
 
         <fieldset class="config-fieldset">
-          <legend>Planification</legend>
+          <legend data-i18n="settings.schedule">Planification</legend>
           <label class="field">
-            <span class="field-label">Heures</span>
+            <span class="field-label" data-i18n="settings.scheduleTimes">Heures</span>
             <input type="text" id="cfg-schedule-input" name="schedule_times" placeholder="08:00, 20:00">
           </label>
-          <button type="button" id="btn-schedule-install" class="btn btn-ghost btn-sm">Installer le timer systemd</button>
+          <button type="button" id="btn-schedule-install" class="btn btn-ghost btn-sm" data-i18n="settings.scheduleInstall">Installer le timer systemd</button>
         </fieldset>
 
         <details class="advanced config-advanced">
-          <summary>Interface web</summary>
+          <summary data-i18n="settings.webUi">Interface web</summary>
           <div class="advanced-body">
             <label class="field">
-              <span class="field-label">Hôte</span>
+              <span class="field-label" data-i18n="settings.host">Hôte</span>
               <input type="text" id="cfg-host" name="host" value="127.0.0.1">
             </label>
             <label class="field">
-              <span class="field-label">Port</span>
+              <span class="field-label" data-i18n="settings.port">Port</span>
               <input type="number" id="cfg-port" name="port" min="1" max="65535" value="8765">
             </label>
-            <p class="field-hint">Un changement de port demande un redémarrage de `instree serve`.</p>
+            <p class="field-hint" data-i18n="settings.portHint">Un changement de port demande un redémarrage de instree serve.</p>
           </div>
         </details>
 
         <div id="config-msg" class="config-msg hidden" role="status"></div>
-        <button type="submit" id="btn-save-config" class="btn btn-main">Enregistrer</button>
+        <button type="submit" id="btn-save-config" class="btn btn-main" data-i18n="settings.save">Enregistrer</button>
       </form>
     </section>
   </main>
 
   <dialog id="confirm-dialog" class="dialog">
     <form method="dialog" class="dialog-box">
-      <h3 id="confirm-title">Confirmer</h3>
+      <h3 id="confirm-title" data-i18n="dialog.confirm">Confirmer</h3>
       <p id="confirm-message"></p>
       <div class="dialog-actions">
-        <button type="submit" class="btn btn-ghost" value="cancel">Annuler</button>
-        <button type="submit" class="btn btn-main" id="confirm-ok" value="ok">Confirmer</button>
+        <button type="submit" class="btn btn-ghost" value="cancel" data-i18n="dialog.cancel">Annuler</button>
+        <button type="submit" class="btn btn-main" id="confirm-ok" value="ok" data-i18n="dialog.confirm">Confirmer</button>
       </div>
     </form>
   </dialog>
 
+  <script src="/static/i18n.js?v={{ v }}"></script>
   <script src="/static/app.js?v={{ v }}"></script>
 </body>
 </html>

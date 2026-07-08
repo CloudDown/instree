@@ -65,6 +65,19 @@ def _check_cancel(should_cancel: Callable[[], bool] | None) -> None:
         raise ScanCancelled()
 
 
+def _report(
+    on_progress,
+    current: int,
+    total: int,
+    username: str,
+    phase: str,
+    *,
+    track: str = "profiles",
+) -> None:
+    if on_progress:
+        on_progress(current, total, username, phase, track=track)
+
+
 def _fetch_person_following(
     ig: Client,
     pk: str,
@@ -72,9 +85,23 @@ def _fetch_person_following(
     limit: int,
     page_sleep: float,
     should_cancel: Callable[[], bool] | None = None,
+    on_progress=None,
+    username: str = "",
+    total_hint: int = 0,
 ) -> list[FollowingEntry]:
+    target = limit if limit > 0 else total_hint
+
+    def on_page(fetched: int, total: int) -> None:
+        _report(on_progress, fetched, total or target, username, "page", track="watch")
+
     users = fetch_following(
-        ig, pk, limit=limit, page_sleep=page_sleep, should_cancel=should_cancel
+        ig,
+        pk,
+        limit=limit,
+        page_sleep=page_sleep,
+        should_cancel=should_cancel,
+        on_page=on_page if on_progress else None,
+        total_hint=target,
     )
     return [_to_entry(u) for u in users]
 
@@ -86,7 +113,6 @@ def _watch_persons(
     watch_n: int,
     page_sleep: float,
     is_baseline: bool,
-    force_full: bool,
     new_usernames: set[str],
     on_progress=None,
     should_cancel: Callable[[], bool] | None = None,
@@ -101,11 +127,11 @@ def _watch_persons(
     updated: list[FollowingEntry] = []
     snapshots: list[tuple[str, list[FollowingEntry], int]] = []
     fetch_limit = watch_n if watch_n > 0 else 0
+    force_full = is_baseline
 
     for i, e in enumerate(entries):
         _check_cancel(should_cancel)
-        if on_progress:
-            on_progress(i + 1, len(entries), e.username, "profile")
+        _report(on_progress, i + 1, len(entries), e.username, "profile")
 
         try:
             profile = user_profile(ig, e.username)
@@ -137,9 +163,16 @@ def _watch_persons(
         )
 
         if need_baseline or need_diff:
-            if on_progress:
-                phase = "baseline" if need_baseline else "fetch"
-                on_progress(i + 1, len(entries), profile.username, phase)
+            phase = "baseline" if need_baseline else "fetch"
+            total_hint = fetch_limit if fetch_limit > 0 else profile.following_count
+            _report(
+                on_progress,
+                0,
+                total_hint,
+                profile.username,
+                phase,
+                track="watch",
+            )
             try:
                 live = _fetch_person_following(
                     ig,
@@ -147,6 +180,9 @@ def _watch_persons(
                     limit=fetch_limit,
                     page_sleep=page_sleep,
                     should_cancel=should_cancel,
+                    on_progress=on_progress,
+                    username=profile.username,
+                    total_hint=total_hint,
                 )
             except Exception:
                 if need_diff and snapshot is not None:
@@ -209,14 +245,13 @@ def run_scan(
     settings: Settings,
     *,
     init: bool = False,
-    full: bool = False,
     on_progress=None,
     should_cancel: Callable[[], bool] | None = None,
 ) -> ScanSummary:
     init_db()
     _check_cancel(should_cancel)
     is_baseline = init or not has_scans()
-    force_full = full or is_baseline
+    force_full = is_baseline
 
     username = settings.username or session_user(ig)
     limit = settings.n
@@ -227,7 +262,6 @@ def run_scan(
         raise RuntimeError(f"Impossible de charger @{username} : {e}") from e
 
     old_total, old_followers, stored_list = latest_following(profile.username)
-    stored_map = {e.username: e for e in stored_list}
     counts_changed = (
         old_total is None
         or profile.following_count != old_total
@@ -239,6 +273,7 @@ def run_scan(
     removed: list[FollowingEntry] = []
 
     if need_list:
+        _report(on_progress, 0, 0, "", "mutuals")
         try:
             live_users = fetch_mutuals(
                 ig,
@@ -268,7 +303,6 @@ def run_scan(
         watch_n=settings.watch_n,
         page_sleep=settings.page_sleep,
         is_baseline=is_baseline,
-        force_full=force_full,
         new_usernames=new_usernames,
         on_progress=on_progress,
         should_cancel=should_cancel,

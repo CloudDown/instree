@@ -20,7 +20,6 @@ TEMPLATES_DIR = WEB_DIR / "templates"
 
 class ScanRequest(BaseModel):
     init: bool = False
-    full: bool = False
 
 
 class ConfigUpdate(BaseModel):
@@ -72,9 +71,13 @@ def _session_info() -> dict:
 def _asset_version() -> str:
     """Empreinte basée sur la date de modification des fichiers statiques."""
     latest = 0.0
-    for name in ("app.js", "style.css"):
+    for name in ("app.js", "style.css", "i18n.js"):
         f = STATIC_DIR / name
         if f.is_file():
+            latest = max(latest, f.stat().st_mtime)
+    locales = STATIC_DIR / "locales"
+    if locales.is_dir():
+        for f in locales.glob("*.json"):
             latest = max(latest, f.stat().st_mtime)
     return str(int(latest))
 
@@ -223,7 +226,7 @@ def create_app() -> FastAPI:
     async def api_scan_start(body: ScanRequest):
         clear_session_cache()
         try:
-            start_scan(init=body.init, full=body.full)
+            start_scan(init=body.init)
         except RuntimeError as e:
             raise HTTPException(409, str(e)) from e
         return job_status()
