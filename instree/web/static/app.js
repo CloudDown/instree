@@ -28,6 +28,7 @@ const elJobPanel = document.getElementById("job-panel");
 const elJobText = document.getElementById("job-text");
 const elJobBar = document.getElementById("job-bar");
 const btnScan = document.getElementById("btn-scan");
+const btnStopScan = document.getElementById("btn-stop-scan");
 const btnInit = document.getElementById("btn-init");
 const btnFull = document.getElementById("btn-full");
 
@@ -58,6 +59,10 @@ function setControlsDisabled(disabled) {
     .forEach((el) => {
       el.disabled = disabled;
     });
+  if (btnStopScan) {
+    btnStopScan.disabled = !disabled;
+    btnStopScan.classList.toggle("hidden", !disabled);
+  }
 }
 
 function renderSession(session) {
@@ -345,6 +350,7 @@ function renderJob(job) {
     elJobPanel.classList.remove("hidden");
     elJobBar.style.width = "100%";
     elJobText.textContent = job.message;
+    lastJobState = "done";
     setTimeout(() => {
       elJobPanel.classList.add("hidden");
       fetch("/api/scan/reset", { method: "POST" });
@@ -354,11 +360,21 @@ function renderJob(job) {
     elJobPanel.classList.add("job-error");
     elJobBar.style.width = "0%";
     elJobText.textContent = job.message;
+    lastJobState = "error";
     setTimeout(() => {
       elJobPanel.classList.add("hidden");
       elJobPanel.classList.remove("job-error");
       fetch("/api/scan/reset", { method: "POST" });
     }, 5000);
+  } else if (job.state === "cancelled" && lastJobState === "running") {
+    elJobPanel.classList.remove("hidden");
+    elJobBar.style.width = "0%";
+    elJobText.textContent = job.message || "Scan annulé";
+    lastJobState = "cancelled";
+    setTimeout(() => {
+      elJobPanel.classList.add("hidden");
+      fetch("/api/scan/reset", { method: "POST" });
+    }, 3000);
   } else {
     elJobPanel.classList.add("hidden");
   }
@@ -445,6 +461,19 @@ async function initActionsPage() {
         "Re-télécharge toute la liste, plus lent.",
       );
       if (ok) triggerScan({ init: false, full: true });
+    };
+  }
+  if (btnStopScan) {
+    btnStopScan.onclick = async () => {
+      btnStopScan.disabled = true;
+      btnStopScan.textContent = "Arrêt en cours…";
+      const res = await fetch("/api/scan/cancel", { method: "POST" });
+      if (!res.ok) {
+        btnStopScan.disabled = false;
+        btnStopScan.textContent = "Arrêter le scan";
+        return;
+      }
+      renderJob(await res.json());
     };
   }
 }

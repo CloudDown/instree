@@ -1,9 +1,12 @@
 """Appels Instagram : profil et abonnements."""
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from instagrapi import Client
+
+from instree.errors import ScanCancelled
 
 
 @dataclass
@@ -33,12 +36,15 @@ def _paginate_friendships(
     *,
     limit: int = 0,
     page_sleep: float = 0.6,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> list[IgUser]:
     users: list[IgUser] = []
     max_id = ""
     seen: set[str] = set()
 
     while True:
+        if should_cancel and should_cancel():
+            raise ScanCancelled()
         params = {
             "count": 200,
             "rank_token": ig.rank_token,
@@ -68,6 +74,8 @@ def _paginate_friendships(
         if not max_id:
             break
         time.sleep(page_sleep)
+        if should_cancel and should_cancel():
+            raise ScanCancelled()
 
     return users
 
@@ -78,9 +86,12 @@ def fetch_following(
     *,
     limit: int = 0,
     page_sleep: float = 0.6,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> list[IgUser]:
     """Paginer friendships/{pk}/following/ (limit=0 → tous)."""
-    return _paginate_friendships(ig, pk, "following", limit=limit, page_sleep=page_sleep)
+    return _paginate_friendships(
+        ig, pk, "following", limit=limit, page_sleep=page_sleep, should_cancel=should_cancel
+    )
 
 
 def fetch_followers(
@@ -89,9 +100,12 @@ def fetch_followers(
     *,
     limit: int = 0,
     page_sleep: float = 0.6,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> list[IgUser]:
     """Paginer friendships/{pk}/followers/ (limit=0 → tous)."""
-    return _paginate_friendships(ig, pk, "followers", limit=limit, page_sleep=page_sleep)
+    return _paginate_friendships(
+        ig, pk, "followers", limit=limit, page_sleep=page_sleep, should_cancel=should_cancel
+    )
 
 
 def fetch_mutuals(
@@ -100,10 +114,17 @@ def fetch_mutuals(
     *,
     limit: int = 0,
     page_sleep: float = 0.6,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> list[IgUser]:
     """Abonnements mutuels : intersection following ∩ followers."""
-    following = fetch_following(ig, pk, limit=0, page_sleep=page_sleep)
-    followers = fetch_followers(ig, pk, limit=0, page_sleep=page_sleep)
+    following = fetch_following(
+        ig, pk, limit=0, page_sleep=page_sleep, should_cancel=should_cancel
+    )
+    if should_cancel and should_cancel():
+        raise ScanCancelled()
+    followers = fetch_followers(
+        ig, pk, limit=0, page_sleep=page_sleep, should_cancel=should_cancel
+    )
     follower_pks = {u.pk for u in followers}
     mutuals = [u for u in following if u.pk in follower_pks]
     if limit > 0:

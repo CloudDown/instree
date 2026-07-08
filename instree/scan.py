@@ -1,11 +1,13 @@
 """Scan incrémental : abonnements mutuels + évolution de leurs abonnements."""
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from instagrapi import Client
 
 from instree.config import Settings
+from instree.errors import ScanCancelled
 from instree.ig import fetch_following, fetch_mutuals, user_profile
 from instree.session import session_user
 from instree.store import (
@@ -58,14 +60,22 @@ def _diff(
     return added, removed
 
 
+def _check_cancel(should_cancel: Callable[[], bool] | None) -> None:
+    if should_cancel and should_cancel():
+        raise ScanCancelled()
+
+
 def _fetch_person_following(
     ig: Client,
     pk: str,
     *,
     limit: int,
     page_sleep: float,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> list[FollowingEntry]:
-    users = fetch_following(ig, pk, limit=limit, page_sleep=page_sleep)
+    users = fetch_following(
+        ig, pk, limit=limit, page_sleep=page_sleep, should_cancel=should_cancel
+    )
     return [_to_entry(u) for u in users]
 
 
@@ -79,6 +89,7 @@ def _watch_persons(
     force_full: bool,
     new_usernames: set[str],
     on_progress=None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> tuple[
     list[CountChange],
     list[PersonChange],
@@ -92,6 +103,7 @@ def _watch_persons(
     fetch_limit = watch_n if watch_n > 0 else 0
 
     for i, e in enumerate(entries):
+        _check_cancel(should_cancel)
         if on_progress:
             on_progress(i + 1, len(entries), e.username, "profile")
 
@@ -134,6 +146,7 @@ def _watch_persons(
                     profile.pk,
                     limit=fetch_limit,
                     page_sleep=page_sleep,
+                    should_cancel=should_cancel,
                 )
             except Exception:
                 if need_diff and snapshot is not None:
@@ -186,6 +199,7 @@ def _watch_persons(
 
         if i + 1 < len(entries):
             time.sleep(page_sleep)
+            _check_cancel(should_cancel)
 
     return count_changes, person_changes, updated, snapshots
 
@@ -197,8 +211,10 @@ def run_scan(
     init: bool = False,
     full: bool = False,
     on_progress=None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> ScanSummary:
     init_db()
+    _check_cancel(should_cancel)
     is_baseline = init or not has_scans()
     force_full = full or is_baseline
 
@@ -229,6 +245,7 @@ def run_scan(
                 profile.pk,
                 limit=limit,
                 page_sleep=settings.page_sleep,
+                should_cancel=should_cancel,
             )
         except Exception as e:
             raise RuntimeError(f"Erreur fetch abonnements mutuels : {e}") from e
@@ -254,6 +271,7 @@ def run_scan(
         force_full=force_full,
         new_usernames=new_usernames,
         on_progress=on_progress,
+        should_cancel=should_cancel,
     )
 
     person_added = sum(1 for c in person_changes if c.op == "sub_add")

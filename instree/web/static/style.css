@@ -440,6 +440,11 @@ body {
 
 .job-panel.job-error .job-text { color: var(--text); }
 
+.job-stop {
+  margin-top: 0.75rem;
+  width: 100%;
+}
+
 .progress-track {
   height: 3px;
   background: var(--border);

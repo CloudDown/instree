@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 
 from instree.config import load_settings
+from instree.errors import ScanCancelled
 from instree.scan import ScanSummary, run_scan
 from instree.session import connect
 
@@ -26,6 +27,7 @@ class ScanJob:
 
 
 _lock = threading.Lock()
+_cancel = threading.Event()
 _job = ScanJob()
 
 
@@ -55,9 +57,19 @@ def start_scan(*, init: bool = False, full: bool = False) -> None:
         if _job.state == "running":
             raise RuntimeError("Un scan est déjà en cours")
 
+    _cancel.clear()
     mode = "init" if init else "full" if full else "incremental"
     thread = threading.Thread(target=_worker, args=(init, full, mode), daemon=True)
     thread.start()
+
+
+def cancel_scan() -> bool:
+    """Demande l'arrêt du scan en cours. Retourne False si aucun scan actif."""
+    with _lock:
+        if _job.state != "running":
+            return False
+    _cancel.set()
+    return True
 
 
 def _worker(init: bool, full: bool, mode: str) -> None:
@@ -69,6 +81,9 @@ def _worker(init: bool, full: bool, mode: str) -> None:
             _job.progress_total = total
             _job.progress_user = username
             _job.progress_phase = phase
+
+    def should_cancel() -> bool:
+        return _cancel.is_set()
 
     with _lock:
         _job = ScanJob(
@@ -86,6 +101,7 @@ def _worker(init: bool, full: bool, mode: str) -> None:
             init=init,
             full=full,
             on_progress=on_progress,
+            should_cancel=should_cancel,
         )
         with _lock:
             _job.state = "done"
@@ -94,11 +110,18 @@ def _worker(init: bool, full: bool, mode: str) -> None:
                 "Inchangé" if summary.unchanged else f"Scan #{summary.scan_id} terminé"
             )
             _job.finished_at = datetime.now().isoformat(timespec="seconds")
+    except ScanCancelled:
+        with _lock:
+            _job.state = "cancelled"
+            _job.message = "Scan annulé"
+            _job.finished_at = datetime.now().isoformat(timespec="seconds")
     except Exception as e:
         with _lock:
             _job.state = "error"
             _job.message = str(e)
             _job.finished_at = datetime.now().isoformat(timespec="seconds")
+    finally:
+        _cancel.clear()
 
 
 def reset_job() -> None:

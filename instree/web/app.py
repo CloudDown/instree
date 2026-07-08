@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from instree.config import config_for_api, load_settings, save_config
 from instree.session import connect
 from instree.store import get_scan, has_scans, init_db, list_scans, scan_neighbors
-from instree.web.runner import job_status, reset_job, start_scan
+from instree.web.runner import cancel_scan, job_status, reset_job, start_scan
 
 WEB_DIR = Path(__file__).resolve().parent
 STATIC_DIR = WEB_DIR / "static"
@@ -235,6 +235,12 @@ def create_app() -> FastAPI:
     @app.post("/api/scan/reset")
     async def api_scan_reset():
         reset_job()
+        return job_status()
+
+    @app.post("/api/scan/cancel")
+    async def api_scan_cancel():
+        if not cancel_scan():
+            raise HTTPException(409, "Aucun scan en cours")
         return job_status()
 
     return app
