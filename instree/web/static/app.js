@@ -67,6 +67,23 @@ function igUser(username, className = "change-user") {
   );
 }
 
+function formatScanDate(scannedAt) {
+  if (!scannedAt) return "—";
+  const raw = String(scannedAt).trim();
+  const d = new Date(raw.includes("T") ? raw : raw.replace(" ", "T"));
+  if (Number.isNaN(d.getTime())) return raw;
+  const locale =
+    I18n.getLocale() === "fr" ? "fr-FR" : I18n.getLocale() === "es" ? "es-ES" : "en-GB";
+  return new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
+}
+
 async function fetchStatus() {
   const r = await fetch("/api/status");
   return r.json();
@@ -297,7 +314,7 @@ function renderHistory() {
       return (
         `<li><button type="button" class="history-item${active}${hasChanges}" data-id="${s.id}">` +
         `<span class="h-id">#${s.id}</span>` +
-        `<span class="h-date">${esc(s.label)}</span>` +
+        `<span class="h-date">${esc(formatScanDate(s.scanned_at))}</span>` +
         `<span class="h-changes">${changes}</span>` +
         `</button></li>`
       );
@@ -314,7 +331,12 @@ async function showScan(id) {
     fetch(`/api/scans/${id}`).then((r) => r.json()),
     fetch(`/api/scans/${id}/neighbors`).then((r) => r.json()),
   ]);
-  if (elDate) elDate.textContent = detail.scan.label;
+  if (elDate) {
+    elDate.textContent = formatScanDate(detail.scan.scanned_at);
+    if (detail.scan.scanned_at) {
+      elDate.dateTime = detail.scan.scanned_at.replace(" ", "T");
+    }
+  }
   if (elMeta) {
     elMeta.innerHTML = `${igUser(detail.scan.username)} · ${detail.scan.tracked_count} ${t("changes.mutualsMeta")} · ${neighbors.index + 1}/${neighbors.total}`;
   }

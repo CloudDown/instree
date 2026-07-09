@@ -3,27 +3,29 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Instree · Settings</title>
+  <title>Instree · Paramètres</title>
   <link rel="stylesheet" href="/static/style.css?v={{ v }}">
 </head>
 <body data-page="{{ page }}" data-asset-v="{{ v }}">
   {% include "_header.html" %}
 
-  <main class="page">
-    <section class="card">
-      <h2 class="panel-title" data-i18n="session.title">Session</h2>
-      <div id="session-box" class="session-box">
-        <span id="session-badge" class="session-dot" aria-hidden="true"></span>
-        <div>
-          <div id="session-user" class="session-user">—</div>
-          <div id="header-sub" class="session-source">—</div>
+  <main class="page page-settings">
+    <aside class="settings-sidebar">
+      <section class="card settings-session-card">
+        <h2 class="panel-title" data-i18n="session.title">Session</h2>
+        <div id="session-box" class="session-box">
+          <span id="session-badge" class="session-dot" aria-hidden="true"></span>
+          <div>
+            <div id="session-user" class="session-user">—</div>
+            <div id="header-sub" class="session-source">—</div>
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </aside>
 
-    <section class="card">
+    <section class="card settings-main">
       <h2 class="panel-title" data-i18n="settings.config">Configuration</h2>
-      <form id="config-form" class="config-form">
+      <form id="config-form" class="config-form config-form-grid">
         <fieldset class="config-fieldset">
           <legend data-i18n="settings.instagram">Instagram</legend>
           <label class="field">
@@ -40,17 +42,17 @@
 
         <fieldset class="config-fieldset">
           <legend data-i18n="settings.scan">Scan</legend>
-          <p class="field-hint" data-i18n="settings.mutualsHint">Seuls les abonnements mutuels sont suivis (tu les suis et ils te suivent). Entre un nombre ou MAX.</p>
+          <p class="field-hint" data-i18n="settings.mutualsHint">Personnes que tu suis et qui te suivent aussi. Entre un nombre ou MAX.</p>
           <label class="field">
             <span class="field-label" data-i18n="settings.account">Compte à suivre</span>
             <input type="text" id="cfg-username" name="username" data-i18n-placeholder="settings.accountPlaceholder" placeholder="@toi ou vide = session">
           </label>
           <label class="field">
-            <span class="field-label" data-i18n="settings.mutualsCount">Nombre de mutuels</span>
+            <span class="field-label" data-i18n="settings.mutualsCount">Nombre de personnes suivies</span>
             <input type="text" id="cfg-n-input" name="n" inputmode="numeric" data-i18n-placeholder="settings.mutualsPlaceholder" placeholder="100 ou MAX" value="100">
           </label>
           <label class="field">
-            <span class="field-label" data-i18n="settings.watchN">Abonnements par personne</span>
+            <span class="field-label" data-i18n="settings.watchN">Abonnements suivis par personne</span>
             <input type="text" id="cfg-watch-n-input" name="watch_n" inputmode="numeric" placeholder="MAX" value="MAX">
           </label>
           <label class="field">
@@ -95,8 +97,10 @@
           <p class="field-hint" data-i18n="settings.portHint">Un changement de port demande un redémarrage de instree serve.</p>
         </fieldset>
 
-        <div id="config-msg" class="config-msg hidden" role="status"></div>
-        <button type="submit" id="btn-save-config" class="btn btn-main" data-i18n="settings.save">Enregistrer</button>
+        <div class="settings-form-footer">
+          <div id="config-msg" class="config-msg hidden" role="status"></div>
+          <button type="submit" id="btn-save-config" class="btn btn-main" data-i18n="settings.save">Enregistrer</button>
+        </div>
       </form>
     </section>
   </main>
