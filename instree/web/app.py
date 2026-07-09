@@ -122,11 +122,9 @@ def create_app() -> FastAPI:
             request, "changes.html", {"v": _asset_version(), "page": "changes"}
         )
 
-    @app.get("/actions", response_class=HTMLResponse)
-    async def actions_page(request: Request):
-        return templates.TemplateResponse(
-            request, "actions.html", {"v": _asset_version(), "page": "actions"}
-        )
+    @app.get("/actions", include_in_schema=False)
+    async def actions_redirect():
+        return RedirectResponse("/changes", status_code=307)
 
     @app.get("/api/status")
     async def api_status():

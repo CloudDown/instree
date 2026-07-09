@@ -4,17 +4,14 @@
       <h1>Instree</h1>
       <span class="brand-sub" data-i18n="brand.{{ page }}">{{ page }}</span>
     </div>
-    <div class="topbar-right">
-      <nav class="topnav" aria-label="Navigation principale">
-        <a href="/changes" class="topnav-link{% if page == 'changes' %} active{% endif %}" data-i18n="nav.changes">Visualisation</a>
-        <a href="/actions" class="topnav-link{% if page == 'actions' %} active{% endif %}" data-i18n="nav.actions">Actions</a>
-        <a href="/settings" class="topnav-link{% if page == 'settings' %} active{% endif %}" data-i18n="nav.settings">Paramètres</a>
-      </nav>
-      <div class="lang-switch" role="group" data-i18n-aria-label="lang.label" aria-label="Langue">
-        <button type="button" class="lang-btn" data-lang="fr" aria-label="Français">🇫🇷</button>
-        <button type="button" class="lang-btn" data-lang="en" aria-label="English">🇬🇧</button>
-        <button type="button" class="lang-btn" data-lang="es" aria-label="Español">🇪🇸</button>
-      </div>
+    <nav class="topnav" aria-label="Navigation principale">
+      <a href="/changes" class="topnav-link{% if page == 'changes' %} active{% endif %}" data-i18n="nav.changes">Visualisation</a>
+      <a href="/settings" class="topnav-link{% if page == 'settings' %} active{% endif %}" data-i18n="nav.settings">Paramètres</a>
+    </nav>
+    <div class="lang-switch" role="group" data-i18n-aria-label="lang.label" aria-label="Langue">
+      <button type="button" class="lang-btn" data-lang="fr" aria-label="Français">🇫🇷</button>
+      <button type="button" class="lang-btn" data-lang="en" aria-label="English">🇬🇧</button>
+      <button type="button" class="lang-btn" data-lang="es" aria-label="Español">🇪🇸</button>
     </div>
   </div>
 </header>

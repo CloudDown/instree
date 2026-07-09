@@ -11,13 +11,35 @@
 
   <main class="page page-wide">
     <section class="card">
-      <h2 class="panel-title" data-i18n="session.title">Session</h2>
-      <div id="session-box" class="session-box">
-        <span id="session-badge" class="session-dot" aria-hidden="true"></span>
-        <div>
-          <div id="session-user" class="session-user">—</div>
-          <div id="header-sub" class="session-source">—</div>
+      <h2 class="panel-title" data-i18n="actions.title">Lancer un scan</h2>
+      <p class="panel-hint" data-i18n="actions.hint">Mode simple : incrémental. Tu peux aussi lancer une baseline.</p>
+
+      <button id="btn-scan" type="button" class="btn btn-main" data-i18n="actions.scanBtn">Lancer un scan</button>
+
+      <details class="advanced" id="advanced-actions">
+        <summary data-i18n="actions.advanced">Actions avancées</summary>
+        <div class="advanced-body">
+          <p class="panel-hint warn" data-i18n="actions.advancedWarn">Plus lent et plus d'appels API.</p>
+          <button id="btn-init" type="button" class="btn btn-ghost">
+            <span data-i18n="actions.baselineBtn">Baseline</span>
+            <span class="btn-desc" data-i18n="actions.baselineDesc">Premier scan ou repartir de zéro</span>
+          </button>
         </div>
+      </details>
+
+      <div id="job-panel" class="job-panel hidden" role="status" aria-live="polite">
+        <div class="job-label" data-i18n="job.running">Scan en cours</div>
+        <div class="job-progress">
+          <div class="job-sublabel" data-i18n="job.profiles">Profils</div>
+          <div class="job-text" id="job-text-profiles">—</div>
+          <div class="progress-track"><div id="job-bar-profiles" class="progress-bar"></div></div>
+        </div>
+        <div id="job-watch-block" class="job-progress hidden">
+          <div class="job-sublabel" data-i18n="job.subscriptions">Abonnements</div>
+          <div class="job-text" id="job-text-watch">—</div>
+          <div class="progress-track"><div id="job-bar-watch" class="progress-bar"></div></div>
+        </div>
+        <button id="btn-stop-scan" type="button" class="btn btn-ghost job-stop hidden" data-i18n="actions.stopScan">Arrêter le scan</button>
       </div>
     </section>
 
@@ -37,9 +59,8 @@
         <p class="empty" data-i18n="changes.loading">Chargement…</p>
       </div>
       <footer class="legend" aria-label="Légende">
-        <span><strong>+</strong> <span data-i18n="changes.legendMutualAdd">ajout à ta liste de mutuels</span></span>
-        <span><strong>−</strong> <span data-i18n="changes.legendMutualRemove">retrait de ta liste de mutuels</span></span>
-        <p class="legend-hint" data-i18n="changes.legendPersonHint">Sous chaque nom : abonnements que cette personne suit</p>
+        <span><strong>+</strong> <span data-i18n="changes.legendMutualAdd">s'est abonné</span></span>
+        <span><strong>−</strong> <span data-i18n="changes.legendMutualRemove">s'est désabonné</span></span>
       </footer>
     </section>
 
@@ -49,6 +70,17 @@
       <p id="history-empty" class="history-empty hidden" data-i18n="changes.historyEmpty">Aucun scan pour l'instant.</p>
     </section>
   </main>
+
+  <dialog id="confirm-dialog" class="dialog">
+    <form method="dialog" class="dialog-box">
+      <h3 id="confirm-title" data-i18n="dialog.confirm">Confirmer</h3>
+      <p id="confirm-message"></p>
+      <div class="dialog-actions">
+        <button type="submit" class="btn btn-ghost" value="cancel" data-i18n="dialog.cancel">Annuler</button>
+        <button type="submit" class="btn btn-main" id="confirm-ok" value="ok" data-i18n="dialog.confirm">Confirmer</button>
+      </div>
+    </form>
+  </dialog>
 
   <script src="/static/i18n.js?v={{ v }}"></script>
   <script src="/static/app.js?v={{ v }}"></script>

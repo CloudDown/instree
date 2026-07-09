@@ -225,8 +225,8 @@ function renderPersonSection(groups) {
           ? `${g.old_count} → ${g.new_count} ${t("changes.subscriptions")}`
           : "";
       const title =
-        `<div class="changes-group-title">` +
-        igUser(g.username) +
+        `<div class="person-group-title">` +
+        igUser(g.username, "person-subject") +
         (countLabel ? ` <span class="change-detail">${countLabel}</span>` : "") +
         `</div>`;
       const lines = [];
@@ -501,7 +501,8 @@ async function initSettingsPage() {
   }
 }
 
-async function initActionsPage() {
+async function initChangesPage() {
+  await loadScans();
   if (btnScan) {
     btnScan.onclick = async () => {
       const ok = await askConfirm(t("actions.confirmScanTitle"), t("actions.confirmScanMsg"));
@@ -527,10 +528,6 @@ async function initActionsPage() {
       renderJob(await res.json());
     };
   }
-}
-
-async function initChangesPage() {
-  await loadScans();
   document.addEventListener("keydown", (e) => {
     if (e.key === "ArrowLeft" && btnPrev) btnPrev.click();
     if (e.key === "ArrowRight" && btnNext) btnNext.click();
@@ -563,7 +560,6 @@ async function init() {
   renderJob(status.job);
 
   if (page === "settings") await initSettingsPage();
-  if (page === "actions") await initActionsPage();
   if (page === "changes") await initChangesPage();
 }
 
