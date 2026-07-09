@@ -99,6 +99,8 @@ def cmd_schedule_install(args: argparse.Namespace) -> int:
     print(f"  dépôt     {root}")
     print(f"  commande  {exec_start}")
     print(f"  heures    {', '.join(settings.schedule_times)}")
+    if settings.schedule_interval_minutes > 0:
+        print(f"  intervalle  {settings.schedule_interval_minutes} min")
     print(f"  unités    {unit_dir}/")
     print()
     print("  systemctl --user daemon-reload")

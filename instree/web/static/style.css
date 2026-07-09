@@ -58,14 +58,13 @@ body {
 }
 
 .lang-btn {
-  padding: 0.35rem 0.5rem;
+  padding: 0.35rem 0.45rem;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: transparent;
   color: var(--muted);
-  font-size: 0.65rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-size: 1rem;
+  line-height: 1;
   cursor: pointer;
 }
 
@@ -725,7 +724,23 @@ body {
 .change-line.remove .change-op::before { content: "−"; }
 .change-line.count .change-op::before { content: "~"; }
 
-.change-user { font-weight: 600; }
+.change-user,
+a.change-user {
+  font-weight: 600;
+}
+
+a.change-user {
+  color: inherit;
+  text-decoration: none;
+}
+
+a.change-user:hover {
+  text-decoration: underline;
+}
+
+.session-user a.change-user {
+  color: inherit;
+}
 .change-name { color: var(--muted); }
 
 .change-detail {
@@ -739,10 +754,17 @@ body {
   padding: 0.75rem 1.5rem;
   border-top: 1px solid var(--border);
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 1.5rem;
   font-size: 0.7rem;
   color: var(--muted);
+}
+
+.legend-hint {
+  flex: 1 1 100%;
+  margin: 0.15rem 0 0;
+  text-align: center;
 }
 
 .legend strong {

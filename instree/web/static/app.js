@@ -19,6 +19,7 @@ const elCfgWatchNInput = document.getElementById("cfg-watch-n-input");
 const elCfgPageSleep = document.getElementById("cfg-page-sleep");
 const elCfgPageSize = document.getElementById("cfg-page-size");
 const elCfgScheduleInput = document.getElementById("cfg-schedule-input");
+const elCfgScheduleInterval = document.getElementById("cfg-schedule-interval");
 const elCfgHost = document.getElementById("cfg-host");
 const elCfgPort = document.getElementById("cfg-port");
 const elConfigMsg = document.getElementById("config-msg");
@@ -52,6 +53,20 @@ function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+function igProfileUrl(username) {
+  const u = String(username || "").replace(/^@/, "").trim();
+  return u ? `https://www.instagram.com/${encodeURIComponent(u)}/` : "#";
+}
+
+function igUser(username, className = "change-user") {
+  const u = String(username || "").replace(/^@/, "").trim();
+  if (!u) return "";
+  const cls = className ? ` class="${className}"` : "";
+  return (
+    `<a href="${igProfileUrl(u)}"${cls} target="_blank" rel="noopener noreferrer">@${esc(u)}</a>`
+  );
+}
+
 async function fetchStatus() {
   const r = await fetch("/api/status");
   return r.json();
@@ -72,7 +87,7 @@ function setControlsDisabled(disabled) {
 function renderSession(session) {
   if (!elSessionUser || !elSessionBadge || !elSub) return;
   if (session.ok) {
-    elSessionUser.textContent = `@${session.username}`;
+    elSessionUser.innerHTML = igUser(session.username);
     elSessionBadge.className = "session-dot ok";
     elSub.textContent = session.note ? `${session.source} · ${session.note}` : session.source;
   } else {
@@ -105,6 +120,9 @@ function fillConfigForm(config) {
   elCfgPageSleep.value = config.page_sleep;
   elCfgPageSize.value = config.page_size ?? 200;
   elCfgScheduleInput.value = (config.schedule_times || []).join(", ");
+  if (elCfgScheduleInterval) {
+    elCfgScheduleInterval.value = config.schedule_interval_minutes ?? 0;
+  }
   elCfgHost.value = config.host || "127.0.0.1";
   elCfgPort.value = config.port || 8765;
   elCfgSessionid.placeholder = config.sessionid_set
@@ -135,6 +153,7 @@ async function saveConfig(e) {
     host: elCfgHost.value.trim(),
     port: Number(elCfgPort.value),
     schedule_times: parseScheduleTimes(elCfgScheduleInput.value),
+    schedule_interval_minutes: Number(elCfgScheduleInterval?.value || 0),
     sessionid: elCfgSessionid.value.trim(),
     ds_user_id: elCfgDsUserId.value.trim(),
   };
@@ -177,7 +196,7 @@ function renderGroup(title, items, type) {
         return (
           `<div class="change-line ${type}">` +
           `<span class="change-op"></span>` +
-          `<span><span class="change-user">@${esc(c.username)}</span> ` +
+          `<span><span class="change-user-wrap">${igUser(c.username)}</span> ` +
           `<span class="change-detail">${c.old_count} → ${c.new_count} ${t("changes.subscriptions")}</span></span>` +
           `</div>`
         );
@@ -185,7 +204,7 @@ function renderGroup(title, items, type) {
       return (
         `<div class="change-line ${type}">` +
         `<span class="change-op"></span>` +
-        `<span><span class="change-user">@${esc(c.username)}</span> ` +
+        `<span><span class="change-user-wrap">${igUser(c.username)}</span> ` +
         `<span class="change-name">${esc(c.full_name)}</span></span>` +
         `</div>`
       );
@@ -203,21 +222,21 @@ function renderPersonSection(groups) {
           : "";
       const title =
         `<div class="changes-group-title">` +
-        `@${esc(g.username)}` +
+        igUser(g.username) +
         (countLabel ? ` <span class="change-detail">${countLabel}</span>` : "") +
         `</div>`;
       const lines = [];
       for (const a of g.adds) {
         lines.push(
           `<div class="change-line add"><span class="change-op"></span>` +
-            `<span><span class="change-user">@${esc(a.username)}</span> ` +
+            `<span><span class="change-user-wrap">${igUser(a.username)}</span> ` +
             `<span class="change-name">${esc(a.full_name)}</span></span></div>`,
         );
       }
       for (const r of g.removes) {
         lines.push(
           `<div class="change-line remove"><span class="change-op"></span>` +
-            `<span><span class="change-user">@${esc(r.username)}</span> ` +
+            `<span><span class="change-user-wrap">${igUser(r.username)}</span> ` +
             `<span class="change-name">${esc(r.full_name)}</span></span></div>`,
         );
       }
@@ -239,12 +258,11 @@ function renderDetail(detail) {
 
   const oldC = detail.old_count != null ? detail.old_count : "?";
   const hasListChanges = detail.adds.length || detail.removes.length;
-  const header = hasListChanges ? `@${esc(scan.username)}` : "";
+  const header = hasListChanges ? igUser(scan.username) : "";
   const sub = hasListChanges ? `${oldC} → ${scan.following_count} ${t("changes.subscriptions")}` : "";
   const sections = [];
   if (detail.adds.length) sections.push(renderGroup(t("changes.newMutuals"), detail.adds, "add"));
   if (detail.person_changes?.length) sections.push(renderPersonSection(detail.person_changes));
-  if (detail.counts.length) sections.push(renderGroup(t("changes.evolutions"), detail.counts, "count"));
   if (detail.removes.length) sections.push(renderGroup(t("changes.lostMutuals"), detail.removes, "remove"));
 
   elContent.innerHTML =
@@ -286,7 +304,7 @@ async function showScan(id) {
   ]);
   if (elDate) elDate.textContent = detail.scan.label;
   if (elMeta) {
-    elMeta.textContent = `@${detail.scan.username} · ${detail.scan.tracked_count} ${t("changes.mutualsMeta")} · ${neighbors.index + 1}/${neighbors.total}`;
+    elMeta.innerHTML = `${igUser(detail.scan.username)} · ${detail.scan.tracked_count} ${t("changes.mutualsMeta")} · ${neighbors.index + 1}/${neighbors.total}`;
   }
   if (btnPrev) {
     btnPrev.disabled = neighbors.prev_id == null;
@@ -369,7 +387,7 @@ function renderJob(job) {
           ? Math.round((job.progress_current / job.progress_total) * 100)
           : 0;
         const phaseSuffix = phase && phase !== "profile" ? ` · ${phaseLabel(phase)}` : "";
-        elJobTextProfiles.textContent = `[${job.progress_current}/${job.progress_total}] @${job.progress_user}${phaseSuffix}`;
+        elJobTextProfiles.innerHTML = `[${job.progress_current}/${job.progress_total}] ${igUser(job.progress_user)}${esc(phaseSuffix)}`;
         elJobBarProfiles.style.width = `${pct}%`;
       } else {
         elJobTextProfiles.textContent = t("job.connecting");
@@ -390,7 +408,7 @@ function renderJob(job) {
           ? 50
           : 0;
       const phaseSuffix = job.watch_phase ? ` · ${phaseLabel(job.watch_phase)}` : "";
-      elJobTextWatch.textContent = `@${job.watch_user} [${job.watch_current}/${job.watch_total || "?"}]${phaseSuffix}`;
+      elJobTextWatch.innerHTML = `${igUser(job.watch_user)} [${job.watch_current}/${job.watch_total || "?"}]${esc(phaseSuffix)}`;
       elJobBarWatch.style.width = `${Math.min(pct, 100)}%`;
     }
 
@@ -488,7 +506,16 @@ async function initSettingsPage() {
         return;
       }
       const data = await res.json();
-      showConfigMsg(t("settings.scheduleInstalled", { times: data.times.join(", ") }));
+      const intervalLabel =
+        data.interval_minutes > 0
+          ? `${data.interval_minutes} min`
+          : t("schedule.intervalOff");
+      showConfigMsg(
+        t("settings.scheduleInstalled", {
+          times: data.times.join(", "),
+          interval: intervalLabel,
+        }),
+      );
     };
   }
 }

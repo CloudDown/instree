@@ -62,12 +62,22 @@ WantedBy=default.target
 """
 
 
-def render_timer(times: tuple[str, ...]) -> str:
-    calendars = times_to_on_calendar(times)
-    hours_label = ", ".join(times)
-    calendar_lines = "\n".join(f"OnCalendar={c}" for c in calendars)
+def render_timer(times: tuple[str, ...], interval_minutes: int = 0) -> str:
+    timer_lines: list[str] = []
+    desc_parts: list[str] = []
+    if times:
+        calendars = times_to_on_calendar(times)
+        timer_lines.extend(f"OnCalendar={c}" for c in calendars)
+        desc_parts.append(", ".join(times))
+    if interval_minutes > 0:
+        timer_lines.append(f"OnUnitActiveSec={interval_minutes}min")
+        desc_parts.append(f"toutes les {interval_minutes} min")
+    if not timer_lines:
+        raise ValueError("aucune planification (heures ou intervalle)")
+    label = " + ".join(desc_parts)
+    calendar_lines = "\n".join(timer_lines)
     return f"""[Unit]
-Description=Instree — scan planifié ({hours_label})
+Description=Instree — scan planifié ({label})
 
 [Timer]
 {calendar_lines}
@@ -81,8 +91,10 @@ WantedBy=timers.target
 
 def install_systemd(settings: Settings) -> tuple[Path, Path, str]:
     """Écrit les unités dans ~/.config/systemd/user/."""
-    if not settings.schedule_times:
-        raise RuntimeError("[schedule] times vide dans instree.toml")
+    if not settings.schedule_times and settings.schedule_interval_minutes <= 0:
+        raise RuntimeError(
+            "[schedule] times vide et interval_minutes = 0 dans instree.toml"
+        )
 
     root = project_root().resolve()
     if not (root / "instree.toml").is_file():
@@ -100,6 +112,9 @@ def install_systemd(settings: Settings) -> tuple[Path, Path, str]:
     timer_path = unit_dir / "instree-scan.timer"
 
     service_path.write_text(render_service(root, exec_start), encoding="utf-8")
-    timer_path.write_text(render_timer(settings.schedule_times), encoding="utf-8")
+    timer_path.write_text(
+        render_timer(settings.schedule_times, settings.schedule_interval_minutes),
+        encoding="utf-8",
+    )
 
     return unit_dir, root, exec_start

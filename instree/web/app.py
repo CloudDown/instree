@@ -1,5 +1,6 @@
 """FastAPI — historique et gestion des scans."""
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -31,6 +32,7 @@ class ConfigUpdate(BaseModel):
     host: str = "127.0.0.1"
     port: int = 8765
     schedule_times: list[str] = ["08:00", "20:00"]
+    schedule_interval_minutes: int = 0
     sessionid: str = ""
     ds_user_id: str = ""
 
@@ -85,7 +87,19 @@ def _asset_version() -> str:
 
 def create_app() -> FastAPI:
     init_db()
-    app = FastAPI(title="Instree", docs_url=None, redoc_url=None)
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        from instree.web.interval_scheduler import (
+            start_interval_scheduler,
+            stop_interval_scheduler,
+        )
+
+        start_interval_scheduler()
+        yield
+        stop_interval_scheduler()
+
+    app = FastAPI(title="Instree", docs_url=None, redoc_url=None, lifespan=lifespan)
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
@@ -139,6 +153,7 @@ def create_app() -> FastAPI:
                 host=body.host,
                 port=body.port,
                 schedule_times=body.schedule_times,
+                schedule_interval_minutes=body.schedule_interval_minutes,
                 sessionid=body.sessionid or None,
                 ds_user_id=body.ds_user_id or None,
             )
@@ -167,6 +182,7 @@ def create_app() -> FastAPI:
             "root": str(root),
             "exec_start": exec_start,
             "times": list(settings.schedule_times),
+            "interval_minutes": settings.schedule_interval_minutes,
         }
 
     @app.get("/api/scans")
@@ -181,7 +197,6 @@ def create_app() -> FastAPI:
         scan = data["scan"]
         adds = [c for c in data["changes"] if c["op"] == "add"]
         removes = [c for c in data["changes"] if c["op"] == "remove"]
-        counts = [c for c in data["changes"] if c["op"] == "count"]
         sub_adds = [c for c in data["changes"] if c["op"] == "sub_add"]
         sub_removes = [c for c in data["changes"] if c["op"] == "sub_remove"]
 
@@ -189,11 +204,10 @@ def create_app() -> FastAPI:
         for c in sub_adds + sub_removes:
             subject = c["subject_username"] or ""
             if subject not in person_groups:
-                count_info = next((x for x in counts if x["username"] == subject), None)
                 person_groups[subject] = {
                     "username": subject,
-                    "old_count": count_info["old_count"] if count_info else None,
-                    "new_count": count_info["new_count"] if count_info else None,
+                    "old_count": None,
+                    "new_count": None,
                     "adds": [],
                     "removes": [],
                 }
@@ -202,9 +216,6 @@ def create_app() -> FastAPI:
             else:
                 person_groups[subject]["removes"].append(c)
 
-        subjects_with_detail = set(person_groups)
-        counts_fallback = [c for c in counts if c["username"] not in subjects_with_detail]
-
         old_count = None
         if adds or removes:
             old_count = scan["following_count"] - len(adds) + len(removes)
@@ -212,7 +223,7 @@ def create_app() -> FastAPI:
             **data,
             "adds": adds,
             "removes": removes,
-            "counts": counts_fallback,
+            "counts": [],
             "sub_adds": sub_adds,
             "sub_removes": sub_removes,
             "person_changes": list(person_groups.values()),

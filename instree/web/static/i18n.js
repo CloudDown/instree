@@ -46,6 +46,16 @@ const I18n = (() => {
         if (el.hasAttribute("aria-label")) el.setAttribute("aria-label", t(key));
       }
     });
+    root.querySelectorAll("[data-i18n-aria-label]").forEach((el) => {
+      const key = el.dataset.i18nAriaLabel;
+      if (key) el.setAttribute("aria-label", t(key));
+    });
+    root.querySelectorAll(".lang-btn[data-lang]").forEach((btn) => {
+      const code = btn.dataset.lang;
+      const label = t(`lang.${code}`);
+      btn.title = label;
+      btn.setAttribute("aria-label", label);
+    });
     document.documentElement.lang = locale;
     document.querySelectorAll("[data-lang]").forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.lang === locale);

@@ -19,3 +19,4 @@ port = 8765
 
 [schedule]
 times = ["08:00"]
+interval_minutes = 0

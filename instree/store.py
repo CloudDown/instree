@@ -385,25 +385,11 @@ def write_journal(scan_id: int, label: str, result: ScanResult) -> Path:
             sub_name = snap.subject_full_name if snap else ""
             adds = [c for c in changes if c.op == "sub_add"]
             rems = [c for c in changes if c.op == "sub_remove"]
-            old_fc = None
-            new_fc = None
-            for cc in result.count_changes:
-                if cc.username == subject:
-                    old_fc, new_fc = cc.old_count, cc.new_count
-                    break
-            if old_fc is not None and new_fc is not None:
-                lines.append(f"~ @{subject}  {old_fc} → {new_fc} abonnements")
-            else:
-                lines.append(f"~ @{subject}  {sub_name}".strip())
+            lines.append(f"~ @{subject}  {sub_name}".strip())
             for c in adds:
                 lines.append(f"  + @{c.username}  {c.full_name}")
             for c in rems:
                 lines.append(f"  - @{c.username}  {c.full_name}")
-
-        subjects_with_detail = set(by_subject)
-        for c in result.count_changes:
-            if c.username not in subjects_with_detail:
-                lines.append(f"~ @{c.username}  {c.old_count} → {c.new_count} abonnements")
 
     path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
     return path

@@ -129,11 +129,9 @@ def _fetch_person_following(
 def _apply_person_diff(
     profile_username: str,
     entry: FollowingEntry,
-    snapshot,
     stored: list[FollowingEntry],
     live: list[FollowingEntry],
     person_changes: list[PersonChange],
-    count_changes: list[CountChange],
 ) -> None:
     added, removed = _diff(stored, live)
     for a in added:
@@ -154,15 +152,6 @@ def _apply_person_diff(
                 username=r.username,
                 full_name=r.full_name,
                 op="sub_remove",
-            )
-        )
-    if not added and not removed:
-        count_changes.append(
-            CountChange(
-                username=profile_username,
-                full_name=entry.full_name,
-                old_count=snapshot.following_count,
-                new_count=entry.following_count,
             )
         )
 
@@ -288,11 +277,9 @@ def _watch_persons(
                         _apply_person_diff(
                             profile.username,
                             entry,
-                            snapshot,
                             stored,
                             live,
                             person_changes,
-                            count_changes,
                         )
                 else:
                     live = _fetch_person_following(
@@ -312,22 +299,11 @@ def _watch_persons(
                         _apply_person_diff(
                             profile.username,
                             entry,
-                            snapshot,
                             stored,
                             live,
                             person_changes,
-                            count_changes,
                         )
             except Exception:
-                if need_diff and snapshot is not None:
-                    count_changes.append(
-                        CountChange(
-                            username=profile.username,
-                            full_name=entry.full_name,
-                            old_count=snapshot.following_count,
-                            new_count=profile.following_count,
-                        )
-                    )
                 if i + 1 < len(entries):
                     time.sleep(page_sleep)
                 continue

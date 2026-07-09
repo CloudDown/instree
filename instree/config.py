@@ -46,6 +46,7 @@ class Settings:
     host: str = "127.0.0.1"
     port: int = 8765
     schedule_times: tuple[str, ...] = ("08:00", "20:00")
+    schedule_interval_minutes: int = 0
 
 
 def _read_toml(path: Path) -> dict:
@@ -82,6 +83,16 @@ def parse_page_size(raw) -> int:
 def format_limit(n: int) -> str:
     """Affichage : 0 → MAX."""
     return "MAX" if n <= 0 else str(n)
+
+
+def parse_interval_minutes(raw) -> int:
+    """Intervalle de scan en minutes (0 = désactivé)."""
+    if raw is None:
+        return 0
+    if isinstance(raw, bool):
+        raise ValueError("valeur invalide")
+    n = int(raw) if isinstance(raw, int) else int(str(raw).strip())
+    return max(0, n)
 
 
 def _parse_times(raw) -> tuple[str, ...]:
@@ -132,6 +143,9 @@ def load_settings(path: Path | None = None) -> Settings:
         host=str(web.get("host", "127.0.0.1")),
         port=int(web.get("port", 8765)),
         schedule_times=_parse_times(schedule.get("times")),
+        schedule_interval_minutes=parse_interval_minutes(
+            schedule.get("interval_minutes", 0)
+        ),
     )
 
 
@@ -147,6 +161,7 @@ def config_for_api() -> dict:
         "host": s.host,
         "port": s.port,
         "schedule_times": list(s.schedule_times),
+        "schedule_interval_minutes": s.schedule_interval_minutes,
         "sessionid_set": bool(s.sessionid),
         "ds_user_id_set": bool(s.ds_user_id),
         "paths": {
@@ -174,6 +189,7 @@ def _format_main_toml(
     host: str,
     port: int,
     schedule_times: tuple[str, ...],
+    schedule_interval_minutes: int,
 ) -> str:
     times = ", ".join(_toml_str(t) for t in schedule_times)
     return f"""# Instree — configuration (éditable via l'interface web)
@@ -198,6 +214,7 @@ port = {port}
 
 [schedule]
 times = [{times}]
+interval_minutes = {schedule_interval_minutes}
 """
 
 
@@ -221,6 +238,7 @@ def save_config(
     host: str = "127.0.0.1",
     port: int = 8765,
     schedule_times: list[str] | tuple[str, ...] | None = None,
+    schedule_interval_minutes: int | None = None,
     sessionid: str | None = None,
     ds_user_id: str | None = None,
 ) -> None:
@@ -230,6 +248,11 @@ def save_config(
 
     existing = load_settings()
     times = _parse_times(list(schedule_times or existing.schedule_times))
+    interval = (
+        parse_interval_minutes(schedule_interval_minutes)
+        if schedule_interval_minutes is not None
+        else existing.schedule_interval_minutes
+    )
 
     new_sessionid = existing.sessionid
     new_ds_user_id = existing.ds_user_id
@@ -251,6 +274,7 @@ def save_config(
             host=host.strip() or "127.0.0.1",
             port=max(1, min(65535, int(port))),
             schedule_times=times,
+            schedule_interval_minutes=interval,
         ),
         encoding="utf-8",
     )
