@@ -1,5 +1,5 @@
 # Instree — configuration (éditable via l'interface web)
-# Secrets : instree.local.toml (gitignored)
+# Secrets : config/instree.local.toml (gitignored)
 # n / watch_n : nombre ou MAX (= tous les abonnements)
 
 [instagram]

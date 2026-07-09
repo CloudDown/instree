@@ -148,9 +148,11 @@ def _write_macos(root: Path, exec_cmd: str) -> Path:
 
 def enable() -> Path:
     root = project_root().resolve()
-    if not (root / "instree.toml").is_file():
+    if not (root / "config" / "instree.toml").is_file() and not (
+        root / "instree.toml"
+    ).is_file():
         raise RuntimeError(
-            f"instree.toml introuvable dans {root} — lance la commande depuis le dépôt cloné"
+            f"config/instree.toml introuvable dans {root} — lance la commande depuis le dépôt cloné"
         )
     exec_cmd = resolve_serve_command(root)
     system = platform.system()

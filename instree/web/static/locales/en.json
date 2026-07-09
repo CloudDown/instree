@@ -56,7 +56,7 @@
   "settings.instagram": "Instagram",
   "settings.sessionId": "Session ID",
   "settings.userId": "User ID",
-  "settings.sessionHint": "Without a session here, Instree reads Chromium/Chrome once then saves to instree.local.toml.",
+  "settings.sessionHint": "Without a session here, Instree reads Chromium/Chrome once then saves to config/instree.local.toml.",
   "settings.testSession": "Test connection",
   "settings.testing": "Testing…",
   "settings.connectedAs": "Connected as @{user}",
@@ -93,9 +93,6 @@
   "lang.en": "English",
   "lang.es": "Español",
   "graph.legendCluster": "Linked group",
-  "graph.legendIsolate": "No link",
-  "graph.legendBridge": "Inter-group bridge",
-  "graph.legendIntra": "Intra-group link",
   "graph.panelTitle": "Display",
   "graph.sectionSummary": "Summary",
   "graph.sectionNodes": "Nodes",
@@ -109,8 +106,6 @@
   "graph.optIsolates": "Ungrouped accounts",
   "graph.optLabels": "Usernames (@)",
   "graph.optNodeSize": "Node size",
-  "graph.clustersAll": "All",
-  "graph.clustersNone": "None",
   "graph.optIntraLinks": "Intra-group links",
   "graph.optLinks": "Inter-group bridges",
   "graph.optLinkOpacity": "Opacity",
@@ -119,6 +114,5 @@
   "graph.optSpacing": "Internal spacing",
   "graph.btnFit": "Fit view",
   "graph.btnReset": "Reset",
-  "graph.noGroups": "No groups detected",
-  "graph.groupLabel": "Group {n}"
+  "graph.noGroups": "No groups detected"
 }

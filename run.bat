@@ -9,8 +9,8 @@ echo  Instree - installation et lancement
 echo  ===================================
 echo.
 
-if not exist "instree.toml" (
-    echo [ERREUR] instree.toml introuvable.
+if not exist "config\instree.toml" (
+    echo [ERREUR] config\instree.toml introuvable.
     echo          Lance ce fichier depuis la racine du projet Instree.
     echo.
     pause
@@ -19,10 +19,10 @@ if not exist "instree.toml" (
 
 if not exist "data" mkdir "data"
 
-if not exist "instree.local.toml" (
-    if exist "instree.local.toml.example" (
-        copy /Y "instree.local.toml.example" "instree.local.toml" >nul
-        echo [OK] instree.local.toml cree - configure ta session dans Settings.
+if not exist "config\instree.local.toml" (
+    if exist "config\instree.local.toml.example" (
+        copy /Y "config\instree.local.toml.example" "config\instree.local.toml" >nul
+        echo [OK] config\instree.local.toml cree - configure ta session dans Settings.
         echo.
     )
 )

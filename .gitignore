@@ -9,9 +9,13 @@ wheels/
 # Virtual environments
 .venv
 
+# Caches d'outils
+.ruff_cache/
+.cursor/
+
 # Secrets locaux
+config/instree.local.toml
 instree.local.toml
-session.toml
 
 # Données locales (snapshots, journal)
 data/

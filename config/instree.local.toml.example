@@ -1,0 +1,6 @@
+# Secrets Instagram — copier vers config/instree.local.toml
+# config/instree.local.toml est gitignored et surcharge config/instree.toml
+
+[instagram]
+sessionid = ""
+ds_user_id = ""

@@ -5,8 +5,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
-if [[ ! -f instree.toml ]]; then
-  echo "! Lance ./run depuis la racine du dépôt (instree.toml introuvable)"
+if [[ ! -f config/instree.toml ]]; then
+  echo "! Lance ./run depuis la racine du dépôt (config/instree.toml introuvable)"
   exit 1
 fi
 

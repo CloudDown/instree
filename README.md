@@ -20,8 +20,8 @@ Historique en SQLite, journaux texte, interface web et scans planifiés.
 ```bash
 git clone https://github.com/CloudDown/instree.git
 cd instree
-cp instree.local.toml.example instree.local.toml
-# Éditer instree.local.toml (sessionid, ds_user_id)
+cp config/instree.local.toml.example config/instree.local.toml
+# Éditer config/instree.local.toml (sessionid, ds_user_id)
 ./run
 ```
 
@@ -39,7 +39,7 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-Toujours lancer depuis la racine du dépôt (là où se trouve `instree.toml`).
+Toujours lancer depuis la racine du dépôt (là où se trouve `config/instree.toml`).
 
 ## Lancer le site web
 
@@ -53,11 +53,11 @@ Ouvre [http://127.0.0.1:8765](http://127.0.0.1:8765) — interface pour lancer l
 
 | Fichier | Rôle |
 |---------|------|
-| `instree.toml` | Config partagée (scan, web, horaires) |
-| `instree.local.toml` | Secrets Instagram (gitignored) |
+| `config/instree.toml` | Config partagée (scan, web, horaires) |
+| `config/instree.local.toml` | Secrets Instagram (gitignored) |
 
 ```toml
-# instree.toml
+# config/instree.toml
 [scan]
 n = 100
 
@@ -66,7 +66,7 @@ interval_minutes = 60
 ```
 
 ```toml
-# instree.local.toml
+# config/instree.local.toml
 [instagram]
 sessionid = "..."
 ds_user_id = "..."
@@ -79,7 +79,7 @@ Dans **Paramètres** :
 - **Intervalle (minutes)** — scans automatiques tant que `instree serve` tourne
 - **Lancement au démarrage** — lance `instree serve` à la connexion (Linux, Windows, macOS)
 
-La session Instagram doit être configurée dans `instree.local.toml` pour les scans sans navigateur.
+La session Instagram doit être configurée dans `config/instree.local.toml` pour les scans sans navigateur.
 
 ## Données locales (`data/`, gitignored)
 

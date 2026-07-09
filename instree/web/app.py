@@ -14,7 +14,6 @@ from instree.session import connect
 from instree.store import (
     get_graph_data,
     get_scan,
-    has_scans,
     init_db,
     list_scans,
     scan_neighbors,
@@ -144,7 +143,6 @@ def create_app() -> FastAPI:
         return {
             "session": session,
             "config": config_for_api(),
-            "has_scans": has_scans(),
             "job": job_status(),
         }
 

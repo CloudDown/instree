@@ -1,6 +1,0 @@
-# Secrets Instagram — copier vers instree.local.toml à la racine du dépôt
-# instree.local.toml est gitignored et surcharge instree.toml
-
-[instagram]
-sessionid = ""
-ds_user_id = ""

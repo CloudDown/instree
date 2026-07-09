@@ -1,4 +1,4 @@
-"""Connexion Instagram (instree.toml ou cookies navigateur)."""
+"""Connexion Instagram (config/instree.toml ou cookies navigateur)."""
 
 from instagrapi import Client
 from instagrapi.exceptions import LoginRequired
@@ -61,11 +61,11 @@ def connect() -> tuple[Client, str, str | None]:
                     "ds_user_id": settings.ds_user_id,
                 }
             )
-            return client, "instree.local.toml", None
+            return client, "config/instree.local.toml", None
         except (LoginRequired, Exception) as e:
             raise RuntimeError(
                 "Session TOML invalide ou expirée — mets à jour sessionid "
-                "dans Settings ou vide instree.local.toml pour relire le navigateur"
+                "dans Settings ou vide config/instree.local.toml pour relire le navigateur"
             ) from e
 
     found = _cookies_from_browser()
@@ -81,7 +81,7 @@ def connect() -> tuple[Client, str, str | None]:
     return (
         client,
         f"navigateur ({browser})",
-        "Session enregistrée dans instree.local.toml",
+        "Session enregistrée dans config/instree.local.toml",
     )
 
 

@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass
 
 from instree.config import load_settings
 from instree.errors import ScanCancelled
-from instree.scan import ScanSummary, run_scan
+from instree.scan import run_scan
 from instree.session import connect
 
 
@@ -30,21 +30,6 @@ class ScanJob:
 _lock = threading.Lock()
 _cancel = threading.Event()
 _job = ScanJob()
-
-
-def _summary_dict(s: ScanSummary) -> dict:
-    return {
-        "scan_id": s.scan_id,
-        "username": s.username,
-        "tracked": s.tracked,
-        "following_count": s.following_count,
-        "added": s.added,
-        "removed": s.removed,
-        "person_added": s.person_added,
-        "person_removed": s.person_removed,
-        "unchanged": s.unchanged,
-        "journal_path": s.journal_path,
-    }
 
 
 def job_status() -> dict:
@@ -112,7 +97,7 @@ def _worker(init: bool) -> None:
         )
         with _lock:
             _job.state = "done"
-            _job.result = _summary_dict(summary)
+            _job.result = {"scan_id": summary.scan_id}
             if summary.unchanged:
                 _job.message_key = "job.unchanged"
                 _job.message = "Inchangé"

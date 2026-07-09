@@ -1,4 +1,4 @@
-"""Chemins et chargement instree.toml."""
+"""Chemins et chargement config/instree.toml."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,22 +8,50 @@ _PKG_DIR = Path(__file__).resolve().parent
 
 
 def project_root() -> Path:
-    """Racine du dépôt : cwd si instree.toml présent, sinon parent du package."""
+    """Racine du dépôt."""
     cwd = Path.cwd()
-    if (cwd / "instree.toml").is_file():
-        return cwd
-    candidate = _PKG_DIR.parent
-    if (candidate / "instree.toml").is_file():
-        return candidate
-    return cwd if (cwd / "pyproject.toml").is_file() else candidate
+    candidates = [cwd]
+    pkg_parent = _PKG_DIR.parent
+    if pkg_parent != cwd:
+        candidates.append(pkg_parent)
+    for candidate in candidates:
+        if (candidate / "config" / "instree.toml").is_file():
+            return candidate
+        if (candidate / "instree.toml").is_file():
+            return candidate
+        if (candidate / "pyproject.toml").is_file():
+            return candidate
+    return cwd if (cwd / "pyproject.toml").is_file() else pkg_parent
+
+
+def config_dir() -> Path:
+    return project_root() / "config"
+
+
+def _resolve_config_path(name: str) -> Path:
+    """Chemin dans config/, avec repli sur la racine (legacy)."""
+    root = project_root()
+    new = config_dir() / name
+    legacy = root / name
+    if new.is_file():
+        return new
+    if legacy.is_file():
+        return legacy
+    return new
+
+
+def _write_config_path(name: str) -> Path:
+    d = config_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    return d / name
 
 
 def main_config_path() -> Path:
-    return project_root() / "instree.toml"
+    return _resolve_config_path("instree.toml")
 
 
 def local_config_path() -> Path:
-    return project_root() / "instree.local.toml"
+    return _resolve_config_path("instree.local.toml")
 
 
 def db_path() -> Path:
@@ -95,7 +123,7 @@ def parse_interval_minutes(raw) -> int:
     return max(0, n)
 
 
-def load_raw_config() -> dict:
+def _load_raw_config() -> dict:
     """Config fusionnée instree.toml + instree.local.toml."""
     main = _read_toml(main_config_path())
     local = _read_toml(local_config_path())
@@ -110,8 +138,8 @@ def load_raw_config() -> dict:
     return merged
 
 
-def load_settings(path: Path | None = None) -> Settings:
-    raw = load_raw_config() if path is None else _read_toml(path)
+def load_settings() -> Settings:
+    raw = _load_raw_config()
 
     ig = raw.get("instagram", {})
     scan = raw.get("scan", {})
@@ -173,7 +201,7 @@ def _format_main_toml(
     schedule_interval_minutes: int,
 ) -> str:
     return f"""# Instree — configuration (éditable via l'interface web)
-# Secrets : instree.local.toml (gitignored)
+# Secrets : config/instree.local.toml (gitignored)
 # n / watch_n : nombre ou MAX (= tous les abonnements)
 # page_size : abonnements demandés par page API (12–200)
 
@@ -200,7 +228,7 @@ interval_minutes = {schedule_interval_minutes}
 
 def _format_local_toml(*, sessionid: str, ds_user_id: str) -> str:
     return f"""# Secrets Instagram — ne pas committer
-# Surcharge instree.toml
+# Surcharge config/instree.toml
 
 [instagram]
 sessionid = {_toml_str(sessionid)}
@@ -222,10 +250,7 @@ def save_config(
     sessionid: str | None = None,
     ds_user_id: str | None = None,
 ) -> None:
-    """Écrit instree.toml + instree.local.toml."""
-    root = project_root()
-    root.mkdir(parents=True, exist_ok=True)
-
+    """Écrit config/instree.toml + config/instree.local.toml."""
     existing = load_settings()
     interval = (
         parse_interval_minutes(schedule_interval_minutes)
@@ -245,7 +270,7 @@ def save_config(
     if ds_user_id is not None and ds_user_id.strip():
         new_ds_user_id = ds_user_id.strip()
 
-    main_path = main_config_path()
+    main_path = _write_config_path("instree.toml")
 
     main_path.write_text(
         _format_main_toml(
@@ -274,9 +299,8 @@ def save_config(
 
 
 def save_session_credentials(sessionid: str, ds_user_id: str = "") -> None:
-    """Enregistre la session Instagram dans instree.local.toml (gitignored)."""
-    local_path = local_config_path()
-    local_path.parent.mkdir(parents=True, exist_ok=True)
+    """Enregistre la session Instagram dans config/instree.local.toml (gitignored)."""
+    local_path = _write_config_path("instree.local.toml")
     local_path.write_text(
         _format_local_toml(
             sessionid=sessionid.strip(),
