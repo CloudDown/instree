@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import threading
 from dataclasses import asdict, dataclass
-from datetime import datetime
 
 from instree.config import load_settings
 from instree.errors import ScanCancelled
@@ -15,7 +14,6 @@ from instree.session import connect
 @dataclass
 class ScanJob:
     state: str = "idle"
-    mode: str = ""
     progress_current: int = 0
     progress_total: int = 0
     progress_user: str = ""
@@ -27,8 +25,6 @@ class ScanJob:
     message: str = ""
     message_key: str = ""
     result: dict | None = None
-    started_at: str | None = None
-    finished_at: str | None = None
 
 
 _lock = threading.Lock()
@@ -44,7 +40,6 @@ def _summary_dict(s: ScanSummary) -> dict:
         "following_count": s.following_count,
         "added": s.added,
         "removed": s.removed,
-        "counts": s.counts,
         "person_added": s.person_added,
         "person_removed": s.person_removed,
         "unchanged": s.unchanged,
@@ -63,8 +58,7 @@ def start_scan(*, init: bool = False) -> None:
             raise RuntimeError("Un scan est déjà en cours")
 
     _cancel.clear()
-    mode = "init" if init else "incremental"
-    thread = threading.Thread(target=_worker, args=(init, mode), daemon=True)
+    thread = threading.Thread(target=_worker, args=(init,), daemon=True)
     thread.start()
 
 
@@ -77,7 +71,7 @@ def cancel_scan() -> bool:
     return True
 
 
-def _worker(init: bool, mode: str) -> None:
+def _worker(init: bool) -> None:
     global _job
 
     def on_progress(
@@ -104,11 +98,7 @@ def _worker(init: bool, mode: str) -> None:
         return _cancel.is_set()
 
     with _lock:
-        _job = ScanJob(
-            state="running",
-            mode=mode,
-            started_at=datetime.now().isoformat(timespec="seconds"),
-        )
+        _job = ScanJob(state="running")
 
     try:
         settings = load_settings()
@@ -129,19 +119,16 @@ def _worker(init: bool, mode: str) -> None:
             else:
                 _job.message_key = "job.done"
                 _job.message = f"Scan #{summary.scan_id} terminé"
-            _job.finished_at = datetime.now().isoformat(timespec="seconds")
     except ScanCancelled:
         with _lock:
             _job.state = "cancelled"
             _job.message_key = "job.cancelled"
             _job.message = "Scan annulé"
-            _job.finished_at = datetime.now().isoformat(timespec="seconds")
     except Exception as e:
         with _lock:
             _job.state = "error"
             _job.message_key = ""
             _job.message = str(e)
-            _job.finished_at = datetime.now().isoformat(timespec="seconds")
     finally:
         _cancel.clear()
 

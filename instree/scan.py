@@ -11,7 +11,6 @@ from instree.errors import ScanCancelled
 from instree.ig import fetch_following, fetch_mutuals, user_profile
 from instree.session import session_user
 from instree.store import (
-    CountChange,
     FollowingEntry,
     PersonChange,
     ScanResult,
@@ -33,7 +32,6 @@ class ScanSummary:
     following_count: int
     added: int
     removed: int
-    counts: int
     person_added: int
     person_removed: int
     unchanged: bool
@@ -168,17 +166,14 @@ def _watch_persons(
     on_progress=None,
     should_cancel: Callable[[], bool] | None = None,
 ) -> tuple[
-    list[CountChange],
     list[PersonChange],
     list[FollowingEntry],
     list[tuple[str, list[FollowingEntry], int]],
 ]:
-    count_changes: list[CountChange] = []
     person_changes: list[PersonChange] = []
     updated: list[FollowingEntry] = []
     snapshots: list[tuple[str, list[FollowingEntry], int]] = []
     fetch_limit = watch_n if watch_n > 0 else 0
-    force_full = is_baseline
 
     for i, e in enumerate(entries):
         _check_cancel(should_cancel)
@@ -202,8 +197,7 @@ def _watch_persons(
 
         snapshot = get_person_snapshot(profile.username)
         need_baseline = (
-            force_full
-            or is_baseline
+            is_baseline
             or snapshot is None
             or profile.username in new_usernames
         )
@@ -312,7 +306,7 @@ def _watch_persons(
             time.sleep(page_sleep)
             _check_cancel(should_cancel)
 
-    return count_changes, person_changes, updated, snapshots
+    return person_changes, updated, snapshots
 
 
 def run_scan(
@@ -326,7 +320,6 @@ def run_scan(
     init_db()
     _check_cancel(should_cancel)
     is_baseline = init or not has_scans()
-    force_full = is_baseline
 
     username = settings.username or session_user(ig)
     limit = settings.n
@@ -342,7 +335,7 @@ def run_scan(
         or profile.following_count != old_total
         or profile.follower_count != old_followers
     )
-    need_list = force_full or not stored_list or counts_changed
+    need_list = is_baseline or not stored_list or counts_changed
 
     added: list[FollowingEntry] = []
     removed: list[FollowingEntry] = []
@@ -373,7 +366,7 @@ def run_scan(
 
     new_usernames = {a.username for a in added}
 
-    count_changes, person_changes, following, person_snapshots = _watch_persons(
+    person_changes, following, person_snapshots = _watch_persons(
         ig,
         live,
         watch_n=settings.watch_n,
@@ -393,7 +386,6 @@ def run_scan(
         and not need_list
         and not added
         and not removed
-        and not count_changes
         and not person_changes
         and not person_snapshots
     ):
@@ -404,7 +396,6 @@ def run_scan(
             following_count=profile.following_count,
             added=0,
             removed=0,
-            counts=0,
             person_added=0,
             person_removed=0,
             unchanged=True,
@@ -413,23 +404,19 @@ def run_scan(
 
     result = ScanResult(
         username=profile.username,
-        user_pk=profile.pk,
         old_count=old_total,
         following_count=profile.following_count,
         follower_count=profile.follower_count,
         tracked_count=len(following),
         added=added,
         removed=removed,
-        count_changes=count_changes,
         person_changes=person_changes,
         unchanged=(
             not added
             and not removed
-            and not count_changes
             and not person_changes
             and not is_baseline
         ),
-        skipped=False,
         person_snapshots=person_snapshots if person_snapshots else None,
     )
     scan_id, journal_path = save_scan(result, following)
@@ -441,7 +428,6 @@ def run_scan(
         following_count=profile.following_count,
         added=len(added),
         removed=len(removed),
-        counts=len(count_changes),
         person_added=person_added,
         person_removed=person_removed,
         unchanged=False,

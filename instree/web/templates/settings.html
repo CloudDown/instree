@@ -69,14 +69,10 @@
         <fieldset class="config-fieldset">
           <legend data-i18n="settings.schedule">Planification</legend>
           <label class="field">
-            <span class="field-label" data-i18n="settings.scheduleTimes">Heures fixes</span>
-            <input type="text" id="cfg-schedule-input" name="schedule_times" placeholder="08:00, 20:00">
-          </label>
-          <label class="field">
             <span class="field-label" data-i18n="settings.scheduleInterval">Intervalle (minutes)</span>
             <input type="number" id="cfg-schedule-interval" name="schedule_interval_minutes" min="0" step="1" value="0">
           </label>
-          <p class="field-hint" data-i18n="settings.scheduleIntervalHint">0 = désactivé. Cumulable avec les heures fixes.</p>
+          <p class="field-hint" data-i18n="settings.scheduleIntervalHint">0 = désactivé. Relance un scan automatiquement tant que le serveur tourne.</p>
           <label class="field field-checkbox">
             <input type="checkbox" id="cfg-autostart" name="autostart_on_boot">
             <span data-i18n="settings.autostartOnBoot">Lancement au démarrage de l'ordinateur</span>
@@ -104,17 +100,6 @@
       </form>
     </section>
   </main>
-
-  <dialog id="confirm-dialog" class="dialog">
-    <form method="dialog" class="dialog-box">
-      <h3 id="confirm-title" data-i18n="dialog.confirm">Confirmer</h3>
-      <p id="confirm-message"></p>
-      <div class="dialog-actions">
-        <button type="submit" class="btn btn-ghost" value="cancel" data-i18n="dialog.cancel">Annuler</button>
-        <button type="submit" class="btn btn-main" id="confirm-ok" value="ok" data-i18n="dialog.confirm">Confirmer</button>
-      </div>
-    </form>
-  </dialog>
 
   <script src="/static/i18n.js?v={{ v }}"></script>
   <script src="/static/app.js?v={{ v }}"></script>

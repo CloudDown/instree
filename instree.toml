@@ -19,5 +19,4 @@ port = 8765
 autostart_on_boot = false
 
 [schedule]
-times = ["08:00"]
 interval_minutes = 0

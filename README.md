@@ -62,7 +62,7 @@ Ouvre [http://127.0.0.1:8765](http://127.0.0.1:8765) — interface pour lancer l
 n = 100
 
 [schedule]
-times = ["08:00", "20:00"]
+interval_minutes = 60
 ```
 
 ```toml
@@ -76,7 +76,7 @@ ds_user_id = "..."
 
 Dans **Paramètres** :
 
-- **Heures fixes** et **intervalle (minutes)** — scans automatiques tant que `instree serve` tourne
+- **Intervalle (minutes)** — scans automatiques tant que `instree serve` tourne
 - **Lancement au démarrage** — lance `instree serve` à la connexion (Linux, Windows, macOS)
 
 La session Instagram doit être configurée dans `instree.local.toml` pour les scans sans navigateur.

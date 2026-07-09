@@ -11,7 +11,14 @@ from pydantic import BaseModel
 
 from instree.config import config_for_api, load_settings, save_config
 from instree.session import connect
-from instree.store import get_scan, has_scans, init_db, list_scans, scan_neighbors
+from instree.store import (
+    get_graph_data,
+    get_scan,
+    has_scans,
+    init_db,
+    list_scans,
+    scan_neighbors,
+)
 from instree.web.runner import cancel_scan, job_status, reset_job, start_scan
 
 WEB_DIR = Path(__file__).resolve().parent
@@ -32,7 +39,6 @@ class ConfigUpdate(BaseModel):
     host: str = "127.0.0.1"
     port: int = 8765
     autostart_on_boot: bool = False
-    schedule_times: list[str] = ["08:00", "20:00"]
     schedule_interval_minutes: int = 0
     sessionid: str = ""
     ds_user_id: str = ""
@@ -75,7 +81,7 @@ def _session_info() -> dict:
 def _asset_version() -> str:
     """Empreinte basée sur la date de modification des fichiers statiques."""
     latest = 0.0
-    for name in ("app.js", "style.css", "i18n.js"):
+    for name in ("app.js", "style.css", "i18n.js", "graph.js"):
         f = STATIC_DIR / name
         if f.is_file():
             latest = max(latest, f.stat().st_mtime)
@@ -122,6 +128,12 @@ def create_app() -> FastAPI:
             request, "changes.html", {"v": _asset_version(), "page": "changes"}
         )
 
+    @app.get("/graph", response_class=HTMLResponse)
+    async def graph_page(request: Request):
+        return templates.TemplateResponse(
+            request, "graph.html", {"v": _asset_version(), "page": "graph"}
+        )
+
     @app.get("/actions", include_in_schema=False)
     async def actions_redirect():
         return RedirectResponse("/changes", status_code=307)
@@ -154,7 +166,6 @@ def create_app() -> FastAPI:
                 host=body.host,
                 port=body.port,
                 autostart_on_boot=body.autostart_on_boot,
-                schedule_times=body.schedule_times,
                 schedule_interval_minutes=body.schedule_interval_minutes,
                 sessionid=body.sessionid or None,
                 ds_user_id=body.ds_user_id or None,
@@ -181,17 +192,16 @@ def create_app() -> FastAPI:
         scan = data["scan"]
         adds = [c for c in data["changes"] if c["op"] == "add"]
         removes = [c for c in data["changes"] if c["op"] == "remove"]
-        sub_adds = [c for c in data["changes"] if c["op"] == "sub_add"]
-        sub_removes = [c for c in data["changes"] if c["op"] == "sub_remove"]
+        sub_changes = [
+            c for c in data["changes"] if c["op"] in ("sub_add", "sub_remove")
+        ]
 
         person_groups: dict[str, dict] = {}
-        for c in sub_adds + sub_removes:
+        for c in sub_changes:
             subject = c["subject_username"] or ""
             if subject not in person_groups:
                 person_groups[subject] = {
                     "username": subject,
-                    "old_count": None,
-                    "new_count": None,
                     "adds": [],
                     "removes": [],
                 }
@@ -207,17 +217,26 @@ def create_app() -> FastAPI:
             **data,
             "adds": adds,
             "removes": removes,
-            "counts": [],
-            "sub_adds": sub_adds,
-            "sub_removes": sub_removes,
             "person_changes": list(person_groups.values()),
             "old_count": old_count,
-            "has_changes": bool(data["changes"]),
+            "has_changes": bool(adds or removes or sub_changes),
         }
 
     @app.get("/api/scans/{scan_id}/neighbors")
     async def api_neighbors(scan_id: int):
         return scan_neighbors(scan_id)
+
+    @app.get("/api/graph")
+    async def api_graph():
+        data = get_graph_data()
+        if not data:
+            return {
+                "nodes": [],
+                "links": [],
+                "scan": None,
+                "stats": {"nodes": 0, "links": 0, "mutuals": 0, "clusters": 0},
+            }
+        return data
 
     @app.post("/api/scan")
     async def api_scan_start(body: ScanRequest):
@@ -226,10 +245,6 @@ def create_app() -> FastAPI:
             start_scan(init=body.init)
         except RuntimeError as e:
             raise HTTPException(409, str(e)) from e
-        return job_status()
-
-    @app.get("/api/scan/job")
-    async def api_scan_job():
         return job_status()
 
     @app.post("/api/scan/reset")

@@ -18,7 +18,6 @@ const elCfgNInput = document.getElementById("cfg-n-input");
 const elCfgWatchNInput = document.getElementById("cfg-watch-n-input");
 const elCfgPageSleep = document.getElementById("cfg-page-sleep");
 const elCfgPageSize = document.getElementById("cfg-page-size");
-const elCfgScheduleInput = document.getElementById("cfg-schedule-input");
 const elCfgScheduleInterval = document.getElementById("cfg-schedule-interval");
 const elCfgAutostart = document.getElementById("cfg-autostart");
 const elCfgHost = document.getElementById("cfg-host");
@@ -122,13 +121,6 @@ function showConfigMsg(text, ok = true) {
   setTimeout(() => elConfigMsg.classList.add("hidden"), 4000);
 }
 
-function parseScheduleTimes(raw) {
-  return raw
-    .split(/[,;\s]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
 function fillConfigForm(config) {
   if (!configForm) return;
   elCfgUsername.value = config.username || "";
@@ -136,7 +128,6 @@ function fillConfigForm(config) {
   elCfgWatchNInput.value = String(config.watch_n ?? "MAX");
   elCfgPageSleep.value = config.page_sleep;
   elCfgPageSize.value = config.page_size ?? 200;
-  elCfgScheduleInput.value = (config.schedule_times || []).join(", ");
   if (elCfgScheduleInterval) {
     elCfgScheduleInterval.value = config.schedule_interval_minutes ?? 0;
   }
@@ -173,7 +164,6 @@ async function saveConfig(e) {
     host: elCfgHost.value.trim(),
     port: Number(elCfgPort.value),
     autostart_on_boot: Boolean(elCfgAutostart?.checked),
-    schedule_times: parseScheduleTimes(elCfgScheduleInput.value),
     schedule_interval_minutes: Number(elCfgScheduleInterval?.value || 0),
     sessionid: elCfgSessionid.value.trim(),
     ds_user_id: elCfgDsUserId.value.trim(),
@@ -212,24 +202,14 @@ function askConfirm(title, message) {
 
 function renderGroup(title, items, type) {
   const lines = items
-    .map((c) => {
-      if (type === "count") {
-        return (
-          `<div class="change-line ${type}">` +
-          `<span class="change-op"></span>` +
-          `<span><span class="change-user-wrap">${igUser(c.username)}</span> ` +
-          `<span class="change-detail">${c.old_count} → ${c.new_count} ${t("changes.subscriptions")}</span></span>` +
-          `</div>`
-        );
-      }
-      return (
+    .map(
+      (c) =>
         `<div class="change-line ${type}">` +
         `<span class="change-op"></span>` +
         `<span><span class="change-user-wrap">${igUser(c.username)}</span> ` +
         `<span class="change-name">${esc(c.full_name)}</span></span>` +
-        `</div>`
-      );
-    })
+        `</div>`,
+    )
     .join("");
   return `<div class="changes-group"><div class="changes-group-title">${title}</div>${lines}</div>`;
 }
@@ -237,14 +217,9 @@ function renderGroup(title, items, type) {
 function renderPersonSection(groups) {
   const blocks = groups
     .map((g) => {
-      const countLabel =
-        g.old_count != null && g.new_count != null
-          ? `${g.old_count} → ${g.new_count} ${t("changes.subscriptions")}`
-          : "";
       const title =
         `<div class="person-group-title">` +
         igUser(g.username, "person-subject") +
-        (countLabel ? ` <span class="change-detail">${countLabel}</span>` : "") +
         `</div>`;
       const lines = [];
       for (const a of g.adds) {

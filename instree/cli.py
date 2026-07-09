@@ -76,7 +76,6 @@ def cmd_scan(args: argparse.Namespace) -> int:
         print(f"  suivis        : {summary.tracked}/{summary.following_count}")
         print(f"  ajouts        : {summary.added}")
         print(f"  retraits      : {summary.removed}")
-        print(f"  évolutions    : {summary.counts}")
         print(f"  abos +        : {summary.person_added}")
         print(f"  abos −        : {summary.person_removed}")
         if summary.journal_path:

@@ -46,7 +46,6 @@ class Settings:
     host: str = "127.0.0.1"
     port: int = 8765
     autostart_on_boot: bool = False
-    schedule_times: tuple[str, ...] = ("08:00", "20:00")
     schedule_interval_minutes: int = 0
 
 
@@ -96,21 +95,6 @@ def parse_interval_minutes(raw) -> int:
     return max(0, n)
 
 
-def _parse_times(raw) -> tuple[str, ...]:
-    if not raw:
-        return ("08:00", "20:00")
-    times = []
-    for t in raw:
-        part = str(t).strip()
-        if not part:
-            continue
-        h, _, m = part.partition(":")
-        if not h.isdigit() or not m.isdigit():
-            continue
-        times.append(f"{int(h):02d}:{int(m):02d}")
-    return tuple(times) if times else ("08:00", "20:00")
-
-
 def load_raw_config() -> dict:
     """Config fusionnée instree.toml + instree.local.toml."""
     main = _read_toml(main_config_path())
@@ -144,7 +128,6 @@ def load_settings(path: Path | None = None) -> Settings:
         host=str(web.get("host", "127.0.0.1")),
         port=int(web.get("port", 8765)),
         autostart_on_boot=bool(web.get("autostart_on_boot", False)),
-        schedule_times=_parse_times(schedule.get("times")),
         schedule_interval_minutes=parse_interval_minutes(
             schedule.get("interval_minutes", 0)
         ),
@@ -153,8 +136,6 @@ def load_settings(path: Path | None = None) -> Settings:
 
 def config_for_api() -> dict:
     """Config éditable pour l'interface web (sans exposer les secrets)."""
-    from instree.autostart import is_enabled
-
     s = load_settings()
     return {
         "username": s.username,
@@ -165,15 +146,9 @@ def config_for_api() -> dict:
         "host": s.host,
         "port": s.port,
         "autostart_on_boot": s.autostart_on_boot,
-        "autostart_active": is_enabled(),
-        "schedule_times": list(s.schedule_times),
         "schedule_interval_minutes": s.schedule_interval_minutes,
         "sessionid_set": bool(s.sessionid),
         "ds_user_id_set": bool(s.ds_user_id),
-        "paths": {
-            "main": str(main_config_path()),
-            "local": str(local_config_path()),
-        },
     }
 
 
@@ -195,10 +170,8 @@ def _format_main_toml(
     host: str,
     port: int,
     autostart_on_boot: bool,
-    schedule_times: tuple[str, ...],
     schedule_interval_minutes: int,
 ) -> str:
-    times = ", ".join(_toml_str(t) for t in schedule_times)
     return f"""# Instree — configuration (éditable via l'interface web)
 # Secrets : instree.local.toml (gitignored)
 # n / watch_n : nombre ou MAX (= tous les abonnements)
@@ -221,7 +194,6 @@ port = {port}
 autostart_on_boot = {"true" if autostart_on_boot else "false"}
 
 [schedule]
-times = [{times}]
 interval_minutes = {schedule_interval_minutes}
 """
 
@@ -246,7 +218,6 @@ def save_config(
     host: str = "127.0.0.1",
     port: int = 8765,
     autostart_on_boot: bool | None = None,
-    schedule_times: list[str] | tuple[str, ...] | None = None,
     schedule_interval_minutes: int | None = None,
     sessionid: str | None = None,
     ds_user_id: str | None = None,
@@ -256,7 +227,6 @@ def save_config(
     root.mkdir(parents=True, exist_ok=True)
 
     existing = load_settings()
-    times = _parse_times(list(schedule_times or existing.schedule_times))
     interval = (
         parse_interval_minutes(schedule_interval_minutes)
         if schedule_interval_minutes is not None
@@ -276,7 +246,6 @@ def save_config(
         new_ds_user_id = ds_user_id.strip()
 
     main_path = main_config_path()
-    local_path = local_config_path()
 
     main_path.write_text(
         _format_main_toml(
@@ -288,7 +257,6 @@ def save_config(
             host=host.strip() or "127.0.0.1",
             port=max(1, min(65535, int(port))),
             autostart_on_boot=autostart,
-            schedule_times=times,
             schedule_interval_minutes=interval,
         ),
         encoding="utf-8",

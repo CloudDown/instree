@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Instree · Graph</title>
+  <link rel="stylesheet" href="/static/style.css?v={{ v }}">
+</head>
+<body data-page="{{ page }}" data-asset-v="{{ v }}">
+  {% include "_header.html" %}
+
+  <main class="page page-graph">
+    <div id="graph-toolbar" class="graph-toolbar">
+      <div class="graph-legend">
+        <span class="graph-legend-item graph-legend-root" data-i18n="graph.legendRoot">Compte</span>
+        <span class="graph-legend-item graph-legend-cluster" data-i18n="graph.legendCluster">Groupe lié</span>
+      </div>
+    </div>
+
+    <div class="graph-stage">
+      <div id="graph-empty" class="graph-empty hidden">
+        <p><strong data-i18n="graph.emptyTitle">Aucune donnée.</strong>
+          <span data-i18n="graph.emptyHint">Lance un scan depuis Home pour construire le graphe.</span></p>
+      </div>
+      <div id="graph-canvas" class="graph-canvas" aria-label="Graphe des comptes"></div>
+    </div>
+
+    <aside id="graph-panel" class="graph-panel hidden">
+      <header class="graph-panel-header">
+        <h2 class="graph-panel-title" data-i18n="graph.panelTitle">Affichage</h2>
+      </header>
+
+      <div class="graph-panel-body">
+        <section class="graph-panel-section">
+          <h3 class="graph-panel-section-title" data-i18n="graph.sectionSummary">Résumé</h3>
+          <dl class="graph-panel-stats">
+            <div><dt data-i18n="graph.statNodes">Nœuds visibles</dt><dd id="graph-stat-nodes">—</dd></div>
+            <div><dt data-i18n="graph.statLinks">Liens visibles</dt><dd id="graph-stat-links">—</dd></div>
+            <div><dt data-i18n="graph.statGroups">Groupes visibles</dt><dd id="graph-stat-groups">—</dd></div>
+          </dl>
+        </section>
+
+        <section class="graph-panel-section">
+          <h3 class="graph-panel-section-title" data-i18n="graph.sectionNodes">Nœuds</h3>
+          <label class="field field-checkbox">
+            <input type="checkbox" id="graph-opt-root" checked>
+            <span data-i18n="graph.optRoot">Compte principal</span>
+          </label>
+          <label class="field field-checkbox">
+            <input type="checkbox" id="graph-opt-isolates" checked>
+            <span data-i18n="graph.optIsolates">Comptes sans groupe</span>
+          </label>
+          <label class="field field-checkbox">
+            <input type="checkbox" id="graph-opt-labels" checked>
+            <span data-i18n="graph.optLabels">Pseudos (@)</span>
+          </label>
+          <label class="field">
+            <span class="field-label">
+              <span data-i18n="graph.optNodeSize">Taille des points</span>
+              <output id="graph-opt-node-size-val" for="graph-opt-node-size">1.2</output>
+            </span>
+            <input type="range" id="graph-opt-node-size" min="0.6" max="2.4" step="0.1" value="1.2">
+          </label>
+        </section>
+
+        <section class="graph-panel-section">
+          <h3 class="graph-panel-section-title" data-i18n="graph.sectionGroups">Groupes</h3>
+          <div id="graph-cluster-list" class="graph-cluster-list"></div>
+        </section>
+
+        <section class="graph-panel-section">
+          <h3 class="graph-panel-section-title" data-i18n="graph.sectionLinks">Liens</h3>
+          <label class="field field-checkbox">
+            <input type="checkbox" id="graph-opt-intra-links" checked>
+            <span data-i18n="graph.optIntraLinks">Liens intra-groupe</span>
+          </label>
+          <label class="field field-checkbox">
+            <input type="checkbox" id="graph-opt-links" checked>
+            <span data-i18n="graph.optLinks">Ponts inter-groupes</span>
+          </label>
+          <label class="field">
+            <span class="field-label">
+              <span data-i18n="graph.optLinkOpacity">Opacité</span>
+              <output id="graph-opt-link-opacity-val" for="graph-opt-link-opacity">35%</output>
+            </span>
+            <input type="range" id="graph-opt-link-opacity" min="0" max="100" step="1" value="35">
+          </label>
+          <label class="field">
+            <span class="field-label">
+              <span data-i18n="graph.optLinkWidth">Épaisseur</span>
+              <output id="graph-opt-link-width-val" for="graph-opt-link-width">0.6</output>
+            </span>
+            <input type="range" id="graph-opt-link-width" min="0.2" max="2" step="0.1" value="0.6">
+          </label>
+        </section>
+
+        <section class="graph-panel-section">
+          <h3 class="graph-panel-section-title" data-i18n="graph.sectionLayout">Disposition</h3>
+          <label class="field">
+            <span class="field-label">
+              <span data-i18n="graph.optRingScale">Distance au compte</span>
+              <output id="graph-opt-ring-scale-val" for="graph-opt-ring-scale">50%</output>
+            </span>
+            <input type="range" id="graph-opt-ring-scale" min="20" max="100" step="5" value="50">
+          </label>
+          <label class="field">
+            <span class="field-label">
+              <span data-i18n="graph.optSpacing">Espacement interne</span>
+              <output id="graph-opt-spacing-val" for="graph-opt-spacing">100%</output>
+            </span>
+            <input type="range" id="graph-opt-spacing" min="50" max="100" step="5" value="100">
+          </label>
+        </section>
+
+        <section class="graph-panel-section graph-panel-actions">
+          <button type="button" id="graph-btn-fit" class="btn btn-ghost btn-sm" data-i18n="graph.btnFit">Ajuster la vue</button>
+          <button type="button" id="graph-btn-reset" class="btn btn-ghost btn-sm" data-i18n="graph.btnReset">Réinitialiser</button>
+        </section>
+      </div>
+    </aside>
+  </main>
+
+  <script src="/static/i18n.js?v={{ v }}"></script>
+  <script src="https://cdn.jsdelivr.net/npm/force-graph@1.49.5/dist/force-graph.min.js"></script>
+  <script src="/static/graph.js?v={{ v }}"></script>
+</body>
+</html>

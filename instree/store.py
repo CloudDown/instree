@@ -17,14 +17,6 @@ class FollowingEntry:
 
 
 @dataclass
-class CountChange:
-    username: str
-    full_name: str
-    old_count: int
-    new_count: int
-
-
-@dataclass
 class PersonChange:
     subject_username: str
     subject_full_name: str
@@ -43,18 +35,14 @@ class PersonSnapshot:
 @dataclass
 class ScanResult:
     username: str
-    user_pk: str
     old_count: int | None
     following_count: int
     follower_count: int
     tracked_count: int
     added: list[FollowingEntry]
     removed: list[FollowingEntry]
-    count_changes: list[CountChange]
     person_changes: list[PersonChange]
     unchanged: bool
-    skipped: bool
-    skip_reason: str = ""
     person_snapshots: list[tuple[str, list[FollowingEntry], int]] | None = None
 
 
@@ -319,14 +307,6 @@ def save_scan(result: ScanResult, following: list[FollowingEntry]) -> tuple[int,
                 "INSERT INTO changes (scan_id, op, username, full_name) VALUES (?, 'remove', ?, ?)",
                 (scan_id, c.username, c.full_name),
             )
-        for c in result.count_changes:
-            conn.execute(
-                """
-                INSERT INTO changes (scan_id, op, username, full_name, old_count, new_count)
-                VALUES (?, 'count', ?, ?, ?, ?)
-                """,
-                (scan_id, c.username, c.full_name, c.old_count, c.new_count),
-            )
         for c in result.person_changes:
             conn.execute(
                 """
@@ -353,16 +333,13 @@ def write_journal(scan_id: int, label: str, result: ScanResult) -> Path:
 
     has_person = bool(result.person_changes)
     has_list = bool(result.added or result.removed)
-    has_count = bool(result.count_changes)
 
-    if result.skipped:
-        lines.append(f"@{result.username}  ignoré ({result.skip_reason})")
-    elif result.unchanged:
+    if result.unchanged:
         lines.append(
             f"@{result.username}  inchangé "
             f"({result.tracked_count}/{result.following_count} abonnements suivis)"
         )
-    elif not has_list and not has_count and not has_person:
+    elif not has_list and not has_person:
         old = result.old_count if result.old_count is not None else "?"
         lines.append(
             f"@{result.username}  baseline "
@@ -447,3 +424,174 @@ def scan_neighbors(scan_id: int) -> dict:
         "index": idx,
         "total": len(ids),
     }
+
+
+# Couleurs de clusters (lisibles sur fond noir)
+_CLUSTER_COLORS = (
+    "#60a5fa",
+    "#34d399",
+    "#f472b6",
+    "#fb923c",
+    "#a78bfa",
+    "#2dd4bf",
+    "#f87171",
+    "#fbbf24",
+    "#38bdf8",
+    "#c084fc",
+    "#4ade80",
+    "#e879f9",
+    "#22d3ee",
+    "#fdba74",
+    "#86efac",
+)
+_ISOLATE_COLOR = "#6b7280"
+_ROOT_COLOR = "#facc15"
+
+
+def _cluster_mutuals(
+    mutuals: set[str], directed: list[tuple[str, str]]
+) -> dict[str, int]:
+    """Communautés Louvain (modularité) sur le graphe des mutuels.
+
+    Liens réciproques pondérés fort, liens à sens unique faibles.
+    """
+    import networkx as nx
+
+    edge_set = set(directed)
+    graph = nx.Graph()
+    graph.add_nodes_from(mutuals)
+    for a, b in directed:
+        if a not in mutuals or b not in mutuals:
+            continue
+        if a < b and (b, a) in edge_set:
+            graph.add_edge(a, b, weight=2.0)
+        elif (b, a) not in edge_set and not graph.has_edge(a, b):
+            graph.add_edge(a, b, weight=0.5)
+
+    communities = nx.community.louvain_communities(
+        graph, weight="weight", resolution=1.0, seed=42
+    )
+
+    ranked = sorted(communities, key=len, reverse=True)
+    cluster_of: dict[str, int] = {}
+    next_id = 0
+    for members in ranked:
+        if len(members) == 1:
+            cluster_of[next(iter(members))] = -1
+            continue
+        for u in members:
+            cluster_of[u] = next_id
+        next_id += 1
+    return cluster_of
+
+
+def get_graph_data() -> dict | None:
+    """Graphe mutuels : groupes sociaux (liens réciproques) colorés distinctement."""
+    with _connect() as conn:
+        scan = conn.execute(
+            """
+            SELECT id, username, scanned_at, following_count, tracked_count
+            FROM scans
+            ORDER BY id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        if not scan:
+            return None
+
+        root = scan["username"]
+        mutual_rows = conn.execute(
+            """
+            SELECT username, pk, full_name, following_count
+            FROM following
+            WHERE scan_id = ?
+            ORDER BY position
+            """,
+            (scan["id"],),
+        ).fetchall()
+        mutual_set = {r["username"] for r in mutual_rows}
+
+        directed: list[tuple[str, str]] = []
+        if mutual_set:
+            placeholders = ",".join("?" for _ in mutual_set)
+            params = list(mutual_set) + list(mutual_set)
+            edge_sql = f"""
+                SELECT person_username, target_username
+                FROM person_following
+                WHERE person_username IN ({placeholders})
+                  AND target_username IN ({placeholders})
+            """
+            for r in conn.execute(edge_sql, params).fetchall():
+                src, tgt = r["person_username"], r["target_username"]
+                if src and tgt and src != tgt:
+                    directed.append((src, tgt))
+
+        cluster_of = _cluster_mutuals(mutual_set, directed)
+        social_clusters = {c for c in cluster_of.values() if c >= 0}
+
+        nodes: list[dict] = [
+            {
+                "id": root,
+                "name": f"@{root}",
+                "full_name": "",
+                "group": "root",
+                "cluster": -2,
+                "color": _ROOT_COLOR,
+                "val": 3,
+            }
+        ]
+        for r in mutual_rows:
+            u = r["username"]
+            cluster = cluster_of.get(u, -1)
+            if cluster < 0:
+                color = _ISOLATE_COLOR
+            else:
+                color = _CLUSTER_COLORS[cluster % len(_CLUSTER_COLORS)]
+            nodes.append(
+                {
+                    "id": u,
+                    "name": f"@{u}",
+                    "full_name": r["full_name"] or "",
+                    "group": "isolate" if cluster < 0 else "cluster",
+                    "cluster": cluster,
+                    "color": color,
+                    "val": 1 if cluster < 0 else 1.2,
+                }
+            )
+
+        # Liens affichés : abonnements intra-groupe + ponts inter-groupes
+        links: list[dict] = []
+        seen: set[tuple[str, str]] = set()
+        for a, b in directed:
+            if a not in mutual_set or b not in mutual_set:
+                continue
+            ca = cluster_of.get(a, -1)
+            cb = cluster_of.get(b, -1)
+            key = (a, b) if a < b else (b, a)
+            if key in seen:
+                continue
+            seen.add(key)
+            if ca == cb:
+                if ca < 0:
+                    continue
+                links.append({"source": key[0], "target": key[1], "kind": "social"})
+            else:
+                links.append({"source": key[0], "target": key[1], "kind": "bridge"})
+
+        return {
+            "scan": {
+                "id": scan["id"],
+                "username": root,
+                "scanned_at": scan["scanned_at"],
+                "following_count": scan["following_count"],
+                "tracked_count": scan["tracked_count"],
+            },
+            "nodes": nodes,
+            "links": links,
+            "stats": {
+                "nodes": len(nodes),
+                "links": len(links),
+                "mutuals": len(mutual_rows),
+                "clusters": len(social_clusters),
+            },
+        }

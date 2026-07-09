@@ -78,11 +78,6 @@ def autostart_path() -> Path | None:
     return None
 
 
-def is_enabled() -> bool:
-    path = autostart_path()
-    return path is not None and path.is_file()
-
-
 def remove_legacy_systemd() -> None:
     """Supprime d'anciennes unités systemd si présentes."""
     unit_dir = Path.home() / ".config" / "systemd" / "user"
