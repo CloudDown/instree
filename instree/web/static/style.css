@@ -688,6 +688,27 @@ body {
 
 /* Changes */
 
+.changes-layout {
+  width: 100%;
+}
+
+.changes-section {
+  width: 100%;
+  margin-top: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.changes-section--panel-full {
+  margin-left: -1.5rem;
+  margin-right: -1.5rem;
+  width: calc(100% + 3rem);
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+}
+
 .changes-card {
   max-width: 36rem;
   margin: 0 auto;

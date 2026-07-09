@@ -82,20 +82,18 @@
           <p class="field-hint" data-i18n="settings.autostartHint">Lance instree serve automatiquement à la connexion (scans planifiés tant que le serveur tourne).</p>
         </fieldset>
 
-        <details class="advanced config-advanced">
-          <summary data-i18n="settings.webUi">Interface web</summary>
-          <div class="advanced-body">
-            <label class="field">
-              <span class="field-label" data-i18n="settings.host">Hôte</span>
-              <input type="text" id="cfg-host" name="host" value="127.0.0.1">
-            </label>
-            <label class="field">
-              <span class="field-label" data-i18n="settings.port">Port</span>
-              <input type="number" id="cfg-port" name="port" min="1" max="65535" value="8765">
-            </label>
-            <p class="field-hint" data-i18n="settings.portHint">Un changement de port demande un redémarrage de instree serve.</p>
-          </div>
-        </details>
+        <fieldset class="config-fieldset">
+          <legend data-i18n="settings.webUi">Interface web</legend>
+          <label class="field">
+            <span class="field-label" data-i18n="settings.host">Hôte</span>
+            <input type="text" id="cfg-host" name="host" value="127.0.0.1">
+          </label>
+          <label class="field">
+            <span class="field-label" data-i18n="settings.port">Port</span>
+            <input type="number" id="cfg-port" name="port" min="1" max="65535" value="8765">
+          </label>
+          <p class="field-hint" data-i18n="settings.portHint">Un changement de port demande un redémarrage de instree serve.</p>
+        </fieldset>
 
         <div id="config-msg" class="config-msg hidden" role="status"></div>
         <button type="submit" id="btn-save-config" class="btn btn-main" data-i18n="settings.save">Enregistrer</button>

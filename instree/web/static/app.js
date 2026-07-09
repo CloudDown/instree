@@ -247,7 +247,7 @@ function renderPersonSection(groups) {
       return `<div class="changes-group person-group">${title}${lines.join("")}</div>`;
     })
     .join("");
-  return `<div class="changes-section"><div class="changes-group-title">${t("changes.personSection")}</div>${blocks}</div>`;
+  return `<div class="changes-section changes-section--panel-full"><div class="changes-group-title">${t("changes.personSection")}</div>${blocks}</div>`;
 }
 
 function renderDetail(detail) {
@@ -264,16 +264,23 @@ function renderDetail(detail) {
   const hasListChanges = detail.adds.length || detail.removes.length;
   const header = hasListChanges ? igUser(scan.username) : "";
   const sub = hasListChanges ? `${oldC} → ${scan.following_count} ${t("changes.subscriptions")}` : "";
-  const sections = [];
-  if (detail.adds.length) sections.push(renderGroup(t("changes.newMutuals"), detail.adds, "add"));
-  if (detail.person_changes?.length) sections.push(renderPersonSection(detail.person_changes));
-  if (detail.removes.length) sections.push(renderGroup(t("changes.lostMutuals"), detail.removes, "remove"));
+  const mutualSections = [];
+  if (detail.adds.length) mutualSections.push(renderGroup(t("changes.newMutuals"), detail.adds, "add"));
+  if (detail.removes.length) mutualSections.push(renderGroup(t("changes.lostMutuals"), detail.removes, "remove"));
+  const personSection = detail.person_changes?.length
+    ? renderPersonSection(detail.person_changes)
+    : "";
+
+  const mutualCard =
+    mutualSections.length || header
+      ? `<article class="changes-card">` +
+        (header ? `<header class="changes-card-header">${header}<div class="sub">${sub}</div></header>` : "") +
+        mutualSections.join("") +
+        `</article>`
+      : "";
 
   elContent.innerHTML =
-    `<article class="changes-card">` +
-    (header ? `<header class="changes-card-header">${header}<div class="sub">${sub}</div></header>` : "") +
-    sections.join("") +
-    `</article>`;
+    `<div class="changes-layout">` + mutualCard + personSection + `</div>`;
 }
 
 function renderHistory() {
