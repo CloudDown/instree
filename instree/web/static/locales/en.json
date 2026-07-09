@@ -56,7 +56,7 @@
   "settings.instagram": "Instagram",
   "settings.sessionId": "Session ID",
   "settings.userId": "User ID",
-  "settings.sessionHint": "Without a session here, Instree reads Chromium/Chrome once then saves to config/instree.local.toml.",
+  "settings.sessionHint": "If empty, Instree reads Chrome/Edge/Firefox once and saves to config/instree.local.toml. See README if it fails.",
   "settings.testSession": "Test connection",
   "settings.testing": "Testing…",
   "settings.connectedAs": "Connected as @{user}",

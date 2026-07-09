@@ -56,7 +56,7 @@
   "settings.instagram": "Instagram",
   "settings.sessionId": "Session ID",
   "settings.userId": "User ID",
-  "settings.sessionHint": "Sin sesión aquí, Instree lee Chromium/Chrome una vez y guarda en config/instree.local.toml.",
+  "settings.sessionHint": "Sin sesión aquí, Instree lee Chrome/Edge/Firefox una vez y guarda en config/instree.local.toml. Ver README si falla.",
   "settings.testSession": "Probar conexión",
   "settings.testing": "Probando…",
   "settings.connectedAs": "Conectado como @{user}",
