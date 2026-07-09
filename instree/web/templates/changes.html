@@ -9,41 +9,50 @@
 <body data-page="{{ page }}" data-asset-v="{{ v }}">
   {% include "_header.html" %}
 
-  <main class="page page-wide">
-    <section class="card">
-      <h2 class="panel-title" data-i18n="actions.title">Lancer un scan</h2>
+  <main class="page page-home">
+    <aside class="home-sidebar">
+      <section class="card home-scan-card">
+        <h2 class="panel-title" data-i18n="actions.title">Lancer un scan</h2>
 
-      <button id="btn-scan" type="button" class="btn btn-main" data-i18n="actions.scanBtn">Lancer un scan</button>
+        <button id="btn-scan" type="button" class="btn btn-main" data-i18n="actions.scanBtn">Lancer un scan</button>
 
-      <details class="advanced" id="advanced-actions">
-        <summary data-i18n="actions.advanced">Actions avancées</summary>
-        <div class="advanced-body">
-          <p class="panel-hint warn" data-i18n="actions.advancedWarn">Plus lent et plus d'appels API.</p>
-          <button id="btn-init" type="button" class="btn btn-ghost">
-            <span data-i18n="actions.baselineBtn">Baseline</span>
-            <span class="btn-desc" data-i18n="actions.baselineDesc">Premier scan ou repartir de zéro</span>
-          </button>
+        <details class="advanced" id="advanced-actions">
+          <summary data-i18n="actions.advanced">Actions avancées</summary>
+          <div class="advanced-body">
+            <p class="panel-hint warn" data-i18n="actions.advancedWarn">Plus lent et plus d'appels API.</p>
+            <button id="btn-init" type="button" class="btn btn-ghost">
+              <span data-i18n="actions.baselineBtn">Baseline</span>
+              <span class="btn-desc" data-i18n="actions.baselineDesc">Premier scan ou repartir de zéro</span>
+            </button>
+          </div>
+        </details>
+
+        <div id="job-panel" class="job-panel hidden" role="status" aria-live="polite">
+          <div class="job-label" data-i18n="job.running">Scan en cours</div>
+          <div class="job-progress">
+            <div class="job-sublabel" data-i18n="job.profiles">Profils</div>
+            <div class="job-text" id="job-text-profiles">—</div>
+            <div class="progress-track"><div id="job-bar-profiles" class="progress-bar"></div></div>
+          </div>
+          <div id="job-watch-block" class="job-progress hidden">
+            <div class="job-sublabel" data-i18n="job.subscriptions">Abonnements</div>
+            <div class="job-text" id="job-text-watch">—</div>
+            <div class="progress-track"><div id="job-bar-watch" class="progress-bar"></div></div>
+          </div>
+          <button id="btn-stop-scan" type="button" class="btn btn-ghost job-stop hidden" data-i18n="actions.stopScan">Arrêter le scan</button>
         </div>
-      </details>
+      </section>
 
-      <div id="job-panel" class="job-panel hidden" role="status" aria-live="polite">
-        <div class="job-label" data-i18n="job.running">Scan en cours</div>
-        <div class="job-progress">
-          <div class="job-sublabel" data-i18n="job.profiles">Profils</div>
-          <div class="job-text" id="job-text-profiles">—</div>
-          <div class="progress-track"><div id="job-bar-profiles" class="progress-bar"></div></div>
-        </div>
-        <div id="job-watch-block" class="job-progress hidden">
-          <div class="job-sublabel" data-i18n="job.subscriptions">Abonnements</div>
-          <div class="job-text" id="job-text-watch">—</div>
-          <div class="progress-track"><div id="job-bar-watch" class="progress-bar"></div></div>
-        </div>
-        <button id="btn-stop-scan" type="button" class="btn btn-ghost job-stop hidden" data-i18n="actions.stopScan">Arrêter le scan</button>
-      </div>
-    </section>
+      <section class="card home-history-card">
+        <h2 class="panel-title" data-i18n="changes.history">Historique</h2>
+        <ul id="history-list" class="history-list"></ul>
+        <p id="history-empty" class="history-empty hidden" data-i18n="changes.historyEmpty">Aucun scan pour l'instant.</p>
+      </section>
+    </aside>
 
-    <section class="card">
+    <section class="card home-changes-panel">
       <header class="scan-header-bar">
+        <h2 class="home-changes-title" data-i18n="changes.personSection">Variations des abonnements</h2>
         <div class="scan-nav">
           <button id="btn-prev" type="button" class="nav-btn" data-i18n-title="changes.prevScan" title="Scan précédent" disabled aria-label="Scan précédent">←</button>
           <div class="scan-info">
@@ -61,12 +70,6 @@
         <span><strong>+</strong> <span data-i18n="changes.legendMutualAdd">s'est abonné</span></span>
         <span><strong>−</strong> <span data-i18n="changes.legendMutualRemove">s'est désabonné</span></span>
       </footer>
-    </section>
-
-    <section class="card">
-      <h2 class="panel-title" data-i18n="changes.history">Historique</h2>
-      <ul id="history-list" class="history-list"></ul>
-      <p id="history-empty" class="history-empty hidden" data-i18n="changes.historyEmpty">Aucun scan pour l'instant.</p>
     </section>
   </main>
 

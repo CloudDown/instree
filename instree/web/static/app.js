@@ -247,11 +247,12 @@ function renderPersonSection(groups) {
       return `<div class="changes-group person-group">${title}${lines.join("")}</div>`;
     })
     .join("");
-  return `<div class="changes-section changes-section--panel-full"><div class="changes-group-title">${t("changes.personSection")}</div>${blocks}</div>`;
+  return `<div class="changes-section changes-section--panel-full"><div class="person-section-body">${blocks}</div></div>`;
 }
 
 function renderDetail(detail) {
   if (!elContent) return;
+
   const scan = detail.scan;
   if (!detail.has_changes) {
     elContent.innerHTML =
