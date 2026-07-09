@@ -17,6 +17,7 @@ const elCfgDsUserId = document.getElementById("cfg-ds-user-id");
 const elCfgNInput = document.getElementById("cfg-n-input");
 const elCfgWatchNInput = document.getElementById("cfg-watch-n-input");
 const elCfgPageSleep = document.getElementById("cfg-page-sleep");
+const elCfgPageSize = document.getElementById("cfg-page-size");
 const elCfgScheduleInput = document.getElementById("cfg-schedule-input");
 const elCfgHost = document.getElementById("cfg-host");
 const elCfgPort = document.getElementById("cfg-port");
@@ -102,6 +103,7 @@ function fillConfigForm(config) {
   elCfgNInput.value = String(config.n ?? "100");
   elCfgWatchNInput.value = String(config.watch_n ?? "MAX");
   elCfgPageSleep.value = config.page_sleep;
+  elCfgPageSize.value = config.page_size ?? 200;
   elCfgScheduleInput.value = (config.schedule_times || []).join(", ");
   elCfgHost.value = config.host || "127.0.0.1";
   elCfgPort.value = config.port || 8765;
@@ -129,6 +131,7 @@ async function saveConfig(e) {
     n: elCfgNInput.value.trim(),
     watch_n: elCfgWatchNInput.value.trim(),
     page_sleep: Number(elCfgPageSleep.value),
+    page_size: Number(elCfgPageSize.value),
     host: elCfgHost.value.trim(),
     port: Number(elCfgPort.value),
     schedule_times: parseScheduleTimes(elCfgScheduleInput.value),

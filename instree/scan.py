@@ -78,16 +78,33 @@ def _report(
         on_progress(current, total, username, phase, track=track)
 
 
+def _merge_added_snapshot(
+    stored: list[FollowingEntry],
+    added: list[FollowingEntry],
+    watch_n: int,
+) -> list[FollowingEntry]:
+    """Nouveaux abonnements en tête + ancien snapshot, tronqué si watch_n limité."""
+    added_names = {a.username for a in added}
+    rest = [e for e in stored if e.username not in added_names]
+    merged = added + rest
+    if watch_n > 0:
+        return merged[:watch_n]
+    return merged
+
+
 def _fetch_person_following(
     ig: Client,
     pk: str,
     *,
     limit: int,
     page_sleep: float,
+    page_size: int,
     should_cancel: Callable[[], bool] | None = None,
     on_progress=None,
     username: str = "",
     total_hint: int = 0,
+    known_usernames: set[str] | None = None,
+    stop_after_new: int = 0,
 ) -> list[FollowingEntry]:
     target = limit if limit > 0 else total_hint
 
@@ -99,11 +116,55 @@ def _fetch_person_following(
         pk,
         limit=limit,
         page_sleep=page_sleep,
+        page_size=page_size,
         should_cancel=should_cancel,
         on_page=on_page if on_progress else None,
         total_hint=target,
+        known_usernames=known_usernames,
+        stop_after_new=stop_after_new,
     )
     return [_to_entry(u) for u in users]
+
+
+def _apply_person_diff(
+    profile_username: str,
+    entry: FollowingEntry,
+    snapshot,
+    stored: list[FollowingEntry],
+    live: list[FollowingEntry],
+    person_changes: list[PersonChange],
+    count_changes: list[CountChange],
+) -> None:
+    added, removed = _diff(stored, live)
+    for a in added:
+        person_changes.append(
+            PersonChange(
+                subject_username=profile_username,
+                subject_full_name=entry.full_name,
+                username=a.username,
+                full_name=a.full_name,
+                op="sub_add",
+            )
+        )
+    for r in removed:
+        person_changes.append(
+            PersonChange(
+                subject_username=profile_username,
+                subject_full_name=entry.full_name,
+                username=r.username,
+                full_name=r.full_name,
+                op="sub_remove",
+            )
+        )
+    if not added and not removed:
+        count_changes.append(
+            CountChange(
+                username=profile_username,
+                full_name=entry.full_name,
+                old_count=snapshot.following_count,
+                new_count=entry.following_count,
+            )
+        )
 
 
 def _watch_persons(
@@ -112,6 +173,7 @@ def _watch_persons(
     *,
     watch_n: int,
     page_sleep: float,
+    page_size: int,
     is_baseline: bool,
     new_usernames: set[str],
     on_progress=None,
@@ -174,16 +236,88 @@ def _watch_persons(
                 track="watch",
             )
             try:
-                live = _fetch_person_following(
-                    ig,
-                    profile.pk,
-                    limit=fetch_limit,
-                    page_sleep=page_sleep,
-                    should_cancel=should_cancel,
-                    on_progress=on_progress,
-                    username=profile.username,
-                    total_hint=total_hint,
-                )
+                live: list[FollowingEntry]
+                if (
+                    need_diff
+                    and snapshot is not None
+                    and profile.following_count > snapshot.following_count
+                ):
+                    stored = get_person_following(profile.username)
+                    stored_set = {e.username for e in stored}
+                    delta = profile.following_count - snapshot.following_count
+                    partial = _fetch_person_following(
+                        ig,
+                        profile.pk,
+                        limit=fetch_limit,
+                        page_sleep=page_sleep,
+                        page_size=page_size,
+                        should_cancel=should_cancel,
+                        on_progress=on_progress,
+                        username=profile.username,
+                        total_hint=total_hint,
+                        known_usernames=stored_set,
+                        stop_after_new=delta,
+                    )
+                    added = [e for e in partial if e.username not in stored_set]
+                    if len(added) >= delta:
+                        live = _merge_added_snapshot(stored, added, fetch_limit)
+                        snapshots.append((profile.username, live, profile.following_count))
+                        for a in added:
+                            person_changes.append(
+                                PersonChange(
+                                    subject_username=profile.username,
+                                    subject_full_name=entry.full_name,
+                                    username=a.username,
+                                    full_name=a.full_name,
+                                    op="sub_add",
+                                )
+                            )
+                    else:
+                        live = _fetch_person_following(
+                            ig,
+                            profile.pk,
+                            limit=fetch_limit,
+                            page_sleep=page_sleep,
+                            page_size=page_size,
+                            should_cancel=should_cancel,
+                            on_progress=on_progress,
+                            username=profile.username,
+                            total_hint=total_hint,
+                        )
+                        snapshots.append((profile.username, live, profile.following_count))
+                        _apply_person_diff(
+                            profile.username,
+                            entry,
+                            snapshot,
+                            stored,
+                            live,
+                            person_changes,
+                            count_changes,
+                        )
+                else:
+                    live = _fetch_person_following(
+                        ig,
+                        profile.pk,
+                        limit=fetch_limit,
+                        page_sleep=page_sleep,
+                        page_size=page_size,
+                        should_cancel=should_cancel,
+                        on_progress=on_progress,
+                        username=profile.username,
+                        total_hint=total_hint,
+                    )
+                    snapshots.append((profile.username, live, profile.following_count))
+                    if need_diff and snapshot is not None:
+                        stored = get_person_following(profile.username)
+                        _apply_person_diff(
+                            profile.username,
+                            entry,
+                            snapshot,
+                            stored,
+                            live,
+                            person_changes,
+                            count_changes,
+                        )
             except Exception:
                 if need_diff and snapshot is not None:
                     count_changes.append(
@@ -197,41 +331,6 @@ def _watch_persons(
                 if i + 1 < len(entries):
                     time.sleep(page_sleep)
                 continue
-
-            snapshots.append((profile.username, live, profile.following_count))
-
-            if need_diff and snapshot is not None:
-                stored = get_person_following(profile.username)
-                added, removed = _diff(stored, live)
-                for a in added:
-                    person_changes.append(
-                        PersonChange(
-                            subject_username=profile.username,
-                            subject_full_name=entry.full_name,
-                            username=a.username,
-                            full_name=a.full_name,
-                            op="sub_add",
-                        )
-                    )
-                for r in removed:
-                    person_changes.append(
-                        PersonChange(
-                            subject_username=profile.username,
-                            subject_full_name=entry.full_name,
-                            username=r.username,
-                            full_name=r.full_name,
-                            op="sub_remove",
-                        )
-                    )
-                if not added and not removed:
-                    count_changes.append(
-                        CountChange(
-                            username=profile.username,
-                            full_name=entry.full_name,
-                            old_count=snapshot.following_count,
-                            new_count=profile.following_count,
-                        )
-                    )
 
         if i + 1 < len(entries):
             time.sleep(page_sleep)
@@ -280,6 +379,7 @@ def run_scan(
                 profile.pk,
                 limit=limit,
                 page_sleep=settings.page_sleep,
+                page_size=settings.page_size,
                 should_cancel=should_cancel,
             )
         except Exception as e:
@@ -302,6 +402,7 @@ def run_scan(
         live,
         watch_n=settings.watch_n,
         page_sleep=settings.page_sleep,
+        page_size=settings.page_size,
         is_baseline=is_baseline,
         new_usernames=new_usernames,
         on_progress=on_progress,

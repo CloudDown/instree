@@ -27,6 +27,7 @@ class ConfigUpdate(BaseModel):
     n: str | int = 100
     watch_n: str | int = "MAX"
     page_sleep: float = 0.6
+    page_size: int = 200
     host: str = "127.0.0.1"
     port: int = 8765
     schedule_times: list[str] = ["08:00", "20:00"]
@@ -134,6 +135,7 @@ def create_app() -> FastAPI:
                 n=body.n,
                 watch_n=body.watch_n,
                 page_sleep=body.page_sleep,
+                page_size=body.page_size,
                 host=body.host,
                 port=body.port,
                 schedule_times=body.schedule_times,

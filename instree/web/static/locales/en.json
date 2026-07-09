@@ -70,6 +70,8 @@
   "settings.mutualsPlaceholder": "100 or MAX",
   "settings.watchN": "Subscriptions per person",
   "settings.pageSleep": "API delay (seconds)",
+  "settings.pageSize": "API page size",
+  "settings.pageSizeHint": "Subscriptions requested per API call (12–200). Instagram may return fewer (~25).",
   "settings.schedule": "Scheduling",
   "settings.scheduleTimes": "Times",
   "settings.scheduleInstall": "Install systemd timer",

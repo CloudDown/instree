@@ -36,20 +36,24 @@ def _paginate_friendships(
     *,
     limit: int = 0,
     page_sleep: float = 0.6,
+    page_size: int = 200,
     should_cancel: Callable[[], bool] | None = None,
     on_page: Callable[[int, int], None] | None = None,
     total_hint: int = 0,
+    known_usernames: set[str] | None = None,
+    stop_after_new: int = 0,
 ) -> list[IgUser]:
     users: list[IgUser] = []
     max_id = ""
     seen: set[str] = set()
     target = limit if limit > 0 else total_hint
+    new_found = 0
 
     while True:
         if should_cancel and should_cancel():
             raise ScanCancelled()
         params = {
-            "count": 200,
+            "count": page_size,
             "rank_token": ig.rank_token,
             "search_surface": "follow_list_page",
             "query": "",
@@ -71,6 +75,12 @@ def _paginate_friendships(
                     full_name=u.get("full_name") or "",
                 )
             )
+            if known_usernames is not None and username not in known_usernames:
+                new_found += 1
+                if stop_after_new > 0 and new_found >= stop_after_new:
+                    if on_page:
+                        on_page(len(users), target or len(users))
+                    return users
             if limit > 0 and len(users) >= limit:
                 if on_page:
                     on_page(len(users), target or len(users))
@@ -93,9 +103,12 @@ def fetch_following(
     *,
     limit: int = 0,
     page_sleep: float = 0.6,
+    page_size: int = 200,
     should_cancel: Callable[[], bool] | None = None,
     on_page: Callable[[int, int], None] | None = None,
     total_hint: int = 0,
+    known_usernames: set[str] | None = None,
+    stop_after_new: int = 0,
 ) -> list[IgUser]:
     """Paginer friendships/{pk}/following/ (limit=0 → tous)."""
     return _paginate_friendships(
@@ -104,9 +117,12 @@ def fetch_following(
         "following",
         limit=limit,
         page_sleep=page_sleep,
+        page_size=page_size,
         should_cancel=should_cancel,
         on_page=on_page,
         total_hint=total_hint,
+        known_usernames=known_usernames,
+        stop_after_new=stop_after_new,
     )
 
 
@@ -116,11 +132,18 @@ def fetch_followers(
     *,
     limit: int = 0,
     page_sleep: float = 0.6,
+    page_size: int = 200,
     should_cancel: Callable[[], bool] | None = None,
 ) -> list[IgUser]:
     """Paginer friendships/{pk}/followers/ (limit=0 → tous)."""
     return _paginate_friendships(
-        ig, pk, "followers", limit=limit, page_sleep=page_sleep, should_cancel=should_cancel
+        ig,
+        pk,
+        "followers",
+        limit=limit,
+        page_sleep=page_sleep,
+        page_size=page_size,
+        should_cancel=should_cancel,
     )
 
 
@@ -130,16 +153,17 @@ def fetch_mutuals(
     *,
     limit: int = 0,
     page_sleep: float = 0.6,
+    page_size: int = 200,
     should_cancel: Callable[[], bool] | None = None,
 ) -> list[IgUser]:
     """Abonnements mutuels : intersection following ∩ followers."""
     following = fetch_following(
-        ig, pk, limit=0, page_sleep=page_sleep, should_cancel=should_cancel
+        ig, pk, limit=0, page_sleep=page_sleep, page_size=page_size, should_cancel=should_cancel
     )
     if should_cancel and should_cancel():
         raise ScanCancelled()
     followers = fetch_followers(
-        ig, pk, limit=0, page_sleep=page_sleep, should_cancel=should_cancel
+        ig, pk, limit=0, page_sleep=page_sleep, page_size=page_size, should_cancel=should_cancel
     )
     follower_pks = {u.pk for u in followers}
     mutuals = [u for u in following if u.pk in follower_pks]

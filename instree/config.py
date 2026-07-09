@@ -42,6 +42,7 @@ class Settings:
     n: int = 100
     watch_n: int = 0
     page_sleep: float = 0.6
+    page_size: int = 200
     host: str = "127.0.0.1"
     port: int = 8765
     schedule_times: tuple[str, ...] = ("08:00", "20:00")
@@ -68,6 +69,14 @@ def parse_limit(raw) -> int:
     if s.isdigit():
         return int(s)
     raise ValueError(f"limite invalide : {raw!r} (utilise un nombre ou MAX)")
+
+
+def parse_page_size(raw) -> int:
+    """Taille de page API friendships (Instagram peut renvoyer moins)."""
+    if isinstance(raw, bool):
+        raise ValueError("valeur invalide")
+    n = int(raw) if not isinstance(raw, int) else raw
+    return max(12, min(200, n))
 
 
 def format_limit(n: int) -> str:
@@ -119,6 +128,7 @@ def load_settings(path: Path | None = None) -> Settings:
         n=parse_limit(scan.get("n", 100)),
         watch_n=parse_limit(scan.get("watch_n", 0)),
         page_sleep=float(scan.get("page_sleep", 0.6)),
+        page_size=parse_page_size(scan.get("page_size", 200)),
         host=str(web.get("host", "127.0.0.1")),
         port=int(web.get("port", 8765)),
         schedule_times=_parse_times(schedule.get("times")),
@@ -133,6 +143,7 @@ def config_for_api() -> dict:
         "n": format_limit(s.n),
         "watch_n": format_limit(s.watch_n),
         "page_sleep": s.page_sleep,
+        "page_size": s.page_size,
         "host": s.host,
         "port": s.port,
         "schedule_times": list(s.schedule_times),
@@ -159,6 +170,7 @@ def _format_main_toml(
     n: int,
     watch_n: int,
     page_sleep: float,
+    page_size: int,
     host: str,
     port: int,
     schedule_times: tuple[str, ...],
@@ -167,6 +179,7 @@ def _format_main_toml(
     return f"""# Instree — configuration (éditable via l'interface web)
 # Secrets : instree.local.toml (gitignored)
 # n / watch_n : nombre ou MAX (= tous les abonnements)
+# page_size : abonnements demandés par page API (12–200)
 
 [instagram]
 sessionid = ""
@@ -177,6 +190,7 @@ username = {_toml_str(username)}
 n = {_toml_limit(n)}
 watch_n = {_toml_limit(watch_n)}
 page_sleep = {page_sleep}
+page_size = {page_size}
 
 [web]
 host = {_toml_str(host)}
@@ -203,6 +217,7 @@ def save_config(
     n: int | str = 100,
     watch_n: int | str = 0,
     page_sleep: float = 0.6,
+    page_size: int = 200,
     host: str = "127.0.0.1",
     port: int = 8765,
     schedule_times: list[str] | tuple[str, ...] | None = None,
@@ -232,6 +247,7 @@ def save_config(
             n=parse_limit(n),
             watch_n=parse_limit(watch_n),
             page_sleep=max(0.0, float(page_sleep)),
+            page_size=parse_page_size(page_size),
             host=host.strip() or "127.0.0.1",
             port=max(1, min(65535, int(port))),
             schedule_times=times,
