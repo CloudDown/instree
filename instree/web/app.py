@@ -31,6 +31,7 @@ class ConfigUpdate(BaseModel):
     page_size: int = 200
     host: str = "127.0.0.1"
     port: int = 8765
+    autostart_on_boot: bool = False
     schedule_times: list[str] = ["08:00", "20:00"]
     schedule_interval_minutes: int = 0
     sessionid: str = ""
@@ -90,11 +91,13 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        from instree.autostart import remove_legacy_systemd
         from instree.web.interval_scheduler import (
             start_interval_scheduler,
             stop_interval_scheduler,
         )
 
+        remove_legacy_systemd()
         start_interval_scheduler()
         yield
         stop_interval_scheduler()
@@ -152,6 +155,7 @@ def create_app() -> FastAPI:
                 page_size=body.page_size,
                 host=body.host,
                 port=body.port,
+                autostart_on_boot=body.autostart_on_boot,
                 schedule_times=body.schedule_times,
                 schedule_interval_minutes=body.schedule_interval_minutes,
                 sessionid=body.sessionid or None,
@@ -166,24 +170,6 @@ def create_app() -> FastAPI:
     async def api_session_test():
         clear_session_cache()
         return _session_info()
-
-    @app.post("/api/schedule/install")
-    async def api_schedule_install():
-        from instree.schedule import install_systemd
-
-        settings = load_settings()
-        try:
-            unit_dir, root, exec_start = install_systemd(settings)
-        except RuntimeError as e:
-            raise HTTPException(400, str(e)) from e
-        return {
-            "ok": True,
-            "unit_dir": str(unit_dir),
-            "root": str(root),
-            "exec_start": exec_start,
-            "times": list(settings.schedule_times),
-            "interval_minutes": settings.schedule_interval_minutes,
-        }
 
     @app.get("/api/scans")
     async def api_scans():

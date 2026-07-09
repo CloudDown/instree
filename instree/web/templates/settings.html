@@ -6,7 +6,7 @@
   <title>Instree · Settings</title>
   <link rel="stylesheet" href="/static/style.css?v={{ v }}">
 </head>
-<body data-page="{{ page }}">
+<body data-page="{{ page }}" data-asset-v="{{ v }}">
   {% include "_header.html" %}
 
   <main class="page">
@@ -74,8 +74,12 @@
             <span class="field-label" data-i18n="settings.scheduleInterval">Intervalle (minutes)</span>
             <input type="number" id="cfg-schedule-interval" name="schedule_interval_minutes" min="0" step="1" value="0">
           </label>
-          <p class="field-hint" data-i18n="settings.scheduleIntervalHint">0 = désactivé. Cumulable avec les heures fixes. Fonctionne aussi tant que le serveur web tourne.</p>
-          <button type="button" id="btn-schedule-install" class="btn btn-ghost btn-sm" data-i18n="settings.scheduleInstall">Installer le timer systemd</button>
+          <p class="field-hint" data-i18n="settings.scheduleIntervalHint">0 = désactivé. Cumulable avec les heures fixes.</p>
+          <label class="field field-checkbox">
+            <input type="checkbox" id="cfg-autostart" name="autostart_on_boot">
+            <span data-i18n="settings.autostartOnBoot">Lancement au démarrage de l'ordinateur</span>
+          </label>
+          <p class="field-hint" data-i18n="settings.autostartHint">Lance instree serve automatiquement à la connexion (scans planifiés tant que le serveur tourne).</p>
         </fieldset>
 
         <details class="advanced config-advanced">

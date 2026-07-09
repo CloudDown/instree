@@ -62,10 +62,16 @@ const I18n = (() => {
     });
   }
 
+  function assetVersion() {
+    return document.body?.dataset.assetV || "";
+  }
+
   async function loadLocale(lang) {
     locale = normalize(lang);
     localStorage.setItem(STORAGE_KEY, locale);
-    const res = await fetch(`/static/locales/${locale}.json`);
+    const v = assetVersion();
+    const url = `/static/locales/${locale}.json${v ? `?v=${encodeURIComponent(v)}` : ""}`;
+    const res = await fetch(url);
     strings = await res.json();
     document.documentElement.lang = locale;
     applyI18n();

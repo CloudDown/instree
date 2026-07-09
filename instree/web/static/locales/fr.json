@@ -74,12 +74,9 @@
   "settings.schedule": "Planification",
   "settings.scheduleTimes": "Heures fixes",
   "settings.scheduleInterval": "Intervalle (minutes)",
-  "settings.scheduleIntervalHint": "0 = désactivé. Cumulable avec les heures fixes. Fonctionne aussi tant que le serveur web tourne.",
-  "settings.scheduleInstall": "Installer le timer systemd",
-  "settings.scheduleConfirmTitle": "Installer le timer systemd ?",
-  "settings.scheduleConfirmMsg": "Génère les unités systemd user (heures fixes + intervalle si configuré).",
-  "settings.scheduleInstalled": "Timer installé (heures : {times}, intervalle : {interval})",
-  "settings.scheduleFailed": "Installation impossible",
+  "settings.scheduleIntervalHint": "0 = désactivé. Cumulable avec les heures fixes.",
+  "settings.autostartOnBoot": "Lancement au démarrage de l'ordinateur",
+  "settings.autostartHint": "Lance instree serve automatiquement à la connexion (scans planifiés tant que le serveur tourne).",
   "settings.webUi": "Interface web",
   "settings.host": "Hôte",
   "settings.port": "Port",
@@ -95,6 +92,5 @@
   "lang.label": "Langue",
   "lang.fr": "Français",
   "lang.en": "English",
-  "lang.es": "Español",
-  "schedule.intervalOff": "désactivé"
+  "lang.es": "Español"
 }

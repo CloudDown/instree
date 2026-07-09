@@ -45,6 +45,7 @@ class Settings:
     page_size: int = 200
     host: str = "127.0.0.1"
     port: int = 8765
+    autostart_on_boot: bool = False
     schedule_times: tuple[str, ...] = ("08:00", "20:00")
     schedule_interval_minutes: int = 0
 
@@ -142,6 +143,7 @@ def load_settings(path: Path | None = None) -> Settings:
         page_size=parse_page_size(scan.get("page_size", 200)),
         host=str(web.get("host", "127.0.0.1")),
         port=int(web.get("port", 8765)),
+        autostart_on_boot=bool(web.get("autostart_on_boot", False)),
         schedule_times=_parse_times(schedule.get("times")),
         schedule_interval_minutes=parse_interval_minutes(
             schedule.get("interval_minutes", 0)
@@ -151,6 +153,8 @@ def load_settings(path: Path | None = None) -> Settings:
 
 def config_for_api() -> dict:
     """Config éditable pour l'interface web (sans exposer les secrets)."""
+    from instree.autostart import is_enabled
+
     s = load_settings()
     return {
         "username": s.username,
@@ -160,6 +164,8 @@ def config_for_api() -> dict:
         "page_size": s.page_size,
         "host": s.host,
         "port": s.port,
+        "autostart_on_boot": s.autostart_on_boot,
+        "autostart_active": is_enabled(),
         "schedule_times": list(s.schedule_times),
         "schedule_interval_minutes": s.schedule_interval_minutes,
         "sessionid_set": bool(s.sessionid),
@@ -188,6 +194,7 @@ def _format_main_toml(
     page_size: int,
     host: str,
     port: int,
+    autostart_on_boot: bool,
     schedule_times: tuple[str, ...],
     schedule_interval_minutes: int,
 ) -> str:
@@ -211,6 +218,7 @@ page_size = {page_size}
 [web]
 host = {_toml_str(host)}
 port = {port}
+autostart_on_boot = {"true" if autostart_on_boot else "false"}
 
 [schedule]
 times = [{times}]
@@ -237,6 +245,7 @@ def save_config(
     page_size: int = 200,
     host: str = "127.0.0.1",
     port: int = 8765,
+    autostart_on_boot: bool | None = None,
     schedule_times: list[str] | tuple[str, ...] | None = None,
     schedule_interval_minutes: int | None = None,
     sessionid: str | None = None,
@@ -252,6 +261,11 @@ def save_config(
         parse_interval_minutes(schedule_interval_minutes)
         if schedule_interval_minutes is not None
         else existing.schedule_interval_minutes
+    )
+    autostart = (
+        bool(autostart_on_boot)
+        if autostart_on_boot is not None
+        else existing.autostart_on_boot
     )
 
     new_sessionid = existing.sessionid
@@ -273,6 +287,7 @@ def save_config(
             page_size=parse_page_size(page_size),
             host=host.strip() or "127.0.0.1",
             port=max(1, min(65535, int(port))),
+            autostart_on_boot=autostart,
             schedule_times=times,
             schedule_interval_minutes=interval,
         ),
@@ -281,6 +296,13 @@ def save_config(
 
     if new_sessionid or new_ds_user_id:
         save_session_credentials(new_sessionid, new_ds_user_id)
+
+    from instree.autostart import sync_autostart
+
+    try:
+        sync_autostart(autostart)
+    except (OSError, RuntimeError) as e:
+        raise RuntimeError(f"démarrage automatique : {e}") from e
 
 
 def save_session_credentials(sessionid: str, ds_user_id: str = "") -> None:

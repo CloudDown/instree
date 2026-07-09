@@ -20,12 +20,12 @@ const elCfgPageSleep = document.getElementById("cfg-page-sleep");
 const elCfgPageSize = document.getElementById("cfg-page-size");
 const elCfgScheduleInput = document.getElementById("cfg-schedule-input");
 const elCfgScheduleInterval = document.getElementById("cfg-schedule-interval");
+const elCfgAutostart = document.getElementById("cfg-autostart");
 const elCfgHost = document.getElementById("cfg-host");
 const elCfgPort = document.getElementById("cfg-port");
 const elConfigMsg = document.getElementById("config-msg");
 const btnSaveConfig = document.getElementById("btn-save-config");
 const btnTestSession = document.getElementById("btn-test-session");
-const btnScheduleInstall = document.getElementById("btn-schedule-install");
 
 const elJobPanel = document.getElementById("job-panel");
 const elJobTextProfiles = document.getElementById("job-text-profiles");
@@ -73,7 +73,7 @@ async function fetchStatus() {
 }
 
 function setControlsDisabled(disabled) {
-  [btnScan, btnInit, btnSaveConfig, btnTestSession, btnScheduleInstall]
+  [btnScan, btnInit, btnSaveConfig, btnTestSession]
     .filter(Boolean)
     .forEach((el) => {
       el.disabled = disabled;
@@ -123,6 +123,9 @@ function fillConfigForm(config) {
   if (elCfgScheduleInterval) {
     elCfgScheduleInterval.value = config.schedule_interval_minutes ?? 0;
   }
+  if (elCfgAutostart) {
+    elCfgAutostart.checked = Boolean(config.autostart_on_boot);
+  }
   elCfgHost.value = config.host || "127.0.0.1";
   elCfgPort.value = config.port || 8765;
   elCfgSessionid.placeholder = config.sessionid_set
@@ -152,6 +155,7 @@ async function saveConfig(e) {
     page_size: Number(elCfgPageSize.value),
     host: elCfgHost.value.trim(),
     port: Number(elCfgPort.value),
+    autostart_on_boot: Boolean(elCfgAutostart?.checked),
     schedule_times: parseScheduleTimes(elCfgScheduleInput.value),
     schedule_interval_minutes: Number(elCfgScheduleInterval?.value || 0),
     sessionid: elCfgSessionid.value.trim(),
@@ -493,29 +497,6 @@ async function initSettingsPage() {
         else showConfigMsg(t("settings.connectedAs", { user: session.username }));
         await loadConfig();
       } else showConfigMsg(session.error || t("settings.connectionFailed"), false);
-    };
-  }
-  if (btnScheduleInstall) {
-    btnScheduleInstall.onclick = async () => {
-      const ok = await askConfirm(t("settings.scheduleConfirmTitle"), t("settings.scheduleConfirmMsg"));
-      if (!ok) return;
-      const res = await fetch("/api/schedule/install", { method: "POST" });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        showConfigMsg(err.detail || t("settings.scheduleFailed"), false);
-        return;
-      }
-      const data = await res.json();
-      const intervalLabel =
-        data.interval_minutes > 0
-          ? `${data.interval_minutes} min`
-          : t("schedule.intervalOff");
-      showConfigMsg(
-        t("settings.scheduleInstalled", {
-          times: data.times.join(", "),
-          interval: intervalLabel,
-        }),
-      );
     };
   }
 }

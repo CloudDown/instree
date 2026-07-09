@@ -74,12 +74,9 @@
   "settings.schedule": "Scheduling",
   "settings.scheduleTimes": "Fixed times",
   "settings.scheduleInterval": "Interval (minutes)",
-  "settings.scheduleIntervalHint": "0 = disabled. Combines with fixed times. Also runs while the web server is up.",
-  "settings.scheduleInstall": "Install systemd timer",
-  "settings.scheduleConfirmTitle": "Install systemd timer?",
-  "settings.scheduleConfirmMsg": "Generates user systemd units (fixed times + interval if set).",
-  "settings.scheduleInstalled": "Timer installed (times: {times}, interval: {interval})",
-  "settings.scheduleFailed": "Installation failed",
+  "settings.scheduleIntervalHint": "0 = disabled. Combines with fixed times.",
+  "settings.autostartOnBoot": "Launch on computer startup",
+  "settings.autostartHint": "Starts instree serve automatically when you log in (scheduled scans run while the server is up).",
   "settings.webUi": "Web interface",
   "settings.host": "Host",
   "settings.port": "Port",
@@ -95,6 +92,5 @@
   "lang.label": "Language",
   "lang.fr": "Français",
   "lang.en": "English",
-  "lang.es": "Español",
-  "schedule.intervalOff": "disabled"
+  "lang.es": "Español"
 }

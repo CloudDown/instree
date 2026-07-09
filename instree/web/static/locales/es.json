@@ -74,12 +74,9 @@
   "settings.schedule": "Planificación",
   "settings.scheduleTimes": "Horas fijas",
   "settings.scheduleInterval": "Intervalo (minutos)",
-  "settings.scheduleIntervalHint": "0 = desactivado. Acumulable con horas fijas. También funciona mientras el servidor web esté activo.",
-  "settings.scheduleInstall": "Instalar timer systemd",
-  "settings.scheduleConfirmTitle": "¿Instalar timer systemd?",
-  "settings.scheduleConfirmMsg": "Genera unidades systemd user (horas fijas + intervalo si está configurado).",
-  "settings.scheduleInstalled": "Timer instalado (horas: {times}, intervalo: {interval})",
-  "settings.scheduleFailed": "Instalación imposible",
+  "settings.scheduleIntervalHint": "0 = desactivado. Acumulable con horas fijas.",
+  "settings.autostartOnBoot": "Inicio al arrancar el ordenador",
+  "settings.autostartHint": "Inicia instree serve automáticamente al iniciar sesión (escaneos planificados mientras el servidor esté activo).",
   "settings.webUi": "Interfaz web",
   "settings.host": "Host",
   "settings.port": "Puerto",
@@ -95,6 +92,5 @@
   "lang.label": "Idioma",
   "lang.fr": "Français",
   "lang.en": "English",
-  "lang.es": "Español",
-  "schedule.intervalOff": "desactivado"
+  "lang.es": "Español"
 }

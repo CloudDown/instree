@@ -16,6 +16,7 @@ page_size = 200
 [web]
 host = "127.0.0.1"
 port = 8765
+autostart_on_boot = false
 
 [schedule]
 times = ["08:00"]

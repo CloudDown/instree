@@ -8,7 +8,7 @@ Outil local pour **surveiller ta liste d'abonnements Instagram** (ou celle d'un 
 - `-` désabonnements
 - `~` évolution du nombre d'abonnements des comptes que tu suis
 
-Historique en SQLite, journaux texte, interface web et scans planifiés (systemd).
+Historique en SQLite, journaux texte, interface web et scans planifiés.
 
 ## Prérequis (Linux)
 
@@ -72,39 +72,16 @@ sessionid = "..."
 ds_user_id = "..."
 ```
 
-## Planification (systemd)
+## Planification
 
-1. Remplir `sessionid` dans `instree.local.toml` (obligatoire — pas de navigateur en tâche planifiée).
-2. Définir les heures dans `[schedule] times`.
-3. Installer le timer :
+Dans **Paramètres** :
 
-```bash
-cd /chemin/vers/instree    # racine du clone
-uv run instree schedule install
-systemctl --user daemon-reload
-systemctl --user enable --now instree-scan.timer
-```
+- **Heures fixes** et **intervalle (minutes)** — scans automatiques tant que `instree serve` tourne
+- **Lancement au démarrage** — lance `instree serve` à la connexion (Linux, Windows, macOS)
 
-Vérifier :
-
-```bash
-systemctl --user list-timers instree-scan.timer
-systemctl --user start instree-scan.service
-tail -f data/scheduler.log
-```
-
-Après changement d'horaires : `schedule install` puis `systemctl --user restart instree-scan.timer`.
-
-`schedule install` détecte automatiquement `.venv/bin/instree` ou `python -m instree.cli` selon l'installation.
-
-### cron (alternative)
-
-```cron
-0 8,20 * * * cd /chemin/vers/instree && .venv/bin/instree scan -q >> data/scheduler.log 2>&1
-```
+La session Instagram doit être configurée dans `instree.local.toml` pour les scans sans navigateur.
 
 ## Données locales (`data/`, gitignored)
 
 - `watch.db` — historique
 - `journal/*.log` — journaux
-- `scheduler.log` — scans planifiés
