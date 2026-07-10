@@ -1,14 +1,24 @@
 # Instree
 
-Outil local pour **surveiller ta liste d'abonnements Instagram** (ou celle d'un compte configuré).
+Outil local pour **surveiller tes abonnements mutuels Instagram** (personnes que tu suis et qui te suivent en retour), ou celles d'un autre compte configuré.
 
-À chaque scan, Instree compare les N derniers abonnements (100 par défaut) avec le précédent et journalise :
+À chaque scan, Instree compare ta liste de mutuels avec le précédent, puis explore les abonnements de chacun (selon `watch_n`) :
 
-- `+` nouveaux abonnements
-- `-` désabonnements
-- `~` évolution du nombre d'abonnements des comptes que tu suis
+- **`+` / `−` sur ta liste** — nouveau mutuel ou mutuel perdu
+- **`~ @personne`** — cette personne a changé d'abonnements depuis le dernier scan
+  - sous chaque `~` : `+` / `−` pour les comptes qu'elle a commencé ou arrêté de suivre
 
-Historique en SQLite, journaux texte, interface web (Home, Graph, Paramètres) et scans planifiés.
+Historique en SQLite, journaux texte, interface web (**Home**, **Graph**, **Paramètres**), scans planifiés et démarrage automatique au boot.
+
+## Interface web
+
+| Page | Rôle |
+|------|------|
+| **Home** | Lancer un scan (incrémental ou baseline), historique, voir les variations |
+| **Graph** | Visualiser les mutuels en graphe force-directed, avec groupes détectés (Louvain) |
+| **Paramètres** | Session Instagram, limites de scan, intervalle, lancement au démarrage |
+
+Interface en **français**, **anglais** ou **espagnol** (sélecteur en haut à droite).
 
 ## Prérequis
 
@@ -107,7 +117,7 @@ Tu dois copier **deux** valeurs depuis les cookies Instagram :
 
    Exemple de `sessionid` (souvent avec des `%3A` à la place de `:` — c'est normal, colle tel quel) :
    ```
-   7358640098%3Axxxxxxxx%3A5%3Ayyyyyyyy
+   1234567890%3Axxxxxxxx%3A5%3Ayyyyyyyy
    ```
 
 7. Colle les valeurs dans **Paramètres** → champs **Session ID** et **User ID**, puis **Enregistrer**.
@@ -155,7 +165,9 @@ Pour **forcer** une nouvelle lecture navigateur : vide `sessionid` et `ds_user_i
 | Linux / macOS | `./run` |
 | Windows | `run.bat` |
 
-Interface : [http://127.0.0.1:8765](http://127.0.0.1:8765) — scans, historique, graphe des mutuels, paramètres.
+Interface : [http://127.0.0.1:8765](http://127.0.0.1:8765)
+
+Depuis **Home** : scan incrémental, baseline (premier scan), arrêt d'un scan en cours, navigation dans l'historique.
 
 Premier scan en CLI (optionnel) :
 
@@ -179,10 +191,19 @@ Premier scan en CLI (optionnel) :
 ```toml
 # config/instree.toml
 [scan]
-n = 100
+username = ""          # vide = compte de la session
+n = "MAX"              # nombre de mutuels à suivre (ou MAX = tous)
+watch_n = "MAX"        # abonnements explorés par mutuel (ou MAX = tous)
+page_sleep = 0.6       # pause entre requêtes API (secondes)
+page_size = 200        # taille de page API (12–200)
+
+[web]
+host = "127.0.0.1"
+port = 8765
+autostart_on_boot = false
 
 [schedule]
-interval_minutes = 60
+interval_minutes = 0   # 0 = désactivé ; scans auto tant que le serveur tourne
 ```
 
 ```toml
