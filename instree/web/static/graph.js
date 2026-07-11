@@ -1,5 +1,6 @@
 (() => {
-  const t = (key, vars) => (window.I18n ? I18n.t(key, vars) : key);
+  const hasI18n = () => typeof I18n !== "undefined";
+  const t = (key, vars) => (hasI18n() ? I18n.t(key, vars) : key);
   const elCanvas = document.getElementById("graph-canvas");
   const elEmpty = document.getElementById("graph-empty");
   const elPanel = document.getElementById("graph-panel");
@@ -335,7 +336,7 @@
 
   function formatGroupName(rank) {
     const prefixes = { fr: "Groupe", en: "Group", es: "Grupo" };
-    const lang = window.I18n?.getLocale?.() || "fr";
+    const lang = (hasI18n() && I18n.getLocale?.()) || "fr";
     return `${prefixes[lang] ?? prefixes.fr} ${rank}`;
   }
 
@@ -595,7 +596,7 @@
   }
 
   async function init() {
-    if (window.I18n) await I18n.ready;
+    if (hasI18n()) await I18n.ready;
 
     function initLangSwitch() {
       document.querySelectorAll(".lang-btn[data-lang]").forEach((btn) => {
@@ -613,7 +614,7 @@
       }
     }
 
-    if (window.I18n) {
+    if (hasI18n()) {
       I18n.applyI18n();
       initLangSwitch();
       window.addEventListener("instree:locale", onLocaleChange);
