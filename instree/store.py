@@ -22,7 +22,7 @@ class PersonChange:
     subject_full_name: str
     username: str
     full_name: str
-    op: str  # sub_add | sub_remove
+    op: str  # sub_add | sub_remove | sub_gone
 
 
 @dataclass
@@ -44,6 +44,7 @@ class ScanResult:
     person_changes: list[PersonChange]
     unchanged: bool
     person_snapshots: list[tuple[str, list[FollowingEntry], int]] | None = None
+    gone: list[FollowingEntry] | None = None
 
 
 def _connect() -> sqlite3.Connection:
@@ -307,6 +308,11 @@ def save_scan(result: ScanResult, following: list[FollowingEntry]) -> tuple[int,
                 "INSERT INTO changes (scan_id, op, username, full_name) VALUES (?, 'remove', ?, ?)",
                 (scan_id, c.username, c.full_name),
             )
+        for c in result.gone or []:
+            conn.execute(
+                "INSERT INTO changes (scan_id, op, username, full_name) VALUES (?, 'gone', ?, ?)",
+                (scan_id, c.username, c.full_name),
+            )
         for c in result.person_changes:
             conn.execute(
                 """
@@ -332,7 +338,7 @@ def write_journal(scan_id: int, label: str, result: ScanResult) -> Path:
     lines = [f"=== Scan {label} (id={scan_id}) ===", ""]
 
     has_person = bool(result.person_changes)
-    has_list = bool(result.added or result.removed)
+    has_list = bool(result.added or result.removed or result.gone)
 
     if result.unchanged:
         lines.append(
@@ -352,6 +358,8 @@ def write_journal(scan_id: int, label: str, result: ScanResult) -> Path:
             lines.append(f"+ @{c.username}  {c.full_name}")
         for c in result.removed:
             lines.append(f"- @{c.username}  {c.full_name}")
+        for c in result.gone or []:
+            lines.append(f"x @{c.username}  {c.full_name}")
 
         by_subject: dict[str, list[PersonChange]] = {}
         for c in result.person_changes:
@@ -362,11 +370,14 @@ def write_journal(scan_id: int, label: str, result: ScanResult) -> Path:
             sub_name = snap.subject_full_name if snap else ""
             adds = [c for c in changes if c.op == "sub_add"]
             rems = [c for c in changes if c.op == "sub_remove"]
+            gones = [c for c in changes if c.op == "sub_gone"]
             lines.append(f"~ @{subject}  {sub_name}".strip())
             for c in adds:
                 lines.append(f"  + @{c.username}  {c.full_name}")
             for c in rems:
                 lines.append(f"  - @{c.username}  {c.full_name}")
+            for c in gones:
+                lines.append(f"  x @{c.username}  {c.full_name}")
 
     path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
     return path
@@ -402,7 +413,9 @@ def get_scan(scan_id: int) -> dict | None:
                     WHEN 'count' THEN 2
                     WHEN 'sub_remove' THEN 3
                     WHEN 'remove' THEN 4
-                    ELSE 5
+                    WHEN 'sub_gone' THEN 5
+                    WHEN 'gone' THEN 6
+                    ELSE 7
                 END,
                 COALESCE(subject_username, ''),
                 username

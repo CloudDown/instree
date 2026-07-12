@@ -52,6 +52,10 @@
 
     <section class="card home-changes-panel">
       <header class="scan-header-bar">
+        <div id="scan-subject" class="scan-subject" hidden>
+          <div id="scan-subject-user" class="scan-subject-user"></div>
+          <div id="scan-subject-sub" class="scan-subject-sub"></div>
+        </div>
         <div class="scan-nav">
           <button id="btn-prev" type="button" class="nav-btn" data-i18n-title="changes.prevScan" title="Scan précédent" disabled aria-label="Scan précédent">←</button>
           <div class="scan-info">
@@ -60,14 +64,28 @@
           </div>
           <button id="btn-next" type="button" class="nav-btn" data-i18n-title="changes.nextScan" title="Scan suivant" disabled aria-label="Scan suivant">→</button>
         </div>
+        <label class="changes-search">
+          <span class="visually-hidden" data-i18n="changes.searchLabel">Rechercher un utilisateur</span>
+          <input
+            type="search"
+            id="changes-search"
+            class="changes-search-input"
+            data-i18n-placeholder="changes.searchPlaceholder"
+            placeholder="Rechercher @utilisateur…"
+            autocomplete="off"
+            spellcheck="false"
+          >
+        </label>
       </header>
 
       <div id="content" class="content">
         <p class="empty" data-i18n="changes.loading">Chargement…</p>
       </div>
+      <p id="changes-search-empty" class="changes-search-empty hidden" data-i18n="changes.searchEmpty">Aucun résultat pour cette recherche.</p>
       <footer class="legend" aria-label="Légende">
         <span><strong>+</strong> <span data-i18n="changes.legendMutualAdd">s'est abonné</span></span>
         <span><strong>−</strong> <span data-i18n="changes.legendMutualRemove">s'est désabonné</span></span>
+        <span><strong class="legend-gone">×</strong> <span data-i18n="changes.legendGone">supprimé / renommé</span></span>
       </footer>
     </section>
   </main>

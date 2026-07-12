@@ -29,6 +29,23 @@ def user_profile(ig: Client, username: str) -> IgUser:
     )
 
 
+def try_user_by_pk(ig: Client, pk: str) -> IgUser | None:
+    """Profil par pk, ou None si le compte est introuvable / supprimé."""
+    try:
+        u = ig.user_info(str(pk))
+    except Exception:
+        return None
+    if not u or not getattr(u, "username", None):
+        return None
+    return IgUser(
+        pk=str(u.pk),
+        username=u.username,
+        full_name=u.full_name or "",
+        following_count=int(getattr(u, "following_count", 0) or 0),
+        follower_count=int(getattr(u, "follower_count", 0) or 0),
+    )
+
+
 def _paginate_friendships(
     ig: Client,
     pk: str,

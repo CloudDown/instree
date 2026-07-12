@@ -8,7 +8,7 @@ from instagrapi import Client
 
 from instree.config import Settings
 from instree.errors import ScanCancelled
-from instree.ig import fetch_following, fetch_mutuals, user_profile
+from instree.ig import fetch_following, fetch_mutuals, try_user_by_pk, user_profile
 from instree.session import session_user
 from instree.store import (
     FollowingEntry,
@@ -56,6 +56,47 @@ def _diff(
     added = [e for e in live if e.username not in stored_set]
     removed = [e for e in stored if e.username not in live_set]
     return added, removed
+
+
+def _is_account_gone(ig: Client, entry: FollowingEntry) -> bool:
+    """True si le compte est introuvable ou a changé de pseudo (pk)."""
+    info = try_user_by_pk(ig, entry.pk)
+    if info is None:
+        return True
+    return info.username.lstrip("@").lower() != entry.username.lstrip("@").lower()
+
+
+def _split_removed_gone(
+    ig: Client,
+    removed: list[FollowingEntry],
+    live: list[FollowingEntry],
+    *,
+    page_sleep: float,
+    should_cancel: Callable[[], bool] | None = None,
+) -> tuple[list[FollowingEntry], list[FollowingEntry], set[str]]:
+    """Sépare désabonnements réels / comptes disparus ou renommés.
+
+    Retourne (unfollows, gones, rename_pks encore présents dans live).
+    """
+    live_by_pk = {e.pk: e for e in live if e.pk}
+    unfollows: list[FollowingEntry] = []
+    gones: list[FollowingEntry] = []
+    rename_pks: set[str] = set()
+
+    for i, r in enumerate(removed):
+        _check_cancel(should_cancel)
+        if r.pk and r.pk in live_by_pk:
+            rename_pks.add(r.pk)
+            gones.append(r)
+            continue
+        if _is_account_gone(ig, r):
+            gones.append(r)
+        else:
+            unfollows.append(r)
+        if i + 1 < len(removed) and page_sleep > 0:
+            time.sleep(page_sleep)
+
+    return unfollows, gones, rename_pks
 
 
 def _check_cancel(should_cancel: Callable[[], bool] | None) -> None:
@@ -125,14 +166,28 @@ def _fetch_person_following(
 
 
 def _apply_person_diff(
+    ig: Client,
     profile_username: str,
     entry: FollowingEntry,
     stored: list[FollowingEntry],
     live: list[FollowingEntry],
     person_changes: list[PersonChange],
+    *,
+    page_sleep: float,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> None:
     added, removed = _diff(stored, live)
+    unfollows, gones, rename_pks = _split_removed_gone(
+        ig,
+        removed,
+        live,
+        page_sleep=page_sleep,
+        should_cancel=should_cancel,
+    )
+
     for a in added:
+        if a.pk and a.pk in rename_pks:
+            continue
         person_changes.append(
             PersonChange(
                 subject_username=profile_username,
@@ -142,7 +197,7 @@ def _apply_person_diff(
                 op="sub_add",
             )
         )
-    for r in removed:
+    for r in unfollows:
         person_changes.append(
             PersonChange(
                 subject_username=profile_username,
@@ -150,6 +205,16 @@ def _apply_person_diff(
                 username=r.username,
                 full_name=r.full_name,
                 op="sub_remove",
+            )
+        )
+    for r in gones:
+        person_changes.append(
+            PersonChange(
+                subject_username=profile_username,
+                subject_full_name=entry.full_name,
+                username=r.username,
+                full_name=r.full_name,
+                op="sub_gone",
             )
         )
 
@@ -269,11 +334,14 @@ def _watch_persons(
                         )
                         snapshots.append((profile.username, live, profile.following_count))
                         _apply_person_diff(
+                            ig,
                             profile.username,
                             entry,
                             stored,
                             live,
                             person_changes,
+                            page_sleep=page_sleep,
+                            should_cancel=should_cancel,
                         )
                 else:
                     live = _fetch_person_following(
@@ -291,11 +359,14 @@ def _watch_persons(
                     if need_diff and snapshot is not None:
                         stored = get_person_following(profile.username)
                         _apply_person_diff(
+                            ig,
                             profile.username,
                             entry,
                             stored,
                             live,
                             person_changes,
+                            page_sleep=page_sleep,
+                            should_cancel=should_cancel,
                         )
             except Exception:
                 if i + 1 < len(entries):
@@ -339,6 +410,7 @@ def run_scan(
 
     added: list[FollowingEntry] = []
     removed: list[FollowingEntry] = []
+    gone: list[FollowingEntry] = []
 
     if need_list:
         _report(on_progress, 0, 0, "", "mutuals")
@@ -355,13 +427,23 @@ def run_scan(
             raise RuntimeError(f"Erreur fetch abonnements mutuels : {e}") from e
         live = [_to_entry(u) for u in live_users]
         if is_baseline or not stored_list:
-            added, removed = [], []
+            added, removed, gone = [], [], []
         else:
-            added, removed = _diff(stored_list, live)
+            added, removed_raw = _diff(stored_list, live)
+            removed, gone, rename_pks = _split_removed_gone(
+                ig,
+                removed_raw,
+                live,
+                page_sleep=settings.page_sleep,
+                should_cancel=should_cancel,
+            )
+            if rename_pks:
+                added = [a for a in added if not a.pk or a.pk not in rename_pks]
     else:
         live = list(stored_list)
+        added, removed, gone = [], [], []
 
-    for r in removed:
+    for r in removed + gone:
         delete_person_snapshot(r.username)
 
     new_usernames = {a.username for a in added}
@@ -380,12 +462,14 @@ def run_scan(
 
     person_added = sum(1 for c in person_changes if c.op == "sub_add")
     person_removed = sum(1 for c in person_changes if c.op == "sub_remove")
+    person_gone = sum(1 for c in person_changes if c.op == "sub_gone")
 
     if (
         not is_baseline
         and not need_list
         and not added
         and not removed
+        and not gone
         and not person_changes
         and not person_snapshots
     ):
@@ -410,10 +494,12 @@ def run_scan(
         tracked_count=len(following),
         added=added,
         removed=removed,
+        gone=gone,
         person_changes=person_changes,
         unchanged=(
             not added
             and not removed
+            and not gone
             and not person_changes
             and not is_baseline
         ),
@@ -427,9 +513,9 @@ def run_scan(
         tracked=len(following),
         following_count=profile.following_count,
         added=len(added),
-        removed=len(removed),
+        removed=len(removed) + len(gone),
         person_added=person_added,
-        person_removed=person_removed,
+        person_removed=person_removed + person_gone,
         unchanged=False,
         journal_path=str(journal_path),
     )

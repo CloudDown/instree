@@ -2,6 +2,7 @@ let scans = [];
 let currentId = null;
 let pollTimer = null;
 let lastJobState = "idle";
+let changesSearchQuery = "";
 
 const page = document.body.dataset.page || "";
 const t = (key, vars) => I18n.t(key, vars);
@@ -38,11 +39,16 @@ const btnInit = document.getElementById("btn-init");
 
 const elDate = document.getElementById("scan-date");
 const elMeta = document.getElementById("scan-meta");
+const elScanSubject = document.getElementById("scan-subject");
+const elScanSubjectUser = document.getElementById("scan-subject-user");
+const elScanSubjectSub = document.getElementById("scan-subject-sub");
 const elContent = document.getElementById("content");
 const elHistory = document.getElementById("history-list");
 const elHistoryEmpty = document.getElementById("history-empty");
 const btnPrev = document.getElementById("btn-prev");
 const btnNext = document.getElementById("btn-next");
+const elChangesSearch = document.getElementById("changes-search");
+const elChangesSearchEmpty = document.getElementById("changes-search-empty");
 
 const dialog = document.getElementById("confirm-dialog");
 const confirmTitle = document.getElementById("confirm-title");
@@ -236,44 +242,133 @@ function renderPersonSection(groups) {
             `<span class="change-name">${esc(r.full_name)}</span></span></div>`,
         );
       }
+      for (const x of g.gones || []) {
+        lines.push(
+          `<div class="change-line gone"><span class="change-op"></span>` +
+            `<span><span class="change-user-wrap">${igUser(x.username)}</span> ` +
+            `<span class="change-name">${esc(x.full_name)}</span></span></div>`,
+        );
+      }
       return `<div class="changes-group person-group">${title}${lines.join("")}</div>`;
     })
     .join("");
   return `<div class="changes-section changes-section--panel-full"><div class="person-section-body">${blocks}</div></div>`;
 }
 
+function updateScanSubject(detail) {
+  if (!elScanSubject || !elScanSubjectUser || !elScanSubjectSub) return;
+  const scan = detail?.scan;
+  const hasListChanges = Boolean(
+    detail?.adds?.length || detail?.removes?.length || detail?.gones?.length,
+  );
+  if (!scan || !hasListChanges) {
+    elScanSubject.hidden = true;
+    elScanSubjectUser.innerHTML = "";
+    elScanSubjectSub.textContent = "";
+    return;
+  }
+  const oldC = detail.old_count != null ? detail.old_count : "?";
+  elScanSubjectUser.innerHTML = igUser(scan.username);
+  elScanSubjectSub.textContent = `${oldC} → ${scan.following_count} ${t("changes.subscriptions")}`;
+  elScanSubject.hidden = false;
+}
+
 function renderDetail(detail) {
   if (!elContent) return;
 
   const scan = detail.scan;
+  updateScanSubject(detail);
+
   if (!detail.has_changes) {
     elContent.innerHTML =
       `<p class="empty"><strong>${t("changes.nothingNew")}</strong> ${t("changes.nothingNewHint")}<br>` +
       `${t("changes.mutualsTracked", { count: scan.tracked_count })}</p>`;
+    applyChangesSearch();
     return;
   }
 
-  const oldC = detail.old_count != null ? detail.old_count : "?";
-  const hasListChanges = detail.adds.length || detail.removes.length;
-  const header = hasListChanges ? igUser(scan.username) : "";
-  const sub = hasListChanges ? `${oldC} → ${scan.following_count} ${t("changes.subscriptions")}` : "";
   const mutualSections = [];
   if (detail.adds.length) mutualSections.push(renderGroup(t("changes.newMutuals"), detail.adds, "add"));
   if (detail.removes.length) mutualSections.push(renderGroup(t("changes.lostMutuals"), detail.removes, "remove"));
+  if (detail.gones?.length) mutualSections.push(renderGroup(t("changes.goneAccounts"), detail.gones, "gone"));
   const personSection = detail.person_changes?.length
     ? renderPersonSection(detail.person_changes)
     : "";
 
-  const mutualCard =
-    mutualSections.length || header
-      ? `<article class="changes-card">` +
-        (header ? `<header class="changes-card-header">${header}<div class="sub">${sub}</div></header>` : "") +
-        mutualSections.join("") +
-        `</article>`
-      : "";
+  const mutualCard = mutualSections.length
+    ? `<article class="changes-card">${mutualSections.join("")}</article>`
+    : "";
 
   elContent.innerHTML =
     `<div class="changes-layout">` + mutualCard + personSection + `</div>`;
+  applyChangesSearch();
+}
+
+function matchesChangesSearch(text) {
+  const q = changesSearchQuery.trim().toLowerCase().replace(/^@/, "");
+  if (!q) return true;
+  return String(text || "")
+    .toLowerCase()
+    .replace(/^@/, "")
+    .includes(q);
+}
+
+function applyChangesSearch() {
+  if (!elContent) return;
+  const q = changesSearchQuery.trim();
+  const active = q.length > 0;
+
+  elContent.querySelectorAll(".change-line").forEach((line) => {
+    const hay = line.textContent || "";
+    line.classList.toggle("hidden", active && !matchesChangesSearch(hay));
+  });
+
+  elContent.querySelectorAll(".person-group").forEach((group) => {
+    const subject = group.querySelector(".person-group-title")?.textContent || "";
+    const subjectMatch = matchesChangesSearch(subject);
+    const lines = [...group.querySelectorAll(".change-line")];
+    if (active && subjectMatch) {
+      lines.forEach((line) => line.classList.remove("hidden"));
+      group.classList.remove("hidden");
+      return;
+    }
+    const anyLine = lines.some((line) => !line.classList.contains("hidden"));
+    group.classList.toggle("hidden", active && !anyLine);
+  });
+
+  elContent.querySelectorAll(".changes-group:not(.person-group)").forEach((group) => {
+    const lines = [...group.querySelectorAll(".change-line")];
+    const anyLine = lines.some((line) => !line.classList.contains("hidden"));
+    group.classList.toggle("hidden", active && !anyLine);
+  });
+
+  elContent.querySelectorAll(".changes-card").forEach((card) => {
+    const groups = [...card.querySelectorAll(".changes-group")];
+    const anyGroup = groups.some((g) => !g.classList.contains("hidden"));
+    card.classList.toggle("hidden", active && groups.length > 0 && !anyGroup);
+  });
+
+  elContent.querySelectorAll(".changes-section").forEach((section) => {
+    const groups = [...section.querySelectorAll(".person-group")];
+    const anyGroup = groups.some((g) => !g.classList.contains("hidden"));
+    section.classList.toggle("hidden", active && groups.length > 0 && !anyGroup);
+  });
+
+  const layout = elContent.querySelector(".changes-layout");
+  let anyVisible = false;
+  if (layout) {
+    anyVisible = [...layout.children].some((el) => !el.classList.contains("hidden"));
+  } else if (!active) {
+    anyVisible = true;
+  }
+
+  if (elChangesSearchEmpty) {
+    const hasLayout = Boolean(layout);
+    elChangesSearchEmpty.classList.toggle("hidden", !(active && hasLayout && !anyVisible));
+  }
+  if (layout) {
+    layout.classList.toggle("hidden", active && !anyVisible);
+  }
 }
 
 function renderHistory() {
@@ -338,6 +433,12 @@ async function loadScans() {
       `<p class="empty"><strong>${t("changes.noDataTitle")}</strong><br>${t("changes.noDataHint")}</p>`;
     if (btnPrev) btnPrev.disabled = true;
     if (btnNext) btnNext.disabled = true;
+    if (elChangesSearchEmpty) elChangesSearchEmpty.classList.add("hidden");
+    if (elScanSubject) {
+      elScanSubject.hidden = true;
+      if (elScanSubjectUser) elScanSubjectUser.innerHTML = "";
+      if (elScanSubjectSub) elScanSubjectSub.textContent = "";
+    }
     return;
   }
   const target = currentId && scans.some((s) => s.id === currentId) ? currentId : scans[scans.length - 1].id;
@@ -534,9 +635,18 @@ async function initChangesPage() {
     };
   }
   document.addEventListener("keydown", (e) => {
+    if (e.target === elChangesSearch || e.target?.closest?.("input, textarea")) return;
     if (e.key === "ArrowLeft" && btnPrev) btnPrev.click();
     if (e.key === "ArrowRight" && btnNext) btnNext.click();
   });
+
+  if (elChangesSearch) {
+    elChangesSearch.value = changesSearchQuery;
+    elChangesSearch.addEventListener("input", () => {
+      changesSearchQuery = elChangesSearch.value;
+      applyChangesSearch();
+    });
+  }
 }
 
 function initLangSwitch() {

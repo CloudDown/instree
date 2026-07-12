@@ -190,8 +190,11 @@ def create_app() -> FastAPI:
         scan = data["scan"]
         adds = [c for c in data["changes"] if c["op"] == "add"]
         removes = [c for c in data["changes"] if c["op"] == "remove"]
+        gones = [c for c in data["changes"] if c["op"] == "gone"]
         sub_changes = [
-            c for c in data["changes"] if c["op"] in ("sub_add", "sub_remove")
+            c
+            for c in data["changes"]
+            if c["op"] in ("sub_add", "sub_remove", "sub_gone")
         ]
 
         person_groups: dict[str, dict] = {}
@@ -202,22 +205,26 @@ def create_app() -> FastAPI:
                     "username": subject,
                     "adds": [],
                     "removes": [],
+                    "gones": [],
                 }
             if c["op"] == "sub_add":
                 person_groups[subject]["adds"].append(c)
+            elif c["op"] == "sub_gone":
+                person_groups[subject]["gones"].append(c)
             else:
                 person_groups[subject]["removes"].append(c)
 
         old_count = None
-        if adds or removes:
-            old_count = scan["following_count"] - len(adds) + len(removes)
+        if adds or removes or gones:
+            old_count = scan["following_count"] - len(adds) + len(removes) + len(gones)
         return {
             **data,
             "adds": adds,
             "removes": removes,
+            "gones": gones,
             "person_changes": list(person_groups.values()),
             "old_count": old_count,
-            "has_changes": bool(adds or removes or sub_changes),
+            "has_changes": bool(adds or removes or gones or sub_changes),
         }
 
     @app.get("/api/scans/{scan_id}/neighbors")
