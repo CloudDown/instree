@@ -225,14 +225,22 @@ def create_app() -> FastAPI:
         return scan_neighbors(scan_id)
 
     @app.get("/api/graph")
-    async def api_graph():
-        data = get_graph_data()
+    async def api_graph(groups: int | None = None):
+        target = groups if groups is not None and groups >= 2 else None
+        data = get_graph_data(groups=target)
         if not data:
             return {
                 "nodes": [],
                 "links": [],
                 "scan": None,
-                "stats": {"nodes": 0, "links": 0, "mutuals": 0, "clusters": 0},
+                "stats": {
+                    "nodes": 0,
+                    "links": 0,
+                    "mutuals": 0,
+                    "clusters": 0,
+                    "max_groups": 1,
+                    "groups_mode": "auto",
+                },
             }
         return data
 

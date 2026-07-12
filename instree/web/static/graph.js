@@ -19,6 +19,7 @@
     linkWidth: 0.6,
     ringScale: 0.5,
     spacingScale: 1.0,
+    targetGroups: 0,
   };
 
   let graph = null;
@@ -27,8 +28,10 @@
   let rawLinks = [];
   let layoutCenters = null;
   let clusterMeta = [];
+  let maxGroups = 20;
   let settings = loadSettings();
   let panelBound = false;
+  let reloadTimer = null;
 
   function clamp(val, min, max) {
     return Math.min(max, Math.max(min, val));
@@ -44,6 +47,7 @@
         ...parsed,
         hiddenClusters: Array.isArray(parsed.hiddenClusters) ? parsed.hiddenClusters : [],
         showIntraLinks: parsed.showIntraLinks ?? true,
+        targetGroups: Math.max(0, Number(parsed.targetGroups) || 0),
         linkOpacity: clamp(parsed.linkOpacity ?? DEFAULT_SETTINGS.linkOpacity, 0, 1),
         ringScale: clamp(parsed.ringScale ?? DEFAULT_SETTINGS.ringScale, 0.2, 1),
         spacingScale: clamp(parsed.spacingScale ?? DEFAULT_SETTINGS.spacingScale, 0.5, 1),
@@ -290,6 +294,27 @@
     elGroups.textContent = String(visibleGroups);
   }
 
+  function formatTargetGroupsLabel(val) {
+    if (!val || val < 2) return t("graph.targetGroupsAuto");
+    return String(val);
+  }
+
+  function syncTargetGroupsControl() {
+    const el = document.getElementById("graph-opt-target-groups");
+    const out = document.getElementById("graph-opt-target-groups-val");
+    if (el) {
+      el.min = "0";
+      el.max = String(Math.max(maxGroups, 2));
+      const clamped =
+        settings.targetGroups >= 2
+          ? clamp(settings.targetGroups, 2, maxGroups)
+          : 0;
+      settings.targetGroups = clamped;
+      el.value = String(clamped);
+    }
+    if (out) out.textContent = formatTargetGroupsLabel(settings.targetGroups);
+  }
+
   function syncPanelFromSettings() {
     const setChecked = (id, val) => {
       const el = document.getElementById(id);
@@ -327,6 +352,7 @@
       "graph-opt-spacing-val",
       (v) => `${v}%`,
     );
+    syncTargetGroupsControl();
 
     document.querySelectorAll(".graph-cluster-item input").forEach((input) => {
       const id = Number(input.dataset.cluster);
@@ -474,14 +500,32 @@
       document.getElementById("graph-opt-spacing-val").textContent = `${e.target.value}%`;
     });
 
+    document.getElementById("graph-opt-target-groups")?.addEventListener("input", (e) => {
+      const val = Number(e.target.value) || 0;
+      document.getElementById("graph-opt-target-groups-val").textContent =
+        formatTargetGroupsLabel(val);
+    });
+    document.getElementById("graph-opt-target-groups")?.addEventListener("change", () => {
+      const val = Number(document.getElementById("graph-opt-target-groups")?.value) || 0;
+      settings.targetGroups = val >= 2 ? val : 0;
+      settings.hiddenClusters = [];
+      saveSettings();
+      syncTargetGroupsControl();
+      if (reloadTimer) clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(() => loadGraph({ keepPanel: true }), 120);
+    });
+
     document.getElementById("graph-btn-fit")?.addEventListener("click", () => {
       graph?.zoomToFit(400, 80);
     });
 
     document.getElementById("graph-btn-reset")?.addEventListener("click", () => {
+      const needReload = settings.targetGroups >= 2;
       settings = { ...DEFAULT_SETTINGS, hiddenClusters: [] };
       syncPanelFromSettings();
-      applySettings(true);
+      saveSettings();
+      if (needReload) loadGraph({ keepPanel: true });
+      else applySettings(true);
     });
   }
 
@@ -497,6 +541,12 @@
       kind: l.kind,
     }));
     clusterMeta = extractClusterMeta(rawGraphData.nodes);
+    if (data.stats?.max_groups) {
+      maxGroups = Math.max(2, Number(data.stats.max_groups) || 20);
+    }
+    if (settings.targetGroups >= 2) {
+      settings.targetGroups = clamp(settings.targetGroups, 2, maxGroups);
+    }
 
     const layout = buildClusterLayout(rawGraphData.nodes, {
       ringScale: settings.ringScale,
@@ -572,13 +622,15 @@
     window.addEventListener("resize", resizeHandler);
   }
 
-  async function loadGraph() {
+  async function loadGraph({ keepPanel = false } = {}) {
     elEmpty.classList.add("hidden");
-    elPanel?.classList.add("hidden");
+    if (!keepPanel) elPanel?.classList.add("hidden");
 
     let data;
     try {
-      const res = await fetch("/api/graph");
+      const qs =
+        settings.targetGroups >= 2 ? `?groups=${settings.targetGroups}` : "";
+      const res = await fetch(`/api/graph${qs}`);
       if (!res.ok) throw new Error("bad status");
       data = await res.json();
     } catch {
@@ -608,6 +660,7 @@
 
     function onLocaleChange() {
       I18n.applyI18n();
+      syncTargetGroupsControl();
       renderClusterList();
       if (rawGraphData && graph) {
         updateStats(filterGraphData(rawGraphData));

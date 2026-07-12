@@ -448,13 +448,8 @@ _ISOLATE_COLOR = "#6b7280"
 _ROOT_COLOR = "#facc15"
 
 
-def _cluster_mutuals(
-    mutuals: set[str], directed: list[tuple[str, str]]
-) -> dict[str, int]:
-    """Communautés Louvain (modularité) sur le graphe des mutuels.
-
-    Liens réciproques pondérés fort, liens à sens unique faibles.
-    """
+def _build_mutual_graph(mutuals: set[str], directed: list[tuple[str, str]]):
+    """Graphe non orienté des mutuels (réciproque fort, one-way faible)."""
     import networkx as nx
 
     edge_set = set(directed)
@@ -467,26 +462,113 @@ def _cluster_mutuals(
             graph.add_edge(a, b, weight=2.0)
         elif (b, a) not in edge_set and not graph.has_edge(a, b):
             graph.add_edge(a, b, weight=0.5)
+    return graph
+
+
+def _inter_weight(graph, a: set[str], b: set[str]) -> float:
+    total = 0.0
+    for u in a:
+        for _, v, data in graph.edges(u, data=True):
+            if v in b:
+                total += float(data.get("weight", 1.0))
+    return total
+
+
+def _merge_communities_to_k(graph, communities: list[set[str]], k: int) -> list[set[str]]:
+    """Fusionne les communautés les plus liées jusqu'à exactement k groupes."""
+    groups = [set(c) for c in communities]
+    while len(groups) > k:
+        best_i, best_j, best_w = 0, 1, -1.0
+        for i in range(len(groups)):
+            for j in range(i + 1, len(groups)):
+                w = _inter_weight(graph, groups[i], groups[j])
+                if w > best_w or (
+                    w == best_w
+                    and (
+                        len(groups[i]) + len(groups[j])
+                        < len(groups[best_i]) + len(groups[best_j])
+                    )
+                ):
+                    best_i, best_j, best_w = i, j, w
+        merged = groups[best_i] | groups[best_j]
+        groups = [g for idx, g in enumerate(groups) if idx not in (best_i, best_j)]
+        groups.append(merged)
+    return groups
+
+
+def _louvain_multis(graph, resolution: float) -> list[set[str]]:
+    import networkx as nx
 
     communities = nx.community.louvain_communities(
-        graph, weight="weight", resolution=1.0, seed=42
+        graph, weight="weight", resolution=resolution, seed=42
     )
+    return [set(c) for c in communities if len(c) >= 2]
 
-    ranked = sorted(communities, key=len, reverse=True)
+
+def _cluster_mutuals(
+    mutuals: set[str],
+    directed: list[tuple[str, str]],
+    target_groups: int | None = None,
+) -> tuple[dict[str, int], int]:
+    """Communautés Louvain sur les mutuels.
+
+    Retourne (cluster_of, max_groups).
+    Isolés (communauté size 1) → cluster -1.
+    Si target_groups ≥ 2 : force exactement ce nombre (clampé à max possible).
+    """
+    graph = _build_mutual_graph(mutuals, directed)
+    if graph.number_of_nodes() == 0:
+        return {}, 0
+
+    multi = _louvain_multis(graph, 1.0)
+    # Max théorique : mutuels avec au moins un lien (peuvent former des paires)
+    linked = {n for n in graph.nodes if graph.degree(n) > 0}
+    max_groups = max(1, min(20, len(linked) // 2)) if linked else 1
+    # Affiner max avec une résolution haute (plus de communautés possibles)
+    fine = _louvain_multis(graph, 3.0)
+    if len(fine) > max_groups:
+        max_groups = min(20, len(fine))
+    max_groups = max(max_groups, len(multi), 1)
+
+    if target_groups is not None and target_groups >= 2:
+        k = min(max(2, target_groups), max_groups)
+        if len(multi) < k:
+            for res in (1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 7.0, 10.0):
+                candidate = _louvain_multis(graph, res)
+                if len(candidate) >= k:
+                    multi = candidate
+                    break
+                if len(candidate) > len(multi):
+                    multi = candidate
+            # Si encore insuffisant : chaque paire liée comme graine max
+            if len(multi) < k:
+                multi = fine if len(fine) >= len(multi) else multi
+        if len(multi) > k:
+            multi = _merge_communities_to_k(graph, multi, k)
+        elif len(multi) < k:
+            # Impossible d'atteindre k : on garde ce qu'on a
+            pass
+
+    assigned: set[str] = set()
+    ranked = sorted(multi, key=len, reverse=True)
     cluster_of: dict[str, int] = {}
-    next_id = 0
-    for members in ranked:
-        if len(members) == 1:
-            cluster_of[next(iter(members))] = -1
-            continue
+    for cid, members in enumerate(ranked):
         for u in members:
-            cluster_of[u] = next_id
-        next_id += 1
-    return cluster_of
+            cluster_of[u] = cid
+            assigned.add(u)
+
+    for u in mutuals:
+        if u not in cluster_of:
+            cluster_of[u] = -1
+
+    return cluster_of, max_groups
 
 
-def get_graph_data() -> dict | None:
-    """Graphe mutuels : groupes sociaux (liens réciproques) colorés distinctement."""
+def get_graph_data(groups: int | None = None) -> dict | None:
+    """Graphe mutuels : groupes sociaux colorés distinctement.
+
+    groups: nombre cible de groupes (≥2), ou None pour Louvain libre (auto).
+    """
     with _connect() as conn:
         scan = conn.execute(
             """
@@ -526,8 +608,10 @@ def get_graph_data() -> dict | None:
                 if src and tgt and src != tgt:
                     directed.append((src, tgt))
 
-        cluster_of = _cluster_mutuals(mutual_set, directed)
+        target = groups if groups is not None and groups >= 2 else None
+        cluster_of, max_groups = _cluster_mutuals(mutual_set, directed, target)
         social_clusters = {c for c in cluster_of.values() if c >= 0}
+        groups_mode = "fixed" if target is not None else "auto"
 
         nodes: list[dict] = [
             {
@@ -593,5 +677,7 @@ def get_graph_data() -> dict | None:
                 "links": len(links),
                 "mutuals": len(mutual_rows),
                 "clusters": len(social_clusters),
+                "max_groups": max(max_groups, len(social_clusters), 1),
+                "groups_mode": groups_mode,
             },
         }

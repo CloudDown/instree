@@ -65,6 +65,14 @@
 
         <section class="graph-panel-section">
           <h3 class="graph-panel-section-title" data-i18n="graph.sectionGroups">Groupes</h3>
+          <label class="field">
+            <span class="field-label">
+              <span data-i18n="graph.optTargetGroups">Nombre de groupes</span>
+              <output id="graph-opt-target-groups-val" for="graph-opt-target-groups">Auto</output>
+            </span>
+            <input type="range" id="graph-opt-target-groups" min="0" max="20" step="1" value="0">
+          </label>
+          <p class="field-hint" data-i18n="graph.optTargetGroupsHint">0 = détection automatique. Hors comptes sans groupe.</p>
           <div id="graph-cluster-list" class="graph-cluster-list"></div>
         </section>
 
