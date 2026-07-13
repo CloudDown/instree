@@ -1,5 +1,7 @@
 """Connexion Instagram (config/instree.toml ou cookies navigateur)."""
 
+import logging
+
 from instagrapi import Client
 from instagrapi.exceptions import LoginRequired
 
@@ -15,6 +17,16 @@ _BROWSERS = (
     "vivaldi",
     "librewolf",
 )
+
+
+def _quiet_instagrapi_logs() -> None:
+    for name in ("instagrapi", "public_request", "private_request"):
+        log = logging.getLogger(name)
+        log.setLevel(logging.CRITICAL)
+        log.propagate = False
+
+
+_quiet_instagrapi_logs()
 
 
 def _login(jar: dict) -> Client:
