@@ -288,7 +288,7 @@ function renderDetail(detail) {
   }
 
   const mutualSections = [];
-  if (detail.adds.length) mutualSections.push(renderGroup(t("changes.newMutuals"), detail.adds, "add"));
+  if (detail.adds.length) mutualSections.push(renderGroup(t("changes.newMutuals"), detail.adds, "list-add"));
   if (detail.removes.length) mutualSections.push(renderGroup(t("changes.lostMutuals"), detail.removes, "remove"));
   if (detail.gones?.length) mutualSections.push(renderGroup(t("changes.goneAccounts"), detail.gones, "gone"));
   const personSection = detail.person_changes?.length

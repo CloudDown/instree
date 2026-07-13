@@ -30,6 +30,7 @@
   "changes.searchLabel": "Search for a user",
   "changes.searchPlaceholder": "Search @user…",
   "changes.searchEmpty": "No results for this search.",
+  "changes.legendListAdd": "added to your list",
   "changes.legendMutualAdd": "followed",
   "changes.legendMutualRemove": "unfollowed",
   "changes.legendGone": "deleted / renamed",

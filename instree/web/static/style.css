@@ -8,6 +8,7 @@
   --muted: #888;
   --dim: #555;
   --add-bg: rgba(34, 197, 94, 0.14);
+  --list-add-bg: rgba(59, 130, 246, 0.16);
   --remove-bg: rgba(239, 68, 68, 0.14);
   --gone-bg: rgba(168, 85, 247, 0.16);
   --subject-color: #facc15;
@@ -1233,6 +1234,10 @@ a.person-subject:hover {
   background: var(--add-bg);
 }
 
+.change-line.list-add {
+  background: var(--list-add-bg);
+}
+
 .change-line.remove {
   background: var(--remove-bg);
 }
@@ -1250,6 +1255,8 @@ a.person-subject:hover {
 
 .change-line.add .change-op::before { content: "+"; }
 .change-line.add .change-op { color: #4ade80; }
+.change-line.list-add .change-op::before { content: ">"; }
+.change-line.list-add .change-op { color: #60a5fa; }
 .change-line.remove .change-op::before { content: "−"; }
 .change-line.remove .change-op { color: #f87171; }
 .change-line.gone .change-op::before { content: "×"; }
@@ -1295,6 +1302,10 @@ a.change-user:hover {
 .legend strong {
   color: var(--text);
   font-family: ui-monospace, monospace;
+}
+
+.legend-list-add {
+  color: #60a5fa;
 }
 
 .legend-gone {
