@@ -60,6 +60,32 @@ body {
   gap: 1rem;
 }
 
+@media (max-width: 640px) {
+  .topbar-inner {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 0.65rem 0.75rem;
+  }
+
+  .brand-line {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .lang-switch {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .topnav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: stretch;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}
+
 .brand-line {
   justify-self: start;
 }
@@ -512,39 +538,12 @@ body {
   min-height: 0;
   padding: 0;
   overflow: hidden;
+  container-type: inline-size;
+  container-name: changes-panel;
 }
 
 .home-changes-panel .scan-header-bar {
   border-bottom: none;
-}
-
-@media (max-width: 700px) {
-  .scan-header-bar {
-    grid-template-columns: 1fr;
-  }
-
-  .scan-subject,
-  .scan-nav,
-  .changes-search {
-    grid-column: auto;
-  }
-
-  .scan-subject {
-    width: 100%;
-    max-width: none;
-    justify-self: stretch;
-    text-align: center;
-  }
-
-  .changes-search {
-    width: 100%;
-    max-width: none;
-    justify-self: stretch;
-  }
-
-  .scan-nav {
-    justify-self: center;
-  }
 }
 
 .home-changes-panel .legend {
@@ -1009,26 +1008,23 @@ body {
   padding: 0.75rem 1.15rem;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
-  display: grid;
-  grid-template-columns: 12.5rem minmax(0, 1fr) 12.5rem;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.65rem 0.75rem;
   flex-shrink: 0;
 }
 
 .scan-subject {
+  flex: 0 1 12.5rem;
   width: 12.5rem;
   max-width: 100%;
   min-width: 0;
-  justify-self: start;
   text-align: left;
-  grid-column: 1;
 }
 
 .scan-subject[hidden] {
-  display: block !important;
-  visibility: hidden;
-  pointer-events: none;
+  display: none !important;
 }
 
 .scan-subject-user {
@@ -1052,14 +1048,16 @@ body {
 
 .changes-search {
   display: block;
+  flex: 0 1 12.5rem;
   width: 12.5rem;
   max-width: 100%;
-  justify-self: end;
-  grid-column: 3;
+  min-width: 0;
+  margin-left: auto;
 }
 
 .changes-search-input {
   width: 100%;
+  min-width: 0;
   height: 2.25rem;
   padding: 0 0.7rem;
   border: 1px solid var(--border);
@@ -1112,12 +1110,11 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.45rem;
+  flex: 1 1 12rem;
   width: auto;
   max-width: 100%;
   min-width: 0;
   margin: 0;
-  justify-self: center;
-  grid-column: 2;
 }
 
 .nav-btn {
@@ -1152,14 +1149,18 @@ body {
 .scan-info {
   text-align: center;
   min-width: 0;
+  flex: 1 1 auto;
   padding: 0 0.1rem;
-  white-space: nowrap;
+  overflow: hidden;
 }
 
 .scan-date {
   display: block;
   font-size: 0.95rem;
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .scan-meta {
@@ -1171,6 +1172,34 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+@container changes-panel (max-width: 36rem) {
+  .scan-header-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .scan-subject,
+  .scan-nav,
+  .changes-search {
+    flex: none;
+    width: 100%;
+    max-width: none;
+    margin-left: 0;
+  }
+
+  .scan-subject {
+    text-align: center;
+  }
+
+  .scan-nav {
+    order: 1;
+  }
+
+  .changes-search {
+    order: 2;
+  }
 }
 
 .content {
@@ -1577,7 +1606,7 @@ a.change-user:hover {
 
 /* Mobile */
 
-@media (max-width: 720px) {
+@media (max-width: 900px) {
   .page-home,
   .page-settings {
     grid-template-columns: 1fr;
