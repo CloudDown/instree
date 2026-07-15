@@ -51,7 +51,7 @@ Les cookies vont dans `config/instree.local.toml` (gitignored).
 
 ### Home — scans & historique
 
-![Home](docs/screenshots/home.png)
+![Home](docs/screenshots/readme-home.png)
 
 Lancer un scan, parcourir l’historique, et lire les changements d’un scan :
 
@@ -62,7 +62,7 @@ Lancer un scan, parcourir l’historique, et lire les changements d’un scan :
 
 ### Graph — réseau des mutuels
 
-![Graph](docs/screenshots/graph.png)
+![Graph](docs/screenshots/readme-graph.png)
 
 Vue force-directed de ta communauté :
 
@@ -73,7 +73,7 @@ Vue force-directed de ta communauté :
 
 ### Paramètres — session & config
 
-![Paramètres](docs/screenshots/settings.png)
+![Paramètres](docs/screenshots/readme-settings.png)
 
 Configurer Instree sans éditer les fichiers à la main :
 
