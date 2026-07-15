@@ -4,6 +4,11 @@
   const elCanvas = document.getElementById("graph-canvas");
   const elEmpty = document.getElementById("graph-empty");
   const elPanel = document.getElementById("graph-panel");
+  const elStage = document.getElementById("graph-stage");
+  const elBtnFullscreen = document.getElementById("graph-btn-fullscreen");
+  const elSearchForm = document.getElementById("graph-search-form");
+  const elSearchInput = document.getElementById("graph-search-input");
+  const elSearchMsg = document.getElementById("graph-search-msg");
 
   const STORAGE_KEY = "instree.graph.display";
 
@@ -647,6 +652,116 @@
     buildGraph(data);
   }
 
+  function normalizeGraphQuery(text) {
+    return String(text || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/^@/, "")
+      .trim();
+  }
+
+  function isFullscreen() {
+    return Boolean(
+      elStage &&
+        (document.fullscreenElement === elStage ||
+          document.webkitFullscreenElement === elStage),
+    );
+  }
+
+  function syncFullscreenUi() {
+    const fs = isFullscreen();
+    elStage?.classList.toggle("is-fullscreen", fs);
+    if (elBtnFullscreen) {
+      const key = fs ? "graph.btnFullscreenExit" : "graph.btnFullscreen";
+      elBtnFullscreen.title = t(key);
+      elBtnFullscreen.setAttribute("aria-label", t(key));
+    }
+    if (!fs) {
+      elSearchMsg?.classList.add("hidden");
+    }
+    if (graph && elCanvas) {
+      graph.width(elCanvas.clientWidth);
+      graph.height(elCanvas.clientHeight);
+    }
+  }
+
+  async function toggleFullscreen() {
+    if (!elStage) return;
+    try {
+      if (isFullscreen()) {
+        if (document.exitFullscreen) await document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      } else if (elStage.requestFullscreen) {
+        await elStage.requestFullscreen();
+      } else if (elStage.webkitRequestFullscreen) {
+        elStage.webkitRequestFullscreen();
+      }
+    } catch {
+      /* user gesture / browser policy */
+    }
+  }
+
+  function showSearchMsg(key) {
+    if (!elSearchMsg) return;
+    elSearchMsg.textContent = t(key);
+    elSearchMsg.classList.remove("hidden");
+  }
+
+  function findNodeByQuery(query) {
+    const q = normalizeGraphQuery(query);
+    if (!q || !rawGraphData?.nodes?.length) return null;
+    const scored = [];
+    for (const n of rawGraphData.nodes) {
+      const id = normalizeGraphQuery(n.id);
+      const name = normalizeGraphQuery(n.name);
+      const full = normalizeGraphQuery(n.full_name);
+      let score = 0;
+      if (id === q || name === q) score = 3;
+      else if (id.startsWith(q) || name.startsWith(q)) score = 2;
+      else if (id.includes(q) || name.includes(q) || full.includes(q)) score = 1;
+      if (score) scored.push({ node: n, score });
+    }
+    scored.sort((a, b) => b.score - a.score);
+    return scored[0]?.node || null;
+  }
+
+  function focusNode(node) {
+    if (!graph || !node) return;
+    const x = Number(node.x) || 0;
+    const y = Number(node.y) || 0;
+    graph.centerAt(x, y, 700);
+    graph.zoom(Math.max(graph.zoom() || 1, 3.2), 700);
+  }
+
+  function searchAndFocus(query) {
+    const node = findNodeByQuery(query);
+    if (!node) {
+      showSearchMsg("graph.searchNotFound");
+      return;
+    }
+    if (!isNodeVisible(node)) {
+      showSearchMsg("graph.searchHidden");
+      return;
+    }
+    elSearchMsg?.classList.add("hidden");
+    const live = graph
+      ?.graphData()
+      ?.nodes?.find((n) => n.id === node.id);
+    focusNode(live || node);
+  }
+
+  function bindFullscreenControls() {
+    elBtnFullscreen?.addEventListener("click", () => toggleFullscreen());
+    document.addEventListener("fullscreenchange", syncFullscreenUi);
+    document.addEventListener("webkitfullscreenchange", syncFullscreenUi);
+
+    elSearchForm?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      searchAndFocus(elSearchInput?.value || "");
+    });
+  }
+
   async function init() {
     if (hasI18n()) await I18n.ready;
 
@@ -662,6 +777,7 @@
       I18n.applyI18n();
       syncTargetGroupsControl();
       renderClusterList();
+      syncFullscreenUi();
       if (rawGraphData && graph) {
         updateStats(filterGraphData(rawGraphData));
       }
@@ -672,6 +788,9 @@
       initLangSwitch();
       window.addEventListener("instree:locale", onLocaleChange);
     }
+
+    bindFullscreenControls();
+    syncFullscreenUi();
 
     if (typeof ForceGraph !== "function") {
       elEmpty.classList.remove("hidden");

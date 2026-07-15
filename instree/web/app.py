@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from instree.config import config_for_api, load_settings, save_config
 from instree.session import connect
 from instree.store import (
+    get_changes_search_index,
     get_graph_data,
     get_scan,
     init_db,
@@ -181,6 +182,10 @@ def create_app() -> FastAPI:
     @app.get("/api/scans")
     async def api_scans():
         return list_scans()
+
+    @app.get("/api/search-index")
+    async def api_search_index():
+        return get_changes_search_index()
 
     @app.get("/api/scans/{scan_id}")
     async def api_scan(scan_id: int):

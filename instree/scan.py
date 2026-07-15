@@ -44,6 +44,7 @@ def _to_entry(u) -> FollowingEntry:
         pk=u.pk,
         full_name=u.full_name,
         following_count=getattr(u, "following_count", 0) or 0,
+        is_verified=bool(getattr(u, "is_verified", False)),
     )
 
 
@@ -195,6 +196,7 @@ def _apply_person_diff(
                 username=a.username,
                 full_name=a.full_name,
                 op="sub_add",
+                is_verified=a.is_verified,
             )
         )
     for r in unfollows:
@@ -205,6 +207,7 @@ def _apply_person_diff(
                 username=r.username,
                 full_name=r.full_name,
                 op="sub_remove",
+                is_verified=r.is_verified,
             )
         )
     for r in gones:
@@ -215,6 +218,7 @@ def _apply_person_diff(
                 username=r.username,
                 full_name=r.full_name,
                 op="sub_gone",
+                is_verified=r.is_verified,
             )
         )
 
@@ -257,6 +261,7 @@ def _watch_persons(
             pk=profile.pk,
             full_name=profile.full_name or e.full_name,
             following_count=profile.following_count,
+            is_verified=profile.is_verified or e.is_verified,
         )
         updated.append(entry)
 
@@ -318,6 +323,7 @@ def _watch_persons(
                                     username=a.username,
                                     full_name=a.full_name,
                                     op="sub_add",
+                                    is_verified=a.is_verified,
                                 )
                             )
                     else:

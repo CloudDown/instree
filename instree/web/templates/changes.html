@@ -83,10 +83,30 @@
       </div>
       <p id="changes-search-empty" class="changes-search-empty hidden" data-i18n="changes.searchEmpty">Aucun résultat pour cette recherche.</p>
       <footer class="legend" aria-label="Légende">
-        <span><strong class="legend-list-add">&gt;</strong> <span data-i18n="changes.legendListAdd">ajouté à ta liste</span></span>
-        <span><strong>+</strong> <span data-i18n="changes.legendMutualAdd">s'est abonné</span></span>
-        <span><strong>−</strong> <span data-i18n="changes.legendMutualRemove">s'est désabonné</span></span>
-        <span><strong class="legend-gone">×</strong> <span data-i18n="changes.legendGone">supprimé / renommé</span></span>
+        <button type="button" class="legend-filter" data-filter="list-add" aria-pressed="false">
+          <strong class="legend-list-add">&gt;</strong>
+          <span data-i18n="changes.legendListAdd">ajouté à ta liste</span>
+        </button>
+        <button type="button" class="legend-filter" data-filter="add" aria-pressed="false">
+          <strong>+</strong>
+          <span data-i18n="changes.legendMutualAdd">s'est abonné</span>
+        </button>
+        <button type="button" class="legend-filter" data-filter="remove" aria-pressed="false">
+          <strong>−</strong>
+          <span data-i18n="changes.legendMutualRemove">s'est désabonné</span>
+        </button>
+        <button type="button" class="legend-filter" data-filter="gone" aria-pressed="false">
+          <strong class="legend-gone">×</strong>
+          <span data-i18n="changes.legendGone">supprimé / renommé</span>
+        </button>
+        <button type="button" class="legend-filter" data-filter="mutual" aria-pressed="false">
+          <span class="badge-mutual legend-badge" data-i18n="changes.badgeMutual">mutuel</span>
+          <span data-i18n="changes.legendMutualTarget">déjà dans ta liste</span>
+        </button>
+        <button type="button" class="legend-filter" data-filter="verified" aria-pressed="false">
+          <span class="badge-verified legend-badge"><img src="/static/img/verified-badge.png" alt="" width="14" height="14"></span>
+          <span data-i18n="changes.legendVerified">compte vérifié</span>
+        </button>
       </footer>
     </section>
   </main>

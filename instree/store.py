@@ -14,6 +14,7 @@ class FollowingEntry:
     pk: str
     full_name: str
     following_count: int = 0
+    is_verified: bool = False
 
 
 @dataclass
@@ -23,6 +24,7 @@ class PersonChange:
     username: str
     full_name: str
     op: str  # sub_add | sub_remove | sub_gone
+    is_verified: bool = False
 
 
 @dataclass
@@ -75,6 +77,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute(
             "ALTER TABLE following ADD COLUMN following_count INTEGER NOT NULL DEFAULT 0"
         )
+    if "is_verified" not in cols:
+        conn.execute(
+            "ALTER TABLE following ADD COLUMN is_verified INTEGER NOT NULL DEFAULT 0"
+        )
     cols = {r[1] for r in conn.execute("PRAGMA table_info(changes)")}
     if "old_count" not in cols:
         conn.execute("ALTER TABLE changes ADD COLUMN old_count INTEGER")
@@ -82,6 +88,15 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE changes ADD COLUMN new_count INTEGER")
     if "subject_username" not in cols:
         conn.execute("ALTER TABLE changes ADD COLUMN subject_username TEXT")
+    if "is_verified" not in cols:
+        conn.execute(
+            "ALTER TABLE changes ADD COLUMN is_verified INTEGER NOT NULL DEFAULT 0"
+        )
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(person_following)")}
+    if "is_verified" not in cols:
+        conn.execute(
+            "ALTER TABLE person_following ADD COLUMN is_verified INTEGER NOT NULL DEFAULT 0"
+        )
     cols = {r[1] for r in conn.execute("PRAGMA table_info(scans)")}
     if "follower_count" not in cols:
         conn.execute("ALTER TABLE scans ADD COLUMN follower_count INTEGER NOT NULL DEFAULT 0")
@@ -106,6 +121,7 @@ def init_db() -> None:
                 pk TEXT NOT NULL,
                 full_name TEXT NOT NULL,
                 following_count INTEGER NOT NULL DEFAULT 0,
+                is_verified INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (scan_id, username),
                 FOREIGN KEY (scan_id) REFERENCES scans(id)
             );
@@ -118,6 +134,7 @@ def init_db() -> None:
                 old_count INTEGER,
                 new_count INTEGER,
                 subject_username TEXT,
+                is_verified INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY (scan_id) REFERENCES scans(id)
             );
             CREATE TABLE IF NOT EXISTS person_snapshots (
@@ -133,12 +150,64 @@ def init_db() -> None:
                 target_pk TEXT NOT NULL,
                 full_name TEXT NOT NULL,
                 position INTEGER NOT NULL,
+                is_verified INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (person_username, target_username)
+            );
+            CREATE TABLE IF NOT EXISTS account_flags (
+                username TEXT PRIMARY KEY,
+                is_verified INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_changes_scan ON changes(scan_id);
             CREATE INDEX IF NOT EXISTS idx_person_following ON person_following(person_username);
         """)
         _migrate(conn)
+
+
+def _remember_verified_conn(conn: sqlite3.Connection, usernames: list[str]) -> None:
+    """Mémorise des comptes vérifiés et propage le flag sur l'historique."""
+    for username in usernames:
+        u = (username or "").lstrip("@").strip()
+        if not u:
+            continue
+        conn.execute(
+            """
+            INSERT INTO account_flags (username, is_verified) VALUES (?, 1)
+            ON CONFLICT(username) DO UPDATE SET is_verified = 1
+            """,
+            (u,),
+        )
+        conn.execute(
+            "UPDATE changes SET is_verified = 1 WHERE username = ? AND is_verified = 0",
+            (u,),
+        )
+        conn.execute(
+            """
+            UPDATE person_following
+            SET is_verified = 1
+            WHERE target_username = ? AND is_verified = 0
+            """,
+            (u,),
+        )
+        conn.execute(
+            "UPDATE following SET is_verified = 1 WHERE username = ? AND is_verified = 0",
+            (u,),
+        )
+
+
+def remember_verified(usernames: list[str]) -> None:
+    if not usernames:
+        return
+    with _connect() as conn:
+        _remember_verified_conn(conn, usernames)
+        conn.commit()
+
+
+def known_verified_usernames() -> set[str]:
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT username FROM account_flags WHERE is_verified = 1"
+        ).fetchall()
+        return {r["username"] for r in rows}
 
 
 def has_scans() -> bool:
@@ -161,7 +230,7 @@ def latest_following(username: str) -> tuple[int | None, int | None, list[Follow
             return None, None, []
         rows = conn.execute(
             """
-            SELECT username, pk, full_name, following_count
+            SELECT username, pk, full_name, following_count, is_verified
             FROM following
             WHERE scan_id = ?
             ORDER BY position
@@ -174,6 +243,7 @@ def latest_following(username: str) -> tuple[int | None, int | None, list[Follow
                 pk=r["pk"],
                 full_name=r["full_name"],
                 following_count=int(r["following_count"] or 0),
+                is_verified=bool(r["is_verified"]),
             )
             for r in rows
         ]
@@ -202,7 +272,8 @@ def get_person_following(person_username: str) -> list[FollowingEntry]:
     with _connect() as conn:
         rows = conn.execute(
             """
-            SELECT target_username AS username, target_pk AS pk, full_name, 0 AS following_count
+            SELECT target_username AS username, target_pk AS pk, full_name,
+                   0 AS following_count, is_verified
             FROM person_following
             WHERE person_username = ?
             ORDER BY position
@@ -215,6 +286,7 @@ def get_person_following(person_username: str) -> list[FollowingEntry]:
                 pk=r["pk"],
                 full_name=r["full_name"],
                 following_count=0,
+                is_verified=bool(r["is_verified"]),
             )
             for r in rows
         ]
@@ -247,10 +319,17 @@ def _save_person_snapshot_conn(
         conn.execute(
             """
             INSERT INTO person_following
-            (person_username, target_username, target_pk, full_name, position)
-            VALUES (?, ?, ?, ?, ?)
+            (person_username, target_username, target_pk, full_name, position, is_verified)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (person_username, e.username, e.pk, e.full_name, i),
+            (
+                person_username,
+                e.username,
+                e.pk,
+                e.full_name,
+                i,
+                1 if e.is_verified else 0,
+            ),
         )
 
 
@@ -289,42 +368,81 @@ def save_scan(result: ScanResult, following: list[FollowingEntry]) -> tuple[int,
         )
         scan_id = cur.lastrowid
 
+        verified_names: list[str] = []
         for i, e in enumerate(following):
             conn.execute(
                 """
                 INSERT INTO following
-                (scan_id, position, username, pk, full_name, following_count)
-                VALUES (?, ?, ?, ?, ?, ?)
+                (scan_id, position, username, pk, full_name, following_count, is_verified)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (scan_id, i, e.username, e.pk, e.full_name, e.following_count),
+                (
+                    scan_id,
+                    i,
+                    e.username,
+                    e.pk,
+                    e.full_name,
+                    e.following_count,
+                    1 if e.is_verified else 0,
+                ),
             )
+            if e.is_verified:
+                verified_names.append(e.username)
         for c in result.added:
             conn.execute(
-                "INSERT INTO changes (scan_id, op, username, full_name) VALUES (?, 'add', ?, ?)",
-                (scan_id, c.username, c.full_name),
+                """
+                INSERT INTO changes (scan_id, op, username, full_name, is_verified)
+                VALUES (?, 'add', ?, ?, ?)
+                """,
+                (scan_id, c.username, c.full_name, 1 if c.is_verified else 0),
             )
+            if c.is_verified:
+                verified_names.append(c.username)
         for c in result.removed:
             conn.execute(
-                "INSERT INTO changes (scan_id, op, username, full_name) VALUES (?, 'remove', ?, ?)",
-                (scan_id, c.username, c.full_name),
+                """
+                INSERT INTO changes (scan_id, op, username, full_name, is_verified)
+                VALUES (?, 'remove', ?, ?, ?)
+                """,
+                (scan_id, c.username, c.full_name, 1 if c.is_verified else 0),
             )
+            if c.is_verified:
+                verified_names.append(c.username)
         for c in result.gone or []:
             conn.execute(
-                "INSERT INTO changes (scan_id, op, username, full_name) VALUES (?, 'gone', ?, ?)",
-                (scan_id, c.username, c.full_name),
+                """
+                INSERT INTO changes (scan_id, op, username, full_name, is_verified)
+                VALUES (?, 'gone', ?, ?, ?)
+                """,
+                (scan_id, c.username, c.full_name, 1 if c.is_verified else 0),
             )
+            if c.is_verified:
+                verified_names.append(c.username)
         for c in result.person_changes:
             conn.execute(
                 """
                 INSERT INTO changes
-                (scan_id, op, username, full_name, subject_username)
-                VALUES (?, ?, ?, ?, ?)
+                (scan_id, op, username, full_name, subject_username, is_verified)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (scan_id, c.op, c.username, c.full_name, c.subject_username),
+                (
+                    scan_id,
+                    c.op,
+                    c.username,
+                    c.full_name,
+                    c.subject_username,
+                    1 if c.is_verified else 0,
+                ),
             )
+            if c.is_verified:
+                verified_names.append(c.username)
         if result.person_snapshots:
             for person_username, entries, fc in result.person_snapshots:
                 _save_person_snapshot_conn(conn, person_username, entries, fc, scan_id)
+                for e in entries:
+                    if e.is_verified:
+                        verified_names.append(e.username)
+        _remember_verified_conn(conn, verified_names)
         conn.commit()
 
     return scan_id, write_journal(scan_id, label, result)
@@ -397,14 +515,41 @@ def list_scans() -> list[dict]:
         return [dict(r) for r in rows]
 
 
+def get_changes_search_index() -> list[dict]:
+    """Index léger pour la recherche (mutuels + abonnements de mutuels)."""
+    with _connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT scan_id, op, username, full_name, subject_username
+            FROM changes
+            ORDER BY scan_id, id
+            """
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
 def get_scan(scan_id: int) -> dict | None:
     with _connect() as conn:
         row = conn.execute("SELECT * FROM scans WHERE id = ?", (scan_id,)).fetchone()
         if not row:
             return None
+        mutual_usernames = {
+            r["username"]
+            for r in conn.execute(
+                "SELECT username FROM following WHERE scan_id = ?",
+                (scan_id,),
+            ).fetchall()
+        }
+        verified_usernames = {
+            r["username"]
+            for r in conn.execute(
+                "SELECT username FROM account_flags WHERE is_verified = 1"
+            ).fetchall()
+        }
         changes = conn.execute(
             """
-            SELECT op, username, full_name, old_count, new_count, subject_username
+            SELECT op, username, full_name, old_count, new_count,
+                   subject_username, is_verified
             FROM changes WHERE scan_id = ?
             ORDER BY
                 CASE op
@@ -422,7 +567,18 @@ def get_scan(scan_id: int) -> dict | None:
             """,
             (scan_id,),
         ).fetchall()
-        return {"scan": dict(row), "changes": [dict(c) for c in changes]}
+        change_rows = []
+        for c in changes:
+            item = dict(c)
+            item["is_verified"] = bool(item.get("is_verified")) or (
+                item["username"] in verified_usernames
+            )
+            item["is_mutual"] = (
+                item["op"] in ("sub_add", "sub_remove", "sub_gone")
+                and item["username"] in mutual_usernames
+            )
+            change_rows.append(item)
+        return {"scan": dict(row), "changes": change_rows}
 
 
 def scan_neighbors(scan_id: int) -> dict:

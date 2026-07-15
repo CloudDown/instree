@@ -3,6 +3,9 @@ let currentId = null;
 let pollTimer = null;
 let lastJobState = "idle";
 let changesSearchQuery = "";
+let searchIndex = [];
+/** Filtres légende actifs = types masqués dans la liste. */
+const legendHidden = new Set();
 
 const page = document.body.dataset.page || "";
 const t = (key, vars) => I18n.t(key, vars);
@@ -63,6 +66,17 @@ function igProfileUrl(username) {
   return u ? `https://www.instagram.com/${encodeURIComponent(u)}/` : "#";
 }
 
+const VERIFIED_BADGE =
+  `<span class="badge-verified" title="Compte vérifié" aria-label="Compte vérifié">` +
+  `<img src="/static/img/verified-badge.png" alt="" width="16" height="16"></span>`;
+
+function mutualBadge() {
+  return (
+    `<span class="badge-mutual" title="${esc(t("changes.badgeMutual"))}">` +
+    `${esc(t("changes.badgeMutual"))}</span>`
+  );
+}
+
 function igUser(username, className = "change-user") {
   const u = String(username || "").replace(/^@/, "").trim();
   if (!u) return "";
@@ -70,6 +84,65 @@ function igUser(username, className = "change-user") {
   return (
     `<a href="${igProfileUrl(u)}"${cls} target="_blank" rel="noopener noreferrer">@${esc(u)}</a>`
   );
+}
+
+function changeIdentity(c) {
+  return (
+    `<span class="change-user-wrap">${igUser(c.username)}</span> ` +
+    `<span class="change-name">${esc(c.full_name)}</span>`
+  );
+}
+
+function renderChangeLine(c, type, { showMutual = false } = {}) {
+  const flags = [];
+  if (showMutual && c.is_mutual) flags.push("mutual");
+  if (c.is_verified) flags.push("verified");
+  const trailing = [];
+  if (showMutual && c.is_mutual) trailing.push(mutualBadge());
+  if (c.is_verified) trailing.push(VERIFIED_BADGE);
+  const trail =
+    trailing.length > 0
+      ? `<span class="change-trail">${trailing.join("")}</span>`
+      : "";
+  return (
+    `<div class="change-line ${type}" data-kind="${esc(type)}" data-flags="${esc(flags.join(" "))}">` +
+    `<span class="change-op"></span>` +
+    `<span class="change-main">${changeIdentity(c)}</span>` +
+    `${trail}` +
+    `</div>`
+  );
+}
+
+function lineHiddenByLegend(line) {
+  if (!legendHidden.size) return false;
+  const kind = line.dataset.kind || "";
+  if (kind && legendHidden.has(kind)) return true;
+  const flags = (line.dataset.flags || "").split(/\s+/).filter(Boolean);
+  if (legendHidden.has("mutual") && flags.includes("mutual")) return true;
+  if (legendHidden.has("verified") && flags.includes("verified")) return true;
+  return false;
+}
+
+function syncLegendFilterButtons() {
+  document.querySelectorAll(".legend-filter").forEach((btn) => {
+    const key = btn.dataset.filter;
+    const on = legendHidden.has(key);
+    btn.classList.toggle("is-active", on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+
+function initLegendFilters() {
+  document.querySelectorAll(".legend-filter").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.filter;
+      if (!key) return;
+      if (legendHidden.has(key)) legendHidden.delete(key);
+      else legendHidden.add(key);
+      syncLegendFilterButtons();
+      applyChangesSearch();
+    });
+  });
 }
 
 function formatScanDate(scannedAt) {
@@ -207,16 +280,7 @@ function askConfirm(title, message) {
 }
 
 function renderGroup(title, items, type) {
-  const lines = items
-    .map(
-      (c) =>
-        `<div class="change-line ${type}">` +
-        `<span class="change-op"></span>` +
-        `<span><span class="change-user-wrap">${igUser(c.username)}</span> ` +
-        `<span class="change-name">${esc(c.full_name)}</span></span>` +
-        `</div>`,
-    )
-    .join("");
+  const lines = items.map((c) => renderChangeLine(c, type)).join("");
   return `<div class="changes-group"><div class="changes-group-title">${title}</div>${lines}</div>`;
 }
 
@@ -229,25 +293,13 @@ function renderPersonSection(groups) {
         `</div>`;
       const lines = [];
       for (const a of g.adds) {
-        lines.push(
-          `<div class="change-line add"><span class="change-op"></span>` +
-            `<span><span class="change-user-wrap">${igUser(a.username)}</span> ` +
-            `<span class="change-name">${esc(a.full_name)}</span></span></div>`,
-        );
+        lines.push(renderChangeLine(a, "add", { showMutual: true }));
       }
       for (const r of g.removes) {
-        lines.push(
-          `<div class="change-line remove"><span class="change-op"></span>` +
-            `<span><span class="change-user-wrap">${igUser(r.username)}</span> ` +
-            `<span class="change-name">${esc(r.full_name)}</span></span></div>`,
-        );
+        lines.push(renderChangeLine(r, "remove", { showMutual: true }));
       }
       for (const x of g.gones || []) {
-        lines.push(
-          `<div class="change-line gone"><span class="change-op"></span>` +
-            `<span><span class="change-user-wrap">${igUser(x.username)}</span> ` +
-            `<span class="change-name">${esc(x.full_name)}</span></span></div>`,
-        );
+        lines.push(renderChangeLine(x, "gone", { showMutual: true }));
       }
       return `<div class="changes-group person-group">${title}${lines.join("")}</div>`;
     })
@@ -304,70 +356,143 @@ function renderDetail(detail) {
   applyChangesSearch();
 }
 
-function matchesChangesSearch(text) {
-  const q = changesSearchQuery.trim().toLowerCase().replace(/^@/, "");
-  if (!q) return true;
+function normalizeSearch(text) {
   return String(text || "")
     .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/^@/, "")
-    .includes(q);
+    .trim();
+}
+
+function matchesChangesSearch(text) {
+  const q = normalizeSearch(changesSearchQuery);
+  if (!q) return true;
+  return normalizeSearch(text).includes(q);
+}
+
+function rowMatchesSearch(row) {
+  return (
+    matchesChangesSearch(row.username) ||
+    matchesChangesSearch(row.full_name) ||
+    matchesChangesSearch(row.subject_username || "")
+  );
+}
+
+function scanIdsMatchingSearch() {
+  const q = normalizeSearch(changesSearchQuery);
+  if (!q) return null;
+  const ids = new Set();
+  for (const row of searchIndex) {
+    if (rowMatchesSearch(row)) ids.add(row.scan_id);
+  }
+  return ids;
+}
+
+function applyHistorySearchFilter() {
+  if (!elHistory) return;
+  const matchIds = scanIdsMatchingSearch();
+  elHistory.querySelectorAll(".history-item").forEach((btn) => {
+    const id = Number(btn.dataset.id);
+    const hit = !matchIds || matchIds.has(id);
+    btn.classList.toggle("search-miss", Boolean(matchIds) && !hit);
+    btn.classList.toggle("search-hit", Boolean(matchIds) && hit);
+  });
 }
 
 function applyChangesSearch() {
   if (!elContent) return;
   const q = changesSearchQuery.trim();
-  const active = q.length > 0;
+  const searchActive = q.length > 0;
+  const legendActive = legendHidden.size > 0;
+  const filtering = searchActive || legendActive;
 
   elContent.querySelectorAll(".change-line").forEach((line) => {
     const hay = line.textContent || "";
-    line.classList.toggle("hidden", active && !matchesChangesSearch(hay));
+    const hideSearch = searchActive && !matchesChangesSearch(hay);
+    const hideLegend = lineHiddenByLegend(line);
+    line.classList.toggle("hidden", hideSearch || hideLegend);
   });
 
   elContent.querySelectorAll(".person-group").forEach((group) => {
     const subject = group.querySelector(".person-group-title")?.textContent || "";
-    const subjectMatch = matchesChangesSearch(subject);
+    const subjectMatch = searchActive && matchesChangesSearch(subject);
     const lines = [...group.querySelectorAll(".change-line")];
-    if (active && subjectMatch) {
-      lines.forEach((line) => line.classList.remove("hidden"));
-      group.classList.remove("hidden");
+    if (subjectMatch) {
+      // Sujet mutuel : garder les lignes qui matchent aussi, sinon toutes
+      // (puis re-appliquer le filtre légende).
+      const anyTarget = lines.some((line) =>
+        matchesChangesSearch(line.textContent || ""),
+      );
+      lines.forEach((line) => {
+        const hideSearch =
+          anyTarget && !matchesChangesSearch(line.textContent || "");
+        line.classList.toggle("hidden", hideSearch || lineHiddenByLegend(line));
+      });
+      const anyLine = lines.some((line) => !line.classList.contains("hidden"));
+      group.classList.toggle("hidden", !anyLine);
       return;
     }
     const anyLine = lines.some((line) => !line.classList.contains("hidden"));
-    group.classList.toggle("hidden", active && !anyLine);
+    group.classList.toggle("hidden", filtering && !anyLine);
   });
 
   elContent.querySelectorAll(".changes-group:not(.person-group)").forEach((group) => {
     const lines = [...group.querySelectorAll(".change-line")];
     const anyLine = lines.some((line) => !line.classList.contains("hidden"));
-    group.classList.toggle("hidden", active && !anyLine);
+    group.classList.toggle("hidden", filtering && !anyLine);
   });
 
   elContent.querySelectorAll(".changes-card").forEach((card) => {
     const groups = [...card.querySelectorAll(".changes-group")];
     const anyGroup = groups.some((g) => !g.classList.contains("hidden"));
-    card.classList.toggle("hidden", active && groups.length > 0 && !anyGroup);
+    card.classList.toggle("hidden", filtering && groups.length > 0 && !anyGroup);
   });
 
   elContent.querySelectorAll(".changes-section").forEach((section) => {
     const groups = [...section.querySelectorAll(".person-group")];
     const anyGroup = groups.some((g) => !g.classList.contains("hidden"));
-    section.classList.toggle("hidden", active && groups.length > 0 && !anyGroup);
+    section.classList.toggle("hidden", filtering && groups.length > 0 && !anyGroup);
   });
 
   const layout = elContent.querySelector(".changes-layout");
   let anyVisible = false;
   if (layout) {
     anyVisible = [...layout.children].some((el) => !el.classList.contains("hidden"));
-  } else if (!active) {
+  } else if (!filtering) {
     anyVisible = true;
   }
 
+  applyHistorySearchFilter();
+
+  const matchIds = scanIdsMatchingSearch();
+  const otherHits = matchIds
+    ? [...matchIds].filter((id) => id !== currentId).sort((a, b) => b - a)
+    : [];
+
   if (elChangesSearchEmpty) {
     const hasLayout = Boolean(layout);
-    elChangesSearchEmpty.classList.toggle("hidden", !(active && hasLayout && !anyVisible));
+    const showEmpty = filtering && hasLayout && !anyVisible;
+    elChangesSearchEmpty.classList.toggle("hidden", !showEmpty);
+    if (showEmpty) {
+      if (searchActive && otherHits.length) {
+        const links = otherHits
+          .slice(0, 8)
+          .map((id) => `<button type="button" class="search-scan-link" data-id="${id}">#${id}</button>`)
+          .join(" ");
+        elChangesSearchEmpty.innerHTML =
+          `${esc(t("changes.searchEmptyOther"))} ${links}` +
+          (otherHits.length > 8 ? "…" : "");
+        elChangesSearchEmpty.querySelectorAll(".search-scan-link").forEach((btn) => {
+          btn.onclick = () => showScan(Number(btn.dataset.id));
+        });
+      } else {
+        elChangesSearchEmpty.textContent = t("changes.searchEmpty");
+      }
+    }
   }
   if (layout) {
-    layout.classList.toggle("hidden", active && !anyVisible);
+    layout.classList.toggle("hidden", filtering && !anyVisible);
   }
 }
 
@@ -393,6 +518,7 @@ function renderHistory() {
   elHistory.querySelectorAll(".history-item").forEach((btn) => {
     btn.onclick = () => showScan(Number(btn.dataset.id));
   });
+  applyHistorySearchFilter();
 }
 
 async function showScan(id) {
@@ -424,7 +550,12 @@ async function showScan(id) {
 
 async function loadScans() {
   if (!elContent) return;
-  scans = await fetch("/api/scans").then((r) => r.json());
+  const [scanList, index] = await Promise.all([
+    fetch("/api/scans").then((r) => r.json()),
+    fetch("/api/search-index").then((r) => r.json()).catch(() => []),
+  ]);
+  scans = scanList;
+  searchIndex = Array.isArray(index) ? index : [];
   renderHistory();
   if (scans.length === 0) {
     if (elDate) elDate.textContent = t("changes.noScan");
@@ -647,6 +778,8 @@ async function initChangesPage() {
       applyChangesSearch();
     });
   }
+  initLegendFilters();
+  syncLegendFilterButtons();
 }
 
 function initLangSwitch() {

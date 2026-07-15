@@ -16,6 +16,13 @@ class IgUser:
     full_name: str
     following_count: int = 0
     follower_count: int = 0
+    is_verified: bool = False
+
+
+def _user_verified(u) -> bool:
+    if isinstance(u, dict):
+        return bool(u.get("is_verified"))
+    return bool(getattr(u, "is_verified", False))
 
 
 def user_profile(ig: Client, username: str) -> IgUser:
@@ -26,6 +33,7 @@ def user_profile(ig: Client, username: str) -> IgUser:
         full_name=u.full_name or "",
         following_count=int(u.following_count or 0),
         follower_count=int(u.follower_count or 0),
+        is_verified=_user_verified(u),
     )
 
 
@@ -43,6 +51,7 @@ def try_user_by_pk(ig: Client, pk: str) -> IgUser | None:
         full_name=u.full_name or "",
         following_count=int(getattr(u, "following_count", 0) or 0),
         follower_count=int(getattr(u, "follower_count", 0) or 0),
+        is_verified=_user_verified(u),
     )
 
 
@@ -90,6 +99,7 @@ def _paginate_friendships(
                     pk=upk,
                     username=username,
                     full_name=u.get("full_name") or "",
+                    is_verified=_user_verified(u),
                 )
             )
             if known_usernames is not None and username not in known_usernames:
