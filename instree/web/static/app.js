@@ -284,12 +284,23 @@ function renderGroup(title, items, type) {
   return `<div class="changes-group"><div class="changes-group-title">${title}</div>${lines}</div>`;
 }
 
+function personDeltaBadge(g) {
+  const addN = g.adds?.length || 0;
+  const remN = g.removes?.length || 0;
+  if (!addN && !remN) return "";
+  const parts = [];
+  if (addN) parts.push(`<span class="person-delta-add">+${addN}</span>`);
+  if (remN) parts.push(`<span class="person-delta-remove">−${remN}</span>`);
+  return ` <span class="person-delta">(${parts.join(" ")})</span>`;
+}
+
 function renderPersonSection(groups) {
   const blocks = groups
     .map((g) => {
       const title =
         `<div class="person-group-title">` +
         igUser(g.username, "person-subject") +
+        personDeltaBadge(g) +
         `</div>`;
       const lines = [];
       for (const a of g.adds) {

@@ -1315,6 +1315,21 @@ a.person-subject:hover {
   text-decoration: underline;
 }
 
+.person-delta {
+  font-weight: 500;
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.person-delta-add {
+  color: #4ade80;
+}
+
+.person-delta-remove {
+  color: #f87171;
+}
+
 .change-line {
   display: flex;
   align-items: center;
