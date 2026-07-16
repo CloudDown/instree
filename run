@@ -93,11 +93,6 @@ else
   echo "[OK] Environnement prêt."
 fi
 
-echo
-echo "  http://127.0.0.1:8765"
-echo "  Ctrl+C pour arrêter"
-echo
-
 # Ouvre le navigateur si possible (ne bloque pas)
 if command -v xdg-open >/dev/null 2>&1; then
   (sleep 0.8 && xdg-open "http://127.0.0.1:8765" >/dev/null 2>&1) &

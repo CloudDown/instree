@@ -94,9 +94,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
     init_db()
     app = create_app()
-    print("── instree web ──")
-    print(f"  http://{host}:{port}")
-    print()
+    print(f"instree web  http://{host}:{port}", flush=True)
     uvicorn.run(app, host=host, port=port, log_level="warning")
     return 0
 
