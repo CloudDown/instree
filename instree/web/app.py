@@ -3,13 +3,24 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from instree.config import config_for_api, load_settings, save_config
+from instree.config import (
+    config_for_api,
+    create_profile,
+    delete_profile,
+    list_profiles,
+    load_settings,
+    profile_ig_username,
+    remember_profile_ig_username,
+    rename_profile,
+    save_config,
+    set_active_profile,
+)
 from instree.session import connect
 from instree.store import (
     get_changes_search_index,
@@ -19,6 +30,7 @@ from instree.store import (
     list_scans,
     scan_neighbors,
 )
+from instree.transfer import export_profile_zip, import_profile_zip
 from instree.web.runner import cancel_scan, job_status, reset_job, start_scan
 
 WEB_DIR = Path(__file__).resolve().parent
@@ -43,6 +55,19 @@ class ConfigUpdate(BaseModel):
     schedule_interval_minutes: int = 0
     sessionid: str = ""
     ds_user_id: str = ""
+    profile_label: str = ""
+
+
+class ProfileCreate(BaseModel):
+    label: str = ""
+
+
+class ProfileActivate(BaseModel):
+    id: str
+
+
+class ProfileRename(BaseModel):
+    label: str
 
 
 _session_cache: dict | None = None
@@ -53,16 +78,53 @@ def clear_session_cache() -> None:
     _session_cache = None
 
 
-def _session_info() -> dict:
+def _session_info(*, verify: bool = False) -> dict:
+    """État session pour l'UI.
+
+    Par défaut : lecture locale uniquement (instantané).
+    verify=True : login Instagram (+ cookies navigateur si besoin).
+    """
     global _session_cache
-    if _session_cache is not None:
+    if not verify and _session_cache is not None:
         return _session_cache
     settings = load_settings()
+    local_label = f"config/profiles/{settings.profile_id}/local.toml"
+
+    if not verify:
+        if settings.sessionid:
+            username = (
+                profile_ig_username(settings.profile_id)
+                or settings.username
+                or None
+            )
+            _session_cache = {
+                "ok": True,
+                "source": local_label,
+                "username": username,
+                "note": None,
+            }
+        else:
+            _session_cache = {
+                "ok": False,
+                "source": None,
+                "username": settings.username or None,
+                "error": (
+                    "Pas de session configurée — colle sessionid / user id, "
+                    "ou utilise « Tester la connexion » pour lire le navigateur"
+                ),
+            }
+        return _session_cache
+
     try:
         ig, source, _note = connect()
         from instree.session import session_user
 
         target = settings.username or session_user(ig)
+        if target:
+            try:
+                remember_profile_ig_username(target)
+            except (OSError, ValueError):
+                pass
         _session_cache = {
             "ok": True,
             "source": source,
@@ -146,6 +208,110 @@ def create_app() -> FastAPI:
             "session": session,
             "config": config_for_api(),
             "job": job_status(),
+            "profiles": list_profiles(),
+        }
+
+    @app.get("/api/profiles")
+    async def api_profiles_list():
+        return {"active": load_settings().profile_id, "profiles": list_profiles()}
+
+    @app.post("/api/profiles")
+    async def api_profiles_create(body: ProfileCreate):
+        if job_status().get("state") in ("running", "stopping"):
+            raise HTTPException(409, "Impossible pendant un scan")
+        try:
+            # Ne pas activer tout de suite : chaque session a sa propre base ;
+            # basculer viderait l'historique affiché (scans de la session courante).
+            pid = create_profile(label=body.label)
+        except (ValueError, OSError) as e:
+            raise HTTPException(400, str(e)) from e
+        return {
+            "ok": True,
+            "id": pid,
+            "profiles": list_profiles(),
+            "config": config_for_api(),
+            "session": _session_info(),
+        }
+
+    @app.put("/api/profiles/active")
+    async def api_profiles_activate(body: ProfileActivate):
+        if job_status().get("state") in ("running", "stopping"):
+            raise HTTPException(409, "Impossible pendant un scan")
+        try:
+            set_active_profile(body.id)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        clear_session_cache()
+        init_db()
+        return {
+            "ok": True,
+            "profiles": list_profiles(),
+            "config": config_for_api(),
+            "session": _session_info(),
+        }
+
+    @app.patch("/api/profiles/{profile_id}")
+    async def api_profiles_rename(profile_id: str, body: ProfileRename):
+        try:
+            rename_profile(profile_id, body.label)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        return {"ok": True, "profiles": list_profiles(), "config": config_for_api()}
+
+    @app.delete("/api/profiles/{profile_id}")
+    async def api_profiles_delete(profile_id: str):
+        if job_status().get("state") in ("running", "stopping"):
+            raise HTTPException(409, "Impossible pendant un scan")
+        try:
+            delete_profile(profile_id)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        return {"ok": True, "profiles": list_profiles()}
+
+    @app.get("/api/profiles/{profile_id}/export")
+    async def api_profiles_export(
+        profile_id: str, secrets: bool = False
+    ):
+        if job_status().get("state") in ("running", "stopping"):
+            raise HTTPException(409, "Impossible pendant un scan")
+        try:
+            data, filename = export_profile_zip(
+                profile_id, include_secrets=secrets
+            )
+        except ValueError as e:
+            raise HTTPException(404, str(e)) from e
+        headers = {
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        }
+        return Response(
+            content=data,
+            media_type="application/zip",
+            headers=headers,
+        )
+
+    @app.post("/api/profiles/import")
+    async def api_profiles_import(
+        file: UploadFile = File(...),
+        label: str = Form(""),
+        activate: bool = Form(True),
+    ):
+        if job_status().get("state") in ("running", "stopping"):
+            raise HTTPException(409, "Impossible pendant un scan")
+        raw = await file.read()
+        try:
+            result = import_profile_zip(
+                raw, label=label or None, activate=bool(activate)
+            )
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        clear_session_cache()
+        init_db()
+        return {
+            "ok": True,
+            **result,
+            "profiles": list_profiles(),
+            "config": config_for_api(),
+            "session": _session_info(),
         }
 
     @app.get("/api/config")
@@ -170,6 +336,7 @@ def create_app() -> FastAPI:
                 schedule_interval_minutes=body.schedule_interval_minutes,
                 sessionid=body.sessionid or None,
                 ds_user_id=body.ds_user_id or None,
+                profile_label=body.profile_label or None,
             )
         except (ValueError, OSError) as e:
             raise HTTPException(400, str(e)) from e
@@ -179,7 +346,7 @@ def create_app() -> FastAPI:
     @app.post("/api/session/test")
     async def api_session_test():
         clear_session_cache()
-        return _session_info()
+        return _session_info(verify=True)
 
     @app.get("/api/scans")
     async def api_scans():

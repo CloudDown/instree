@@ -16,6 +16,7 @@ wheels/
 # Secrets locaux
 config/instree.local.toml
 instree.local.toml
+config/profiles/*/local.toml
 
 # Données locales (snapshots, journal)
 data/

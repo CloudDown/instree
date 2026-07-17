@@ -43,9 +43,11 @@ Si Instagram limite les requêtes (`feedback_required`), Instree affiche une pau
 
 **Auto (recommandé)**  
 Connecté sur [instagram.com](https://www.instagram.com) → ferme le navigateur → **Paramètres** → **Tester la connexion**.  
-Les cookies vont dans `config/instree.local.toml` (gitignored).
+Les cookies vont dans `config/profiles/<session>/local.toml` (gitignored). Chaque session a ses propres paramètres et son historique (`data/profiles/<session>/`).
 
 **Manuel** si l’auto échoue : F12 → Cookies → `instagram.com` → copie `sessionid` et `ds_user_id` dans **Paramètres**.
+
+Dans **Paramètres**, le bouton **+** crée une nouvelle session Instagram (config + données isolées). Clique une session dans la liste pour basculer. **Exporter** / **Importer** sauve ou restaure une session (ZIP, sans cookies IG).
 
 ---
 
@@ -90,7 +92,9 @@ Configurer Instree sans éditer les fichiers à la main :
 
 | Fichier | Contenu |
 |---------|---------|
-| `config/instree.toml` | `n`, `watch_n`, `max_person_following`, port, intervalle |
-| `config/instree.local.toml` | session Instagram |
+| `config/instree.toml` | host, port, session active |
+| `config/profiles/<id>/settings.toml` | scan / planification de la session |
+| `config/profiles/<id>/local.toml` | cookies Instagram (gitignored) |
+| `data/profiles/<id>/` | SQLite + journal de la session |
 
 Les mêmes options sont éditables dans **Paramètres**.

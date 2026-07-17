@@ -49,13 +49,26 @@ class ScanResult:
     gone: list[FollowingEntry] | None = None
 
 
-def _connect() -> sqlite3.Connection:
+def _open_db() -> sqlite3.Connection:
     path = db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
+
+
+def _connect() -> sqlite3.Connection:
+    """Connexion SQLite du profil actif (crée le schéma si besoin)."""
+    conn = _open_db()
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='changes'"
+    ).fetchone()
+    if row:
+        return conn
+    conn.close()
+    init_db()
+    return _open_db()
 
 
 def _drop_legacy(conn: sqlite3.Connection) -> None:
@@ -103,7 +116,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
 
 
 def init_db() -> None:
-    with _connect() as conn:
+    with _open_db() as conn:
         _drop_legacy(conn)
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS scans (

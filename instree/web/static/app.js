@@ -13,6 +13,7 @@ const t = (key, vars) => I18n.t(key, vars);
 const elSessionUser = document.getElementById("session-user");
 const elSessionBadge = document.getElementById("session-badge");
 const elSub = document.getElementById("header-sub");
+let latestSession = null;
 
 const configForm = document.getElementById("config-form");
 const elCfgUsername = document.getElementById("cfg-username");
@@ -30,6 +31,9 @@ const elCfgPort = document.getElementById("cfg-port");
 const elConfigMsg = document.getElementById("config-msg");
 const btnSaveConfig = document.getElementById("btn-save-config");
 const btnTestSession = document.getElementById("btn-test-session");
+const elProfileList = document.getElementById("profile-list");
+const btnProfileAdd = document.getElementById("btn-profile-add");
+const elProfileImportFile = document.getElementById("profile-import-file");
 
 const elJobPanel = document.getElementById("job-panel");
 const elJobTextProfiles = document.getElementById("job-text-profiles");
@@ -169,11 +173,16 @@ async function fetchStatus() {
 }
 
 function setControlsDisabled(disabled) {
-  [btnScan, btnInit, btnSaveConfig, btnTestSession]
+  [btnScan, btnInit, btnSaveConfig, btnTestSession, btnProfileAdd]
     .filter(Boolean)
     .forEach((el) => {
       el.disabled = disabled;
     });
+  if (elProfileList) {
+    elProfileList.querySelectorAll("button").forEach((el) => {
+      el.disabled = disabled;
+    });
+  }
   if (btnStopScan) {
     btnStopScan.disabled = !disabled;
     btnStopScan.classList.toggle("hidden", !disabled);
@@ -181,6 +190,11 @@ function setControlsDisabled(disabled) {
 }
 
 function renderSession(session) {
+  latestSession = session || null;
+  if (elProfileList) {
+    // Sur Paramètres, le @ est rendu dans les cartes de session.
+    return;
+  }
   if (!elSessionUser || !elSessionBadge || !elSub) return;
   if (session.ok) {
     elSessionUser.innerHTML = igUser(session.username);
@@ -219,14 +233,172 @@ function fillConfigForm(config) {
   }
   elCfgHost.value = config.host || "127.0.0.1";
   elCfgPort.value = config.port || 8765;
-  elCfgSessionid.placeholder = config.sessionid_set
-    ? t("settings.sessionKeep")
-    : t("settings.sessionPaste");
-  elCfgDsUserId.placeholder = config.ds_user_id_set
-    ? t("settings.sessionKeep")
-    : t("settings.userIdPaste");
-  elCfgSessionid.value = "";
-  elCfgDsUserId.value = "";
+  elCfgSessionid.placeholder = t("settings.sessionPaste");
+  elCfgDsUserId.placeholder = t("settings.userIdPaste");
+  elCfgSessionid.value = config.sessionid || "";
+  elCfgDsUserId.value = config.ds_user_id || "";
+}
+
+let latestProfiles = [];
+
+function renderProfiles(profiles) {
+  if (!elProfileList) return;
+  const list = Array.isArray(profiles) ? profiles : [];
+  latestProfiles = list;
+  const liveUser =
+    latestSession?.ok && latestSession.username
+      ? String(latestSession.username).replace(/^@/, "")
+      : "";
+  elProfileList.innerHTML = list
+    .map((p) => {
+      const pending = Boolean(p.pending);
+      const user = (!pending && p.active && liveUser) || p.ig_username || p.username || "";
+      const userHtml = user
+        ? igUser(user, "session-user")
+        : `<span class="session-user is-empty">${esc(t("session.notConnected"))}</span>`;
+      const ok = Boolean(user) || p.sessionid_set;
+      const del =
+        !pending && list.length > 1 && !p.active
+          ? `<button type="button" class="profile-delete" data-profile-delete="${esc(p.id)}" title="${esc(t("session.delete"))}" aria-label="${esc(t("session.delete"))}">×</button>`
+          : "";
+      const actions = pending
+        ? ""
+        : `<div class="profile-actions">` +
+          `<button type="button" class="btn btn-ghost btn-sm" data-profile-export="${esc(p.id)}">${esc(t("session.export"))}</button>` +
+          `<button type="button" class="btn btn-ghost btn-sm" data-profile-import="${esc(p.id)}">${esc(t("session.import"))}</button>` +
+          `</div>`;
+      return (
+        `<li class="profile-card${p.active ? " is-active" : ""}${pending ? " is-pending" : ""}" data-profile-id="${esc(p.id)}">` +
+        `<div class="profile-head">` +
+        `<button type="button" class="profile-select" data-profile-id="${esc(p.id)}"${pending ? " disabled" : ""}>` +
+        `<span class="session-dot ${ok ? "ok" : "err"}" aria-hidden="true"></span>` +
+        `<span class="profile-select-main">${userHtml}</span>` +
+        `</button>${del}</div>${actions}</li>`
+      );
+    })
+    .join("");
+}
+
+async function applyProfilePayload(data) {
+  if (data.config) fillConfigForm(data.config);
+  if (data.session) renderSession(data.session);
+  if (data.profiles) renderProfiles(data.profiles);
+  if (page === "changes" && typeof loadScans === "function") {
+    await loadScans();
+  }
+}
+
+async function switchProfile(id) {
+  const res = await fetch("/api/profiles/active", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showConfigMsg(err.detail || t("session.switchError"), false);
+    return;
+  }
+  await applyProfilePayload(await res.json());
+  showConfigMsg(t("session.switched"));
+}
+
+async function addProfile() {
+  if (btnProfileAdd?.disabled) return;
+  if (btnProfileAdd) btnProfileAdd.disabled = true;
+
+  const previous = latestProfiles.map((p) => ({ ...p }));
+  renderProfiles([
+    ...previous,
+    {
+      id: "__pending__",
+      label: "",
+      active: false,
+      username: "",
+      ig_username: "",
+      sessionid_set: false,
+      pending: true,
+    },
+  ]);
+
+  try {
+    const res = await fetch("/api/profiles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: "" }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      renderProfiles(previous);
+      showConfigMsg(err.detail || t("session.addError"), false);
+      return;
+    }
+    const data = await res.json();
+    if (data.profiles) renderProfiles(data.profiles);
+    showConfigMsg(t("session.added"));
+  } catch {
+    renderProfiles(previous);
+    showConfigMsg(t("session.addError"), false);
+  } finally {
+    if (btnProfileAdd) btnProfileAdd.disabled = false;
+  }
+}
+
+async function removeProfile(id) {
+  const ok = await askConfirm(t("session.deleteTitle"), t("session.deleteMsg"));
+  if (!ok) return;
+  const res = await fetch(`/api/profiles/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showConfigMsg(err.detail || t("session.deleteError"), false);
+    return;
+  }
+  const data = await res.json();
+  renderProfiles(data.profiles);
+  showConfigMsg(t("session.deleted"));
+}
+
+async function exportProfile(id) {
+  if (!id) {
+    showConfigMsg(t("session.exportError"), false);
+    return;
+  }
+  const url = `/api/profiles/${encodeURIComponent(id)}/export`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showConfigMsg(err.detail || t("session.exportError"), false);
+    return;
+  }
+  const blob = await res.blob();
+  const cd = res.headers.get("Content-Disposition") || "";
+  const match = cd.match(/filename="?([^"]+)"?/i);
+  const filename = match?.[1] || "instree-session.zip";
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+  showConfigMsg(t("session.exported"));
+}
+
+async function importProfileFile(file) {
+  if (!file) return;
+  const body = new FormData();
+  body.append("file", file);
+  body.append("activate", "true");
+  const res = await fetch("/api/profiles/import", { method: "POST", body });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showConfigMsg(err.detail || t("session.importError"), false);
+    return;
+  }
+  await applyProfilePayload(await res.json());
+  showConfigMsg(t("session.imported"));
 }
 
 async function loadConfig() {
@@ -266,13 +438,16 @@ async function saveConfig(e) {
   }
   const data = await res.json();
   fillConfigForm(data.config);
-  showConfigMsg(t("settings.saved"));
   const status = await fetchStatus();
   renderSession(status.session);
+  renderProfiles(status.profiles);
+  showConfigMsg(t("settings.saved"));
 }
 
 function askConfirm(title, message) {
-  if (!dialog || !confirmTitle || !confirmMessage) return Promise.resolve(true);
+  if (!dialog || !confirmTitle || !confirmMessage) {
+    return Promise.resolve(window.confirm(`${title}\n\n${message}`));
+  }
   return new Promise((resolve) => {
     confirmTitle.textContent = title;
     confirmMessage.textContent = message;
@@ -779,6 +954,38 @@ async function triggerScan(body) {
 async function initSettingsPage() {
   await loadConfig();
   if (configForm) configForm.addEventListener("submit", saveConfig);
+  if (btnProfileAdd) btnProfileAdd.onclick = () => addProfile();
+  if (elProfileImportFile) {
+    elProfileImportFile.addEventListener("change", async () => {
+      const file = elProfileImportFile.files?.[0];
+      elProfileImportFile.value = "";
+      if (file) await importProfileFile(file);
+    });
+  }
+  if (elProfileList) {
+    elProfileList.addEventListener("click", (e) => {
+      const del = e.target.closest("[data-profile-delete]");
+      if (del) {
+        removeProfile(del.dataset.profileDelete);
+        return;
+      }
+      const exp = e.target.closest("[data-profile-export]");
+      if (exp) {
+        exportProfile(exp.dataset.profileExport);
+        return;
+      }
+      const imp = e.target.closest("[data-profile-import]");
+      if (imp) {
+        elProfileImportFile?.click();
+        return;
+      }
+      const card = e.target.closest(".profile-card");
+      const sel = e.target.closest(".profile-select");
+      if (sel && card && !card.classList.contains("is-active")) {
+        switchProfile(card.dataset.profileId || sel.dataset.profileId);
+      }
+    });
+  }
   if (btnTestSession) {
     btnTestSession.onclick = async () => {
       btnTestSession.disabled = true;
@@ -791,7 +998,15 @@ async function initSettingsPage() {
         if (session.note) showConfigMsg(session.note);
         else showConfigMsg(t("settings.connectedAs", { user: session.username }));
         await loadConfig();
-      } else showConfigMsg(session.error || t("settings.connectionFailed"), false);
+        const status = await fetchStatus();
+        renderSession(status.session);
+        renderProfiles(status.profiles);
+      } else {
+        showConfigMsg(session.error || t("settings.connectionFailed"), false);
+        renderProfiles(
+          (await fetchStatus()).profiles
+        );
+      }
     };
   }
 }
@@ -863,6 +1078,7 @@ async function init() {
 
   const status = await fetchStatus();
   renderSession(status.session);
+  renderProfiles(status.profiles || []);
   renderJob(status.job);
 
   if (page === "settings") await initSettingsPage();

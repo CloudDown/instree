@@ -12,14 +12,12 @@
   <main class="page page-settings">
     <aside class="settings-sidebar">
       <section class="card settings-session-card">
-        <h2 class="panel-title" data-i18n="session.title">Session</h2>
-        <div id="session-box" class="session-box">
-          <span id="session-badge" class="session-dot" aria-hidden="true"></span>
-          <div>
-            <div id="session-user" class="session-user">—</div>
-            <div id="header-sub" class="session-source">—</div>
-          </div>
+        <div class="panel-title-row">
+          <h2 class="panel-title" data-i18n="session.title">Session</h2>
+          <button type="button" id="btn-profile-add" class="btn btn-ghost btn-icon" title="Nouvelle session" data-i18n-title="session.add" aria-label="Nouvelle session">+</button>
         </div>
+        <ul id="profile-list" class="profile-list" aria-label="Sessions"></ul>
+        <input type="file" id="profile-import-file" accept=".zip,application/zip" hidden>
       </section>
     </aside>
 
@@ -30,13 +28,13 @@
           <legend data-i18n="settings.instagram">Instagram</legend>
           <label class="field">
             <span class="field-label" data-i18n="settings.sessionId">Session ID</span>
-            <input type="password" id="cfg-sessionid" name="sessionid" autocomplete="off" data-i18n-placeholder="settings.sessionPaste" placeholder="Coller le sessionid Instagram">
+            <input type="text" id="cfg-sessionid" name="sessionid" autocomplete="off" spellcheck="false" data-i18n-placeholder="settings.sessionPaste" placeholder="Coller le sessionid Instagram">
           </label>
           <label class="field">
             <span class="field-label" data-i18n="settings.userId">User ID</span>
-            <input type="password" id="cfg-ds-user-id" name="ds_user_id" autocomplete="off" data-i18n-placeholder="settings.userIdPaste" placeholder="Coller le ds_user_id">
+            <input type="text" id="cfg-ds-user-id" name="ds_user_id" autocomplete="off" spellcheck="false" data-i18n-placeholder="settings.userIdPaste" placeholder="Coller le ds_user_id">
           </label>
-          <p class="field-hint" data-i18n="settings.sessionHint">Sans session ici, Instree lit Chromium/Chrome une fois puis enregistre dans config/instree.local.toml.</p>
+          <p class="field-hint" data-i18n="settings.sessionHint">Colle sessionid / user id, ou utilise « Tester la connexion » pour lire Chrome/Edge/Firefox et enregistrer les cookies.</p>
           <button type="button" id="btn-test-session" class="btn btn-ghost btn-sm" data-i18n="settings.testSession">Tester la connexion</button>
         </fieldset>
 
@@ -105,6 +103,8 @@
       </form>
     </section>
   </main>
+
+  {% include "_confirm_dialog.html" %}
 
   <script src="/static/i18n.js?v={{ v }}"></script>
   <script src="/static/app.js?v={{ v }}"></script>

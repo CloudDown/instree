@@ -63,7 +63,10 @@ def _cookies_from_browser() -> tuple[str, dict] | None:
 
 def connect() -> tuple[Client, str, str | None]:
     """Retourne (client, source, note)."""
+    from instree.config import active_profile_id
+
     settings = load_settings()
+    local_label = f"config/profiles/{active_profile_id()}/local.toml"
 
     if settings.sessionid:
         try:
@@ -73,11 +76,11 @@ def connect() -> tuple[Client, str, str | None]:
                     "ds_user_id": settings.ds_user_id,
                 }
             )
-            return client, "config/instree.local.toml", None
+            return client, local_label, None
         except (LoginRequired, Exception) as e:
             raise RuntimeError(
                 "Session TOML invalide ou expirée — mets à jour sessionid "
-                "dans Settings ou vide config/instree.local.toml pour relire le navigateur"
+                f"dans Settings ou vide {local_label} pour relire le navigateur"
             ) from e
 
     found = _cookies_from_browser()
@@ -93,7 +96,7 @@ def connect() -> tuple[Client, str, str | None]:
     return (
         client,
         f"navigateur ({browser})",
-        "Session enregistrée dans config/instree.local.toml",
+        f"Session enregistrée dans {local_label}",
     )
 
 

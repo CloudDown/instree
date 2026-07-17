@@ -1,23 +1,10 @@
-# Instree — configuration (éditable via l'interface web)
-# Secrets : config/instree.local.toml (gitignored)
-# n / watch_n : nombre ou MAX (= tous les abonnements)
-
-[instagram]
-sessionid = ""
-ds_user_id = ""
-
-[scan]
-username = ""
-n = "MAX"
-watch_n = "MAX"
-max_person_following = 2000
-page_sleep = 0.6
-page_size = 200
+# Instree — configuration globale (éditable via l'interface web)
+# Sessions : config/profiles/<id>/  (+ data/profiles/<id>/)
 
 [web]
 host = "127.0.0.1"
 port = 8765
 autostart_on_boot = false
 
-[schedule]
-interval_minutes = 0
+[profiles]
+active = "s-6843f880"
