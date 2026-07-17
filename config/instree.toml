@@ -10,6 +10,7 @@ ds_user_id = ""
 username = ""
 n = "MAX"
 watch_n = "MAX"
+max_person_following = 2000
 page_sleep = 0.6
 page_size = 200
 

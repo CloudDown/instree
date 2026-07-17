@@ -34,6 +34,7 @@ class ConfigUpdate(BaseModel):
     username: str = ""
     n: str | int = 100
     watch_n: str | int = "MAX"
+    max_person_following: str | int = 2000
     page_sleep: float = 0.6
     page_size: int = 200
     host: str = "127.0.0.1"
@@ -153,13 +154,14 @@ def create_app() -> FastAPI:
 
     @app.put("/api/config")
     async def api_config_put(body: ConfigUpdate):
-        if job_status().get("state") == "running":
+        if job_status().get("state") in ("running", "stopping"):
             raise HTTPException(409, "Impossible de modifier la config pendant un scan")
         try:
             save_config(
                 username=body.username,
                 n=body.n,
                 watch_n=body.watch_n,
+                max_person_following=body.max_person_following,
                 page_sleep=body.page_sleep,
                 page_size=body.page_size,
                 host=body.host,

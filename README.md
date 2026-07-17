@@ -35,6 +35,8 @@ Au premier lancement : installation de **uv** si besoin, Python 3.11+, dépendan
 
 Ensuite : **Paramètres** → session Instagram → **Home** → lancer un scan.
 
+Si Instagram limite les requêtes (`feedback_required`), Instree affiche une pause avec compte à rebours puis réessaie. Les snapshots des mutuels sont sauvés au fil de l’eau : tu peux **relancer** un scan après un blocage / cancel — les comptes déjà traités sont sautés. Plafond `max_person_following` (défaut 2000) pour éviter les listes énormes quand `watch_n = MAX`.
+
 ---
 
 ## Session Instagram
@@ -78,7 +80,7 @@ Vue force-directed de ta communauté :
 Configurer Instree sans éditer les fichiers à la main :
 
 - session Instagram (`sessionid` / `ds_user_id`) et test de connexion ;
-- taille des scans (`n`, `watch_n`, délais API) ;
+- taille des scans (`n`, `watch_n`, `max_person_following`, délais API) ;
 - planification (intervalle auto, lancement au démarrage) ;
 - host / port de l’interface web.
 
@@ -88,7 +90,7 @@ Configurer Instree sans éditer les fichiers à la main :
 
 | Fichier | Contenu |
 |---------|---------|
-| `config/instree.toml` | `n`, `watch_n`, port, intervalle |
+| `config/instree.toml` | `n`, `watch_n`, `max_person_following`, port, intervalle |
 | `config/instree.local.toml` | session Instagram |
 
 Les mêmes options sont éditables dans **Paramètres**.

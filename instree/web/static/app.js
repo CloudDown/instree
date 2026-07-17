@@ -20,6 +20,7 @@ const elCfgSessionid = document.getElementById("cfg-sessionid");
 const elCfgDsUserId = document.getElementById("cfg-ds-user-id");
 const elCfgNInput = document.getElementById("cfg-n-input");
 const elCfgWatchNInput = document.getElementById("cfg-watch-n-input");
+const elCfgMaxPersonFollowing = document.getElementById("cfg-max-person-following");
 const elCfgPageSleep = document.getElementById("cfg-page-sleep");
 const elCfgPageSize = document.getElementById("cfg-page-size");
 const elCfgScheduleInterval = document.getElementById("cfg-schedule-interval");
@@ -205,6 +206,9 @@ function fillConfigForm(config) {
   elCfgUsername.value = config.username || "";
   elCfgNInput.value = String(config.n ?? "100");
   elCfgWatchNInput.value = String(config.watch_n ?? "MAX");
+  if (elCfgMaxPersonFollowing) {
+    elCfgMaxPersonFollowing.value = String(config.max_person_following ?? 2000);
+  }
   elCfgPageSleep.value = config.page_sleep;
   elCfgPageSize.value = config.page_size ?? 200;
   if (elCfgScheduleInterval) {
@@ -238,6 +242,9 @@ async function saveConfig(e) {
     username: elCfgUsername.value.trim().replace(/^@/, ""),
     n: elCfgNInput.value.trim(),
     watch_n: elCfgWatchNInput.value.trim(),
+    max_person_following: elCfgMaxPersonFollowing
+      ? elCfgMaxPersonFollowing.value.trim()
+      : "2000",
     page_sleep: Number(elCfgPageSleep.value),
     page_size: Number(elCfgPageSize.value),
     host: elCfgHost.value.trim(),
@@ -603,6 +610,14 @@ function startPolling() {
 }
 
 function jobMessage(job) {
+  if (job.message_key === "job.rateLimited" && job.cooldown_until) {
+    const secs = Math.max(0, Math.ceil(job.cooldown_until - Date.now() / 1000));
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return t("job.rateLimitedWait", {
+      time: `${m}:${String(s).padStart(2, "0")}`,
+    });
+  }
   if (job.message_key) {
     if (job.message_key === "job.done" && job.result?.scan_id) {
       return t("job.done", { id: job.result.scan_id });
@@ -618,38 +633,68 @@ function phaseLabel(phase) {
     baseline: t("job.baselinePhase"),
     fetch: t("job.fetchPhase"),
     mutuals: t("job.loadingMutuals"),
+    cooldown: t("job.cooldownPhase"),
+    page: t("job.pagePhase"),
   };
   return map[phase] || phase;
+}
+
+function isJobActive(state) {
+  return state === "running" || state === "stopping";
 }
 
 function renderJob(job) {
   if (!elJobPanel) return;
 
-  if (job.state === "running") {
+  if (isJobActive(job.state)) {
     setControlsDisabled(true);
+    if (btnStopScan) {
+      btnStopScan.disabled = job.state === "stopping";
+      btnStopScan.textContent =
+        job.state === "stopping" ? t("actions.stopping") : t("actions.stopScan");
+    }
     elJobPanel.classList.remove("hidden", "job-error");
 
+    const cooldownActive =
+      job.cooldown_until && job.cooldown_until * 1000 > Date.now();
+
     if (elJobTextProfiles && elJobBarProfiles) {
-      const phase = job.progress_phase;
-      if (phase === "mutuals") {
-        elJobTextProfiles.textContent = t("job.loadingMutuals");
-        elJobBarProfiles.style.width = "30%";
-      } else if (job.progress_user) {
-        const pct = job.progress_total
-          ? Math.round((job.progress_current / job.progress_total) * 100)
-          : 0;
-        const phaseSuffix = phase && phase !== "profile" ? ` · ${phaseLabel(phase)}` : "";
-        elJobTextProfiles.innerHTML = `[${job.progress_current}/${job.progress_total}] ${igUser(job.progress_user)}${esc(phaseSuffix)}`;
-        elJobBarProfiles.style.width = `${pct}%`;
+      if (cooldownActive || job.progress_phase === "cooldown") {
+        elJobTextProfiles.textContent = jobMessage({
+          ...job,
+          message_key: "job.rateLimited",
+        });
+        elJobBarProfiles.style.width = "15%";
+      } else if (job.state === "stopping") {
+        elJobTextProfiles.textContent = t("job.stopping");
+        elJobBarProfiles.style.width = elJobBarProfiles.style.width || "40%";
       } else {
-        elJobTextProfiles.textContent = t("job.connecting");
-        elJobBarProfiles.style.width = "5%";
+        const phase = job.progress_phase;
+        if (phase === "mutuals") {
+          elJobTextProfiles.textContent = t("job.loadingMutuals");
+          elJobBarProfiles.style.width = "30%";
+        } else if (job.progress_user) {
+          const pct = job.progress_total
+            ? Math.round((job.progress_current / job.progress_total) * 100)
+            : 0;
+          const phaseSuffix =
+            phase && phase !== "profile" ? ` · ${phaseLabel(phase)}` : "";
+          elJobTextProfiles.innerHTML = `[${job.progress_current}/${job.progress_total}] ${igUser(job.progress_user)}${esc(phaseSuffix)}`;
+          elJobBarProfiles.style.width = `${pct}%`;
+        } else {
+          elJobTextProfiles.textContent = t("job.connecting");
+          elJobBarProfiles.style.width = "5%";
+        }
       }
     }
 
     const watchActive =
+      !cooldownActive &&
+      job.state !== "stopping" &&
       job.watch_user &&
-      (job.watch_phase === "baseline" || job.watch_phase === "fetch" || job.watch_phase === "page");
+      (job.watch_phase === "baseline" ||
+        job.watch_phase === "fetch" ||
+        job.watch_phase === "page");
     if (elJobWatchBlock) {
       elJobWatchBlock.classList.toggle("hidden", !watchActive);
     }
@@ -665,16 +710,18 @@ function renderJob(job) {
     }
 
     startPolling();
-    lastJobState = "running";
+    lastJobState = job.state;
     return;
   }
 
   setControlsDisabled(false);
+  if (btnStopScan) btnStopScan.textContent = t("actions.stopScan");
   stopPolling();
 
   const msg = jobMessage(job);
+  const wasActive = isJobActive(lastJobState);
 
-  if (job.state === "done" && lastJobState === "running") {
+  if (job.state === "done" && wasActive) {
     elJobPanel.classList.remove("hidden");
     if (elJobBarProfiles) elJobBarProfiles.style.width = "100%";
     if (elJobTextProfiles) elJobTextProfiles.textContent = msg;
@@ -684,7 +731,7 @@ function renderJob(job) {
       elJobPanel.classList.add("hidden");
       fetch("/api/scan/reset", { method: "POST" });
     }, 3000);
-  } else if (job.state === "error" && lastJobState === "running") {
+  } else if (job.state === "error" && wasActive) {
     elJobPanel.classList.remove("hidden");
     elJobPanel.classList.add("job-error");
     if (elJobBarProfiles) elJobBarProfiles.style.width = "0%";
@@ -695,8 +742,8 @@ function renderJob(job) {
       elJobPanel.classList.add("hidden");
       elJobPanel.classList.remove("job-error");
       fetch("/api/scan/reset", { method: "POST" });
-    }, 5000);
-  } else if (job.state === "cancelled" && lastJobState === "running") {
+    }, 8000);
+  } else if (job.state === "cancelled" && wasActive) {
     elJobPanel.classList.remove("hidden");
     if (elJobBarProfiles) elJobBarProfiles.style.width = "0%";
     if (elJobTextProfiles) elJobTextProfiles.textContent = msg;

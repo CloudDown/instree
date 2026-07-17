@@ -69,6 +69,7 @@ class Settings:
     username: str = ""
     n: int = 100
     watch_n: int = 0
+    max_person_following: int = 2000
     page_sleep: float = 0.6
     page_size: int = 200
     host: str = "127.0.0.1"
@@ -113,6 +114,11 @@ def format_limit(n: int) -> str:
     return "MAX" if n <= 0 else str(n)
 
 
+def parse_max_person_following(raw) -> int:
+    """Plafond d'abonnements fetchés par mutuel (0 / MAX = illimité)."""
+    return parse_limit(raw if raw is not None else 2000)
+
+
 def parse_interval_minutes(raw) -> int:
     """Intervalle de scan en minutes (0 = désactivé)."""
     if raw is None:
@@ -151,6 +157,9 @@ def load_settings() -> Settings:
         username=str(scan.get("username", "")).strip().lstrip("@"),
         n=parse_limit(scan.get("n", 100)),
         watch_n=parse_limit(scan.get("watch_n", 0)),
+        max_person_following=parse_max_person_following(
+            scan.get("max_person_following", 2000)
+        ),
         page_sleep=float(scan.get("page_sleep", 0.6)),
         page_size=parse_page_size(scan.get("page_size", 200)),
         host=str(web.get("host", "127.0.0.1")),
@@ -169,6 +178,7 @@ def config_for_api() -> dict:
         "username": s.username,
         "n": format_limit(s.n),
         "watch_n": format_limit(s.watch_n),
+        "max_person_following": format_limit(s.max_person_following),
         "page_sleep": s.page_sleep,
         "page_size": s.page_size,
         "host": s.host,
@@ -193,6 +203,7 @@ def _format_main_toml(
     username: str,
     n: int,
     watch_n: int,
+    max_person_following: int,
     page_sleep: float,
     page_size: int,
     host: str,
@@ -203,6 +214,7 @@ def _format_main_toml(
     return f"""# Instree — configuration (éditable via l'interface web)
 # Secrets : config/instree.local.toml (gitignored)
 # n / watch_n : nombre ou MAX (= tous les abonnements)
+# max_person_following : plafond si watch_n = MAX (évite les listes énormes)
 # page_size : abonnements demandés par page API (12–200)
 
 [instagram]
@@ -213,6 +225,7 @@ ds_user_id = ""
 username = {_toml_str(username)}
 n = {_toml_limit(n)}
 watch_n = {_toml_limit(watch_n)}
+max_person_following = {_toml_limit(max_person_following)}
 page_sleep = {page_sleep}
 page_size = {page_size}
 
@@ -241,6 +254,7 @@ def save_config(
     username: str = "",
     n: int | str = 100,
     watch_n: int | str = 0,
+    max_person_following: int | str = 2000,
     page_sleep: float = 0.6,
     page_size: int = 200,
     host: str = "127.0.0.1",
@@ -277,6 +291,7 @@ def save_config(
             username=username.strip().lstrip("@"),
             n=parse_limit(n),
             watch_n=parse_limit(watch_n),
+            max_person_following=parse_max_person_following(max_person_following),
             page_sleep=max(0.0, float(page_sleep)),
             page_size=parse_page_size(page_size),
             host=host.strip() or "127.0.0.1",

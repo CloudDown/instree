@@ -23,7 +23,7 @@ def _loop() -> None:
             break
         if _stop.is_set():
             break
-        if job_status().get("state") == "running":
+        if job_status().get("state") in ("running", "stopping"):
             continue
         try:
             start_scan(init=False)

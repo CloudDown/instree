@@ -10,6 +10,8 @@ from instree.errors import ScanCancelled
 from instree.scan import run_scan
 from instree.session import connect
 
+_ACTIVE_STATES = frozenset({"running", "stopping"})
+
 
 @dataclass
 class ScanJob:
@@ -24,6 +26,7 @@ class ScanJob:
     watch_phase: str = ""
     message: str = ""
     message_key: str = ""
+    cooldown_until: float = 0.0
     result: dict | None = None
 
 
@@ -39,7 +42,7 @@ def job_status() -> dict:
 
 def start_scan(*, init: bool = False) -> None:
     with _lock:
-        if _job.state == "running":
+        if _job.state in _ACTIVE_STATES:
             raise RuntimeError("Un scan est déjà en cours")
 
     _cancel.clear()
@@ -50,8 +53,12 @@ def start_scan(*, init: bool = False) -> None:
 def cancel_scan() -> bool:
     """Demande l'arrêt du scan en cours. Retourne False si aucun scan actif."""
     with _lock:
-        if _job.state != "running":
+        if _job.state not in _ACTIVE_STATES:
             return False
+        _job.state = "stopping"
+        _job.message_key = "job.stopping"
+        _job.message = "Arrêt demandé…"
+        _job.cooldown_until = 0.0
     _cancel.set()
     return True
 
@@ -79,6 +86,21 @@ def _worker(init: bool) -> None:
                 _job.progress_user = username
                 _job.progress_phase = phase
 
+    def on_cooldown(until: float) -> None:
+        with _lock:
+            _job.cooldown_until = float(until or 0)
+            if until and until > 0:
+                _job.message_key = "job.rateLimited"
+                _job.message = "Instagram limite les requêtes — pause…"
+                if _job.progress_phase != "mutuals":
+                    _job.progress_phase = "cooldown"
+            else:
+                if _job.message_key == "job.rateLimited":
+                    _job.message_key = ""
+                    _job.message = ""
+                if _job.progress_phase == "cooldown":
+                    _job.progress_phase = ""
+
     def should_cancel() -> bool:
         return _cancel.is_set()
 
@@ -94,9 +116,11 @@ def _worker(init: bool) -> None:
             init=init,
             on_progress=on_progress,
             should_cancel=should_cancel,
+            on_cooldown=on_cooldown,
         )
         with _lock:
             _job.state = "done"
+            _job.cooldown_until = 0.0
             _job.result = {"scan_id": summary.scan_id}
             if summary.unchanged:
                 _job.message_key = "job.unchanged"
@@ -107,11 +131,13 @@ def _worker(init: bool) -> None:
     except ScanCancelled:
         with _lock:
             _job.state = "cancelled"
+            _job.cooldown_until = 0.0
             _job.message_key = "job.cancelled"
             _job.message = "Scan annulé"
     except Exception as e:
         with _lock:
             _job.state = "error"
+            _job.cooldown_until = 0.0
             _job.message_key = ""
             _job.message = str(e)
     finally:
@@ -122,5 +148,5 @@ def reset_job() -> None:
     """Remet l'état à idle après affichage du résultat."""
     global _job
     with _lock:
-        if _job.state != "running":
+        if _job.state not in _ACTIVE_STATES:
             _job = ScanJob()

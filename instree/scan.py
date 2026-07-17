@@ -1,6 +1,7 @@
 """Scan incrémental : abonnements mutuels + évolution de leurs abonnements."""
 
-import time
+from __future__ import annotations
+
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -8,7 +9,14 @@ from instagrapi import Client
 
 from instree.config import Settings
 from instree.errors import ScanCancelled
-from instree.ig import fetch_following, fetch_mutuals, try_user_by_pk, user_profile
+from instree.ig import (
+    fetch_following,
+    fetch_mutuals,
+    interruptible_sleep,
+    is_rate_limited,
+    try_user_by_pk,
+    user_profile,
+)
 from instree.session import session_user
 from instree.store import (
     FollowingEntry,
@@ -20,6 +28,7 @@ from instree.store import (
     has_scans,
     init_db,
     latest_following,
+    save_person_snapshot,
     save_scan,
 )
 
@@ -95,7 +104,7 @@ def _split_removed_gone(
         else:
             unfollows.append(r)
         if i + 1 < len(removed) and page_sleep > 0:
-            time.sleep(page_sleep)
+            interruptible_sleep(page_sleep, should_cancel)
 
     return unfollows, gones, rename_pks
 
@@ -118,6 +127,15 @@ def _report(
         on_progress(current, total, username, phase, track=track)
 
 
+def _effective_fetch_limit(watch_n: int, max_person_following: int) -> int:
+    """watch_n > 0 gagne ; sinon plafond max_person_following (0 = illimité)."""
+    if watch_n > 0:
+        return watch_n
+    if max_person_following > 0:
+        return max_person_following
+    return 0
+
+
 def _merge_added_snapshot(
     stored: list[FollowingEntry],
     added: list[FollowingEntry],
@@ -132,6 +150,16 @@ def _merge_added_snapshot(
     return merged
 
 
+def _checkpoint(
+    username: str,
+    live: list[FollowingEntry],
+    following_count: int,
+    snapshots: list[tuple[str, list[FollowingEntry], int]],
+) -> None:
+    save_person_snapshot(username, live, following_count, scan_id=0)
+    snapshots.append((username, live, following_count))
+
+
 def _fetch_person_following(
     ig: Client,
     pk: str,
@@ -141,6 +169,7 @@ def _fetch_person_following(
     page_size: int,
     should_cancel: Callable[[], bool] | None = None,
     on_progress=None,
+    on_cooldown: Callable[[float], None] | None = None,
     username: str = "",
     total_hint: int = 0,
     known_usernames: set[str] | None = None,
@@ -159,6 +188,7 @@ def _fetch_person_following(
         page_size=page_size,
         should_cancel=should_cancel,
         on_page=on_page if on_progress else None,
+        on_cooldown=on_cooldown,
         total_hint=target,
         known_usernames=known_usernames,
         stop_after_new=stop_after_new,
@@ -228,12 +258,13 @@ def _watch_persons(
     entries: list[FollowingEntry],
     *,
     watch_n: int,
+    max_person_following: int,
     page_sleep: float,
     page_size: int,
-    is_baseline: bool,
     new_usernames: set[str],
     on_progress=None,
     should_cancel: Callable[[], bool] | None = None,
+    on_cooldown: Callable[[float], None] | None = None,
 ) -> tuple[
     list[PersonChange],
     list[FollowingEntry],
@@ -242,18 +273,29 @@ def _watch_persons(
     person_changes: list[PersonChange] = []
     updated: list[FollowingEntry] = []
     snapshots: list[tuple[str, list[FollowingEntry], int]] = []
-    fetch_limit = watch_n if watch_n > 0 else 0
+    fetch_limit = _effective_fetch_limit(watch_n, max_person_following)
 
     for i, e in enumerate(entries):
         _check_cancel(should_cancel)
         _report(on_progress, i + 1, len(entries), e.username, "profile")
 
         try:
-            profile = user_profile(ig, e.username)
-        except Exception:
+            profile = user_profile(
+                ig,
+                e.username,
+                should_cancel=should_cancel,
+                on_cooldown=on_cooldown,
+            )
+        except ScanCancelled:
+            raise
+        except Exception as exc:
+            if is_rate_limited(exc):
+                raise RuntimeError(
+                    f"Instagram rate-limit sur @{e.username} : {exc}"
+                ) from exc
             updated.append(e)
             if i + 1 < len(entries):
-                time.sleep(page_sleep)
+                interruptible_sleep(page_sleep, should_cancel)
             continue
 
         entry = FollowingEntry(
@@ -266,11 +308,8 @@ def _watch_persons(
         updated.append(entry)
 
         snapshot = get_person_snapshot(profile.username)
-        need_baseline = (
-            is_baseline
-            or snapshot is None
-            or profile.username in new_usernames
-        )
+        # Reprise : snapshot déjà checkpointé → pas de re-fetch baseline
+        need_baseline = snapshot is None or profile.username in new_usernames
         need_diff = (
             not need_baseline
             and snapshot is not None
@@ -306,6 +345,7 @@ def _watch_persons(
                         page_size=page_size,
                         should_cancel=should_cancel,
                         on_progress=on_progress,
+                        on_cooldown=on_cooldown,
                         username=profile.username,
                         total_hint=total_hint,
                         known_usernames=stored_set,
@@ -314,7 +354,9 @@ def _watch_persons(
                     added = [e for e in partial if e.username not in stored_set]
                     if len(added) >= delta:
                         live = _merge_added_snapshot(stored, added, fetch_limit)
-                        snapshots.append((profile.username, live, profile.following_count))
+                        _checkpoint(
+                            profile.username, live, profile.following_count, snapshots
+                        )
                         for a in added:
                             person_changes.append(
                                 PersonChange(
@@ -335,10 +377,13 @@ def _watch_persons(
                             page_size=page_size,
                             should_cancel=should_cancel,
                             on_progress=on_progress,
+                            on_cooldown=on_cooldown,
                             username=profile.username,
                             total_hint=total_hint,
                         )
-                        snapshots.append((profile.username, live, profile.following_count))
+                        _checkpoint(
+                            profile.username, live, profile.following_count, snapshots
+                        )
                         _apply_person_diff(
                             ig,
                             profile.username,
@@ -358,10 +403,13 @@ def _watch_persons(
                         page_size=page_size,
                         should_cancel=should_cancel,
                         on_progress=on_progress,
+                        on_cooldown=on_cooldown,
                         username=profile.username,
                         total_hint=total_hint,
                     )
-                    snapshots.append((profile.username, live, profile.following_count))
+                    _checkpoint(
+                        profile.username, live, profile.following_count, snapshots
+                    )
                     if need_diff and snapshot is not None:
                         stored = get_person_following(profile.username)
                         _apply_person_diff(
@@ -374,14 +422,19 @@ def _watch_persons(
                             page_sleep=page_sleep,
                             should_cancel=should_cancel,
                         )
-            except Exception:
+            except ScanCancelled:
+                raise
+            except Exception as exc:
+                if is_rate_limited(exc):
+                    raise RuntimeError(
+                        f"Instagram rate-limit pendant le fetch @{profile.username} : {exc}"
+                    ) from exc
                 if i + 1 < len(entries):
-                    time.sleep(page_sleep)
+                    interruptible_sleep(page_sleep, should_cancel)
                 continue
 
         if i + 1 < len(entries):
-            time.sleep(page_sleep)
-            _check_cancel(should_cancel)
+            interruptible_sleep(page_sleep, should_cancel)
 
     return person_changes, updated, snapshots
 
@@ -393,6 +446,7 @@ def run_scan(
     init: bool = False,
     on_progress=None,
     should_cancel: Callable[[], bool] | None = None,
+    on_cooldown: Callable[[float], None] | None = None,
 ) -> ScanSummary:
     init_db()
     _check_cancel(should_cancel)
@@ -402,7 +456,14 @@ def run_scan(
     limit = settings.n
 
     try:
-        profile = user_profile(ig, username)
+        profile = user_profile(
+            ig,
+            username,
+            should_cancel=should_cancel,
+            on_cooldown=on_cooldown,
+        )
+    except ScanCancelled:
+        raise
     except Exception as e:
         raise RuntimeError(f"Impossible de charger @{username} : {e}") from e
 
@@ -428,7 +489,10 @@ def run_scan(
                 page_sleep=settings.page_sleep,
                 page_size=settings.page_size,
                 should_cancel=should_cancel,
+                on_cooldown=on_cooldown,
             )
+        except ScanCancelled:
+            raise
         except Exception as e:
             raise RuntimeError(f"Erreur fetch abonnements mutuels : {e}") from e
         live = [_to_entry(u) for u in live_users]
@@ -458,12 +522,13 @@ def run_scan(
         ig,
         live,
         watch_n=settings.watch_n,
+        max_person_following=settings.max_person_following,
         page_sleep=settings.page_sleep,
         page_size=settings.page_size,
-        is_baseline=is_baseline,
         new_usernames=new_usernames,
         on_progress=on_progress,
         should_cancel=should_cancel,
+        on_cooldown=on_cooldown,
     )
 
     person_added = sum(1 for c in person_changes if c.op == "sub_add")
@@ -509,9 +574,17 @@ def run_scan(
             and not person_changes
             and not is_baseline
         ),
-        person_snapshots=person_snapshots if person_snapshots else None,
+        # Déjà checkpointés au fil de l'eau — éviter double écriture
+        person_snapshots=None,
     )
     scan_id, journal_path = save_scan(result, following)
+
+    # Mettre à jour updated_scan_id des snapshots déjà présents
+    if person_snapshots:
+        for person_username, entries, fc in person_snapshots:
+            save_person_snapshot(
+                person_username, entries, fc, scan_id=scan_id or 0
+            )
 
     return ScanSummary(
         scan_id=scan_id,

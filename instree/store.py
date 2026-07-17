@@ -333,6 +333,24 @@ def _save_person_snapshot_conn(
         )
 
 
+def save_person_snapshot(
+    person_username: str,
+    entries: list[FollowingEntry],
+    following_count: int,
+    *,
+    scan_id: int = 0,
+) -> None:
+    """Checkpoint immédiat (reprise après crash / cancel / rate-limit)."""
+    with _connect() as conn:
+        _save_person_snapshot_conn(
+            conn, person_username, entries, following_count, scan_id
+        )
+        verified = [e.username for e in entries if e.is_verified]
+        if verified:
+            _remember_verified_conn(conn, verified)
+        conn.commit()
+
+
 def delete_person_snapshot(person_username: str) -> None:
     with _connect() as conn:
         conn.execute(

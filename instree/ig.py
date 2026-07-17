@@ -1,5 +1,7 @@
 """Appels Instagram : profil et abonnements."""
 
+from __future__ import annotations
+
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -7,6 +9,10 @@ from dataclasses import dataclass
 from instagrapi import Client
 
 from instree.errors import ScanCancelled
+
+# Backoff rate-limit : 5 min → 15 min → 60 min
+_RATE_LIMIT_BACKOFFS = (300, 900, 3600)
+_RATE_LIMIT_MAX_RETRIES = 3
 
 
 @dataclass
@@ -25,15 +31,94 @@ def _user_verified(u) -> bool:
     return bool(getattr(u, "is_verified", False))
 
 
-def user_profile(ig: Client, username: str) -> IgUser:
-    u = ig.user_info_by_username(username.lstrip("@"))
-    return IgUser(
-        pk=str(u.pk),
-        username=u.username,
-        full_name=u.full_name or "",
-        following_count=int(u.following_count or 0),
-        follower_count=int(u.follower_count or 0),
-        is_verified=_user_verified(u),
+def interruptible_sleep(
+    seconds: float,
+    should_cancel: Callable[[], bool] | None = None,
+) -> None:
+    """Sleep annulable (pas de blocage long sans check cancel)."""
+    if seconds <= 0:
+        return
+    end = time.monotonic() + seconds
+    while True:
+        if should_cancel and should_cancel():
+            raise ScanCancelled()
+        remaining = end - time.monotonic()
+        if remaining <= 0:
+            return
+        time.sleep(min(0.5, remaining))
+
+
+def is_rate_limited(exc: BaseException) -> bool:
+    name = type(exc).__name__
+    if name in (
+        "FeedbackRequired",
+        "PleaseWaitFewMinutes",
+        "RateLimitError",
+        "ClientThrottledError",
+    ):
+        return True
+    msg = str(exc).lower()
+    return any(
+        s in msg
+        for s in (
+            "feedback_required",
+            "please wait a few minutes",
+            "wait a few minutes",
+            "rate limit",
+            "we limit how often",
+        )
+    )
+
+
+def _with_rate_limit_retry(
+    fn: Callable[[], object],
+    *,
+    should_cancel: Callable[[], bool] | None = None,
+    on_cooldown: Callable[[float], None] | None = None,
+):
+    last: BaseException | None = None
+    for attempt in range(_RATE_LIMIT_MAX_RETRIES + 1):
+        if should_cancel and should_cancel():
+            raise ScanCancelled()
+        try:
+            return fn()
+        except ScanCancelled:
+            raise
+        except Exception as e:
+            if not is_rate_limited(e) or attempt >= _RATE_LIMIT_MAX_RETRIES:
+                raise
+            last = e
+            wait = _RATE_LIMIT_BACKOFFS[min(attempt, len(_RATE_LIMIT_BACKOFFS) - 1)]
+            until = time.time() + wait
+            if on_cooldown:
+                on_cooldown(until)
+            interruptible_sleep(wait, should_cancel)
+            if on_cooldown:
+                on_cooldown(0.0)
+    assert last is not None
+    raise last
+
+
+def user_profile(
+    ig: Client,
+    username: str,
+    *,
+    should_cancel: Callable[[], bool] | None = None,
+    on_cooldown: Callable[[float], None] | None = None,
+) -> IgUser:
+    def _load() -> IgUser:
+        u = ig.user_info_by_username(username.lstrip("@"))
+        return IgUser(
+            pk=str(u.pk),
+            username=u.username,
+            full_name=u.full_name or "",
+            following_count=int(u.following_count or 0),
+            follower_count=int(u.follower_count or 0),
+            is_verified=_user_verified(u),
+        )
+
+    return _with_rate_limit_retry(
+        _load, should_cancel=should_cancel, on_cooldown=on_cooldown
     )
 
 
@@ -65,6 +150,7 @@ def _paginate_friendships(
     page_size: int = 200,
     should_cancel: Callable[[], bool] | None = None,
     on_page: Callable[[int, int], None] | None = None,
+    on_cooldown: Callable[[float], None] | None = None,
     total_hint: int = 0,
     known_usernames: set[str] | None = None,
     stop_after_new: int = 0,
@@ -87,7 +173,13 @@ def _paginate_friendships(
         }
         if max_id:
             params["max_id"] = max_id
-        result = ig.private_request(f"friendships/{pk}/{endpoint}/", params=params)
+
+        def _request():
+            return ig.private_request(f"friendships/{pk}/{endpoint}/", params=params)
+
+        result = _with_rate_limit_retry(
+            _request, should_cancel=should_cancel, on_cooldown=on_cooldown
+        )
         for u in result.get("users") or []:
             upk = str(u.get("pk", ""))
             username = u.get("username", "")
@@ -117,9 +209,7 @@ def _paginate_friendships(
         max_id = result.get("next_max_id")
         if not max_id:
             break
-        time.sleep(page_sleep)
-        if should_cancel and should_cancel():
-            raise ScanCancelled()
+        interruptible_sleep(page_sleep, should_cancel)
 
     return users
 
@@ -133,6 +223,7 @@ def fetch_following(
     page_size: int = 200,
     should_cancel: Callable[[], bool] | None = None,
     on_page: Callable[[int, int], None] | None = None,
+    on_cooldown: Callable[[float], None] | None = None,
     total_hint: int = 0,
     known_usernames: set[str] | None = None,
     stop_after_new: int = 0,
@@ -147,6 +238,7 @@ def fetch_following(
         page_size=page_size,
         should_cancel=should_cancel,
         on_page=on_page,
+        on_cooldown=on_cooldown,
         total_hint=total_hint,
         known_usernames=known_usernames,
         stop_after_new=stop_after_new,
@@ -161,6 +253,7 @@ def fetch_followers(
     page_sleep: float = 0.6,
     page_size: int = 200,
     should_cancel: Callable[[], bool] | None = None,
+    on_cooldown: Callable[[float], None] | None = None,
 ) -> list[IgUser]:
     """Paginer friendships/{pk}/followers/ (limit=0 → tous)."""
     return _paginate_friendships(
@@ -171,6 +264,7 @@ def fetch_followers(
         page_sleep=page_sleep,
         page_size=page_size,
         should_cancel=should_cancel,
+        on_cooldown=on_cooldown,
     )
 
 
@@ -182,15 +276,28 @@ def fetch_mutuals(
     page_sleep: float = 0.6,
     page_size: int = 200,
     should_cancel: Callable[[], bool] | None = None,
+    on_cooldown: Callable[[float], None] | None = None,
 ) -> list[IgUser]:
     """Abonnements mutuels : intersection following ∩ followers."""
     following = fetch_following(
-        ig, pk, limit=0, page_sleep=page_sleep, page_size=page_size, should_cancel=should_cancel
+        ig,
+        pk,
+        limit=0,
+        page_sleep=page_sleep,
+        page_size=page_size,
+        should_cancel=should_cancel,
+        on_cooldown=on_cooldown,
     )
     if should_cancel and should_cancel():
         raise ScanCancelled()
     followers = fetch_followers(
-        ig, pk, limit=0, page_sleep=page_sleep, page_size=page_size, should_cancel=should_cancel
+        ig,
+        pk,
+        limit=0,
+        page_sleep=page_sleep,
+        page_size=page_size,
+        should_cancel=should_cancel,
+        on_cooldown=on_cooldown,
     )
     follower_pks = {u.pk for u in followers}
     mutuals = [u for u in following if u.pk in follower_pks]
