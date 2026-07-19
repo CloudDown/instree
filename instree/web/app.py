@@ -46,7 +46,7 @@ class ConfigUpdate(BaseModel):
     username: str = ""
     n: str | int = 100
     watch_n: str | int = "MAX"
-    max_person_following: str | int = 2000
+    max_person_following: str | int = "MAX"
     page_sleep: float = 0.6
     page_size: int = 200
     host: str = "127.0.0.1"

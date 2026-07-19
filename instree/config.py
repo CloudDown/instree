@@ -115,8 +115,8 @@ def format_limit(n: int) -> str:
 
 
 def parse_max_person_following(raw) -> int:
-    """Plafond d'abonnements fetchés par mutuel (0 / MAX = illimité)."""
-    return parse_limit(raw if raw is not None else 2000)
+    """Ancien plafond (ignoré au scan) — 0 / MAX = illimité."""
+    return parse_limit(raw if raw is not None else 0)
 
 
 def parse_interval_minutes(raw) -> int:
@@ -175,7 +175,7 @@ class Settings:
     username: str = ""
     n: int = 100
     watch_n: int = 0
-    max_person_following: int = 2000
+    max_person_following: int = 0
     page_sleep: float = 0.6
     page_size: int = 200
     host: str = "127.0.0.1"
@@ -311,7 +311,7 @@ def ensure_profiles_migrated() -> None:
                 n=parse_limit(scan.get("n", 100)),
                 watch_n=parse_limit(scan.get("watch_n", 0)),
                 max_person_following=parse_max_person_following(
-                    scan.get("max_person_following", 2000)
+                    scan.get("max_person_following", 0)
                 ),
                 page_sleep=float(scan.get("page_sleep", 0.6)),
                 page_size=parse_page_size(scan.get("page_size", 200)),
@@ -379,7 +379,7 @@ def ensure_profiles_migrated() -> None:
                     username="",
                     n=100,
                     watch_n=0,
-                    max_person_following=2000,
+                    max_person_following=0,
                     page_sleep=0.6,
                     page_size=200,
                     schedule_interval_minutes=0,
@@ -461,7 +461,7 @@ def remember_profile_ig_username(username: str, profile_id: str | None = None) -
             n=parse_limit(scan.get("n", 100)),
             watch_n=parse_limit(scan.get("watch_n", 0)),
             max_person_following=parse_max_person_following(
-                scan.get("max_person_following", 2000)
+                scan.get("max_person_following", 0)
             ),
             page_sleep=float(scan.get("page_sleep", 0.6)),
             page_size=parse_page_size(scan.get("page_size", 200)),
@@ -486,7 +486,7 @@ def create_profile(*, label: str = "") -> str:
             username="",
             n=100,
             watch_n=0,
-            max_person_following=2000,
+            max_person_following=0,
             page_sleep=0.6,
             page_size=200,
             schedule_interval_minutes=0,
@@ -533,7 +533,7 @@ def rename_profile(profile_id: str, label: str) -> None:
             n=parse_limit(scan.get("n", 100)),
             watch_n=parse_limit(scan.get("watch_n", 0)),
             max_person_following=parse_max_person_following(
-                scan.get("max_person_following", 2000)
+                scan.get("max_person_following", 0)
             ),
             page_sleep=float(scan.get("page_sleep", 0.6)),
             page_size=parse_page_size(scan.get("page_size", 200)),
@@ -594,7 +594,7 @@ def load_settings() -> Settings:
         n=parse_limit(scan.get("n", 100)),
         watch_n=parse_limit(scan.get("watch_n", 0)),
         max_person_following=parse_max_person_following(
-            scan.get("max_person_following", 2000)
+            scan.get("max_person_following", 0)
         ),
         page_sleep=float(scan.get("page_sleep", 0.6)),
         page_size=parse_page_size(scan.get("page_size", 200)),
@@ -637,7 +637,7 @@ def save_config(
     username: str = "",
     n: int | str = 100,
     watch_n: int | str = 0,
-    max_person_following: int | str = 2000,
+    max_person_following: int | str = 0,
     page_sleep: float = 0.6,
     page_size: int = 200,
     host: str = "127.0.0.1",

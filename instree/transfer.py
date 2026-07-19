@@ -174,7 +174,7 @@ def import_profile_zip(
                 n=parse_limit(scan.get("n", 100)),
                 watch_n=parse_limit(scan.get("watch_n", 0)),
                 max_person_following=parse_max_person_following(
-                    scan.get("max_person_following", 2000)
+                    scan.get("max_person_following", 0)
                 ),
                 page_sleep=float(scan.get("page_sleep", 0.6)),
                 page_size=parse_page_size(scan.get("page_size", 200)),

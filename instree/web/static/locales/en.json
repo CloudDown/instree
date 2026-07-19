@@ -106,6 +106,7 @@
   "settings.mutualsCount": "Number of tracked people",
   "settings.mutualsPlaceholder": "100 or MAX",
   "settings.watchN": "Subscriptions tracked per person",
+  "settings.watchNHint": "MAX = every subscription for each mutual. A number = only the N most recent.",
   "settings.maxPersonFollowing": "Cap per person (if MAX)",
   "settings.maxPersonFollowingHint": "Caps huge lists when subscriptions tracked = MAX. MAX here = no cap.",
   "settings.pageSleep": "API delay (seconds)",

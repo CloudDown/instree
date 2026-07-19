@@ -127,13 +127,22 @@ def _report(
         on_progress(current, total, username, phase, track=track)
 
 
-def _effective_fetch_limit(watch_n: int, max_person_following: int) -> int:
-    """watch_n > 0 gagne ; sinon plafond max_person_following (0 = illimité)."""
-    if watch_n > 0:
-        return watch_n
-    if max_person_following > 0:
-        return max_person_following
-    return 0
+def _effective_fetch_limit(watch_n: int, max_person_following: int = 0) -> int:
+    """watch_n > 0 = limite ; 0 / MAX = tous les abonnements.
+
+    max_person_following est ignoré (ancien plafond UI retiré).
+    """
+    _ = max_person_following
+    return watch_n if watch_n > 0 else 0
+
+
+def _watch_total_hint(fetch_limit: int, following_count: int) -> int:
+    """Total affiché dans la barre : vrai compte IG, éventuellement tronqué par watch_n."""
+    if following_count > 0:
+        if fetch_limit > 0:
+            return min(fetch_limit, following_count)
+        return following_count
+    return fetch_limit if fetch_limit > 0 else 0
 
 
 def _merge_added_snapshot(
@@ -318,7 +327,7 @@ def _watch_persons(
 
         if need_baseline or need_diff:
             phase = "baseline" if need_baseline else "fetch"
-            total_hint = fetch_limit if fetch_limit > 0 else profile.following_count
+            total_hint = _watch_total_hint(fetch_limit, profile.following_count)
             _report(
                 on_progress,
                 0,

@@ -106,6 +106,7 @@
   "settings.mutualsCount": "Nombre de personnes suivies",
   "settings.mutualsPlaceholder": "100 ou MAX",
   "settings.watchN": "Abonnements suivis par personne",
+  "settings.watchNHint": "MAX = tous les abonnements de chaque mutuel. Un nombre = seulement les N plus récents.",
   "settings.maxPersonFollowing": "Plafond par personne (si MAX)",
   "settings.maxPersonFollowingHint": "Limite les listes énormes quand « Abonnements suivis » = MAX. MAX ici = sans plafond.",
   "settings.pageSleep": "Pause API (secondes)",

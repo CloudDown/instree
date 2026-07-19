@@ -106,6 +106,7 @@
   "settings.mutualsCount": "Número de personas seguidas",
   "settings.mutualsPlaceholder": "100 o MAX",
   "settings.watchN": "Suscripciones seguidas por persona",
+  "settings.watchNHint": "MAX = todas las suscripciones de cada mutuo. Un número = solo las N más recientes.",
   "settings.maxPersonFollowing": "Tope por persona (si MAX)",
   "settings.maxPersonFollowingHint": "Limita listas enormes cuando las suscripciones seguidas = MAX. MAX aquí = sin tope.",
   "settings.pageSleep": "Pausa API (segundos)",

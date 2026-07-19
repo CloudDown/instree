@@ -21,7 +21,6 @@ const elCfgSessionid = document.getElementById("cfg-sessionid");
 const elCfgDsUserId = document.getElementById("cfg-ds-user-id");
 const elCfgNInput = document.getElementById("cfg-n-input");
 const elCfgWatchNInput = document.getElementById("cfg-watch-n-input");
-const elCfgMaxPersonFollowing = document.getElementById("cfg-max-person-following");
 const elCfgPageSleep = document.getElementById("cfg-page-sleep");
 const elCfgPageSize = document.getElementById("cfg-page-size");
 const elCfgScheduleInterval = document.getElementById("cfg-schedule-interval");
@@ -220,9 +219,6 @@ function fillConfigForm(config) {
   elCfgUsername.value = config.username || "";
   elCfgNInput.value = String(config.n ?? "100");
   elCfgWatchNInput.value = String(config.watch_n ?? "MAX");
-  if (elCfgMaxPersonFollowing) {
-    elCfgMaxPersonFollowing.value = String(config.max_person_following ?? 2000);
-  }
   elCfgPageSleep.value = config.page_sleep;
   elCfgPageSize.value = config.page_size ?? 200;
   if (elCfgScheduleInterval) {
@@ -414,9 +410,7 @@ async function saveConfig(e) {
     username: elCfgUsername.value.trim().replace(/^@/, ""),
     n: elCfgNInput.value.trim(),
     watch_n: elCfgWatchNInput.value.trim(),
-    max_person_following: elCfgMaxPersonFollowing
-      ? elCfgMaxPersonFollowing.value.trim()
-      : "2000",
+    max_person_following: "MAX",
     page_sleep: Number(elCfgPageSleep.value),
     page_size: Number(elCfgPageSize.value),
     host: elCfgHost.value.trim(),
@@ -874,13 +868,16 @@ function renderJob(job) {
       elJobWatchBlock.classList.toggle("hidden", !watchActive);
     }
     if (watchActive && elJobTextWatch && elJobBarWatch) {
-      const pct = job.watch_total
-        ? Math.round((job.watch_current / job.watch_total) * 100)
-        : job.watch_current > 0
+      const total = Number(job.watch_total) || 0;
+      const current = Number(job.watch_current) || 0;
+      const pct = total
+        ? Math.round((current / total) * 100)
+        : current > 0
           ? 50
           : 0;
       const phaseSuffix = job.watch_phase ? ` · ${phaseLabel(job.watch_phase)}` : "";
-      elJobTextWatch.innerHTML = `${igUser(job.watch_user)} [${job.watch_current}/${job.watch_total || "?"}]${esc(phaseSuffix)}`;
+      const counter = total > 0 ? `[${current}/${total}]` : `[${current}]`;
+      elJobTextWatch.innerHTML = `${igUser(job.watch_user)} ${counter}${esc(phaseSuffix)}`;
       elJobBarWatch.style.width = `${Math.min(pct, 100)}%`;
     }
 
