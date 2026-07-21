@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from instree.config import load_settings
+from instree.config import load_settings, load_server_web_settings
 from instree.scan import run_scan
 from instree.session import connect, session_user
 from instree.store import init_db
@@ -86,15 +86,27 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
 def cmd_serve(args: argparse.Namespace) -> int:
     import uvicorn
+    from instree.config import enable_public_mode, is_public_mode
     from instree.web.app import create_app
 
-    settings = load_settings()
-    host = args.host or settings.host
-    port = args.port or settings.port
+    if args.public:
+        root = enable_public_mode()
+        host, port = load_server_web_settings()
+        if args.host:
+            host = args.host
+        if args.port:
+            port = args.port
+        print(f"instree public  home={root}", flush=True)
+    else:
+        settings = load_settings()
+        host = args.host or settings.host
+        port = args.port or settings.port
+        init_db()
 
-    init_db()
     app = create_app()
     print(f"instree web  http://{host}:{port}", flush=True)
+    if is_public_mode():
+        print("  mode     multi-utilisateurs (auth requise)", flush=True)
     uvicorn.run(app, host=host, port=port, log_level="warning")
     return 0
 
@@ -113,6 +125,11 @@ def main() -> None:
     p_serve = sub.add_parser("serve", help="interface web")
     p_serve.add_argument("--host", default=None)
     p_serve.add_argument("--port", type=int, default=None)
+    p_serve.add_argument(
+        "--public",
+        action="store_true",
+        help="mode serveur public multi-utilisateurs (données dans serveur/)",
+    )
     p_serve.set_defaults(func=cmd_serve)
 
     args = parser.parse_args()

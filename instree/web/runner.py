@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 import threading
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 
-from instree.config import load_settings
+from instree.config import (
+    current_user_id,
+    is_public_mode,
+    load_settings,
+    reset_current_user,
+    set_current_user,
+)
 from instree.errors import ScanCancelled
 from instree.scan import run_scan
 from instree.session import connect
@@ -30,41 +36,74 @@ class ScanJob:
     result: dict | None = None
 
 
+@dataclass
+class _JobSlot:
+    job: ScanJob = field(default_factory=ScanJob)
+    cancel: threading.Event = field(default_factory=threading.Event)
+
+
 _lock = threading.Lock()
-_cancel = threading.Event()
-_job = ScanJob()
+_slots: dict[str, _JobSlot] = {}
 
 
-def job_status() -> dict:
+def _user_key(user_id: str | None = None) -> str:
+    if user_id:
+        return user_id
+    if is_public_mode():
+        uid = current_user_id()
+        if not uid:
+            raise RuntimeError("utilisateur requis")
+        return uid
+    return "local"
+
+
+def _slot(user_id: str | None = None) -> _JobSlot:
+    key = _user_key(user_id)
     with _lock:
-        return asdict(_job)
+        if key not in _slots:
+            _slots[key] = _JobSlot()
+        return _slots[key]
 
 
-def start_scan(*, init: bool = False) -> None:
+def job_status(user_id: str | None = None) -> dict:
+    slot = _slot(user_id)
     with _lock:
-        if _job.state in _ACTIVE_STATES:
+        return asdict(slot.job)
+
+
+def start_scan(*, init: bool = False, user_id: str | None = None) -> None:
+    key = _user_key(user_id)
+    slot = _slot(key)
+    with _lock:
+        if slot.job.state in _ACTIVE_STATES:
             raise RuntimeError("Un scan est déjà en cours")
 
-    _cancel.clear()
-    thread = threading.Thread(target=_worker, args=(init,), daemon=True)
+    slot.cancel.clear()
+    thread = threading.Thread(
+        target=_worker, args=(init, key), daemon=True, name=f"instree-scan-{key}"
+    )
     thread.start()
 
 
-def cancel_scan() -> bool:
+def cancel_scan(user_id: str | None = None) -> bool:
     """Demande l'arrêt du scan en cours. Retourne False si aucun scan actif."""
+    slot = _slot(user_id)
     with _lock:
-        if _job.state not in _ACTIVE_STATES:
+        if slot.job.state not in _ACTIVE_STATES:
             return False
-        _job.state = "stopping"
-        _job.message_key = "job.stopping"
-        _job.message = "Arrêt demandé…"
-        _job.cooldown_until = 0.0
-    _cancel.set()
+        slot.job.state = "stopping"
+        slot.job.message_key = "job.stopping"
+        slot.job.message = "Arrêt demandé…"
+        slot.job.cooldown_until = 0.0
+    slot.cancel.set()
     return True
 
 
-def _worker(init: bool) -> None:
-    global _job
+def _worker(init: bool, user_key: str) -> None:
+    slot = _slot(user_key)
+    token = None
+    if user_key != "local":
+        token = set_current_user(user_key)
 
     def on_progress(
         current: int,
@@ -76,36 +115,36 @@ def _worker(init: bool) -> None:
     ) -> None:
         with _lock:
             if track == "watch":
-                _job.watch_current = current
-                _job.watch_total = total
-                _job.watch_user = username
-                _job.watch_phase = phase
+                slot.job.watch_current = current
+                slot.job.watch_total = total
+                slot.job.watch_user = username
+                slot.job.watch_phase = phase
             else:
-                _job.progress_current = current
-                _job.progress_total = total
-                _job.progress_user = username
-                _job.progress_phase = phase
+                slot.job.progress_current = current
+                slot.job.progress_total = total
+                slot.job.progress_user = username
+                slot.job.progress_phase = phase
 
     def on_cooldown(until: float) -> None:
         with _lock:
-            _job.cooldown_until = float(until or 0)
+            slot.job.cooldown_until = float(until or 0)
             if until and until > 0:
-                _job.message_key = "job.rateLimited"
-                _job.message = "Instagram limite les requêtes — pause…"
-                if _job.progress_phase != "mutuals":
-                    _job.progress_phase = "cooldown"
+                slot.job.message_key = "job.rateLimited"
+                slot.job.message = "Instagram limite les requêtes — pause…"
+                if slot.job.progress_phase != "mutuals":
+                    slot.job.progress_phase = "cooldown"
             else:
-                if _job.message_key == "job.rateLimited":
-                    _job.message_key = ""
-                    _job.message = ""
-                if _job.progress_phase == "cooldown":
-                    _job.progress_phase = ""
+                if slot.job.message_key == "job.rateLimited":
+                    slot.job.message_key = ""
+                    slot.job.message = ""
+                if slot.job.progress_phase == "cooldown":
+                    slot.job.progress_phase = ""
 
     def should_cancel() -> bool:
-        return _cancel.is_set()
+        return slot.cancel.is_set()
 
     with _lock:
-        _job = ScanJob(state="running")
+        slot.job = ScanJob(state="running")
 
     try:
         settings = load_settings()
@@ -119,34 +158,36 @@ def _worker(init: bool) -> None:
             on_cooldown=on_cooldown,
         )
         with _lock:
-            _job.state = "done"
-            _job.cooldown_until = 0.0
-            _job.result = {"scan_id": summary.scan_id}
+            slot.job.state = "done"
+            slot.job.cooldown_until = 0.0
+            slot.job.result = {"scan_id": summary.scan_id}
             if summary.unchanged:
-                _job.message_key = "job.unchanged"
-                _job.message = "Inchangé"
+                slot.job.message_key = "job.unchanged"
+                slot.job.message = "Inchangé"
             else:
-                _job.message_key = "job.done"
-                _job.message = f"Scan #{summary.scan_id} terminé"
+                slot.job.message_key = "job.done"
+                slot.job.message = f"Scan #{summary.scan_id} terminé"
     except ScanCancelled:
         with _lock:
-            _job.state = "cancelled"
-            _job.cooldown_until = 0.0
-            _job.message_key = "job.cancelled"
-            _job.message = "Scan annulé"
+            slot.job.state = "cancelled"
+            slot.job.cooldown_until = 0.0
+            slot.job.message_key = "job.cancelled"
+            slot.job.message = "Scan annulé"
     except Exception as e:
         with _lock:
-            _job.state = "error"
-            _job.cooldown_until = 0.0
-            _job.message_key = ""
-            _job.message = str(e)
+            slot.job.state = "error"
+            slot.job.cooldown_until = 0.0
+            slot.job.message_key = ""
+            slot.job.message = str(e)
     finally:
-        _cancel.clear()
+        slot.cancel.clear()
+        if token is not None:
+            reset_current_user(token)
 
 
-def reset_job() -> None:
+def reset_job(user_id: str | None = None) -> None:
     """Remet l'état à idle après affichage du résultat."""
-    global _job
+    slot = _slot(user_id)
     with _lock:
-        if _job.state not in _ACTIVE_STATES:
-            _job = ScanJob()
+        if slot.job.state not in _ACTIVE_STATES:
+            slot.job = ScanJob()

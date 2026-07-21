@@ -9,10 +9,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+from instree.accounts import authenticate, register_account
 from instree.config import (
     config_for_api,
     create_profile,
+    current_user_id,
     delete_profile,
+    is_public_mode,
     list_profiles,
     load_settings,
     profile_ig_username,
@@ -31,6 +34,13 @@ from instree.store import (
     scan_neighbors,
 )
 from instree.transfer import export_profile_zip, import_profile_zip
+from instree.web.auth import (
+    PublicAuthMiddleware,
+    install_session_middleware,
+    login_user,
+    logout_user,
+    session_user,
+)
 from instree.web.runner import cancel_scan, job_status, reset_job, start_scan
 
 WEB_DIR = Path(__file__).resolve().parent
@@ -70,12 +80,20 @@ class ProfileRename(BaseModel):
     label: str
 
 
-_session_cache: dict | None = None
+class AuthBody(BaseModel):
+    username: str
+    password: str
+
+
+_session_cache: dict[str, dict] = {}
+
+
+def _cache_key() -> str:
+    return current_user_id() or "local"
 
 
 def clear_session_cache() -> None:
-    global _session_cache
-    _session_cache = None
+    _session_cache.pop(_cache_key(), None)
 
 
 def _session_info(*, verify: bool = False) -> dict:
@@ -84,9 +102,9 @@ def _session_info(*, verify: bool = False) -> dict:
     Par défaut : lecture locale uniquement (instantané).
     verify=True : login Instagram (+ cookies navigateur si besoin).
     """
-    global _session_cache
-    if not verify and _session_cache is not None:
-        return _session_cache
+    key = _cache_key()
+    if not verify and key in _session_cache:
+        return _session_cache[key]
     settings = load_settings()
     local_label = f"config/profiles/{settings.profile_id}/local.toml"
 
@@ -97,48 +115,53 @@ def _session_info(*, verify: bool = False) -> dict:
                 or settings.username
                 or None
             )
-            _session_cache = {
+            _session_cache[key] = {
                 "ok": True,
                 "source": local_label,
                 "username": username,
                 "note": None,
             }
         else:
-            _session_cache = {
+            err = (
+                "Pas de session configurée — colle sessionid / user id"
+                if is_public_mode()
+                else (
+                    "Pas de session configurée — colle sessionid / user id, "
+                    "ou utilise « Tester la connexion » pour lire le navigateur"
+                )
+            )
+            _session_cache[key] = {
                 "ok": False,
                 "source": None,
                 "username": settings.username or None,
-                "error": (
-                    "Pas de session configurée — colle sessionid / user id, "
-                    "ou utilise « Tester la connexion » pour lire le navigateur"
-                ),
+                "error": err,
             }
-        return _session_cache
+        return _session_cache[key]
 
     try:
         ig, source, _note = connect()
-        from instree.session import session_user
+        from instree.session import session_user as ig_session_user
 
-        target = settings.username or session_user(ig)
+        target = settings.username or ig_session_user(ig)
         if target:
             try:
                 remember_profile_ig_username(target)
             except (OSError, ValueError):
                 pass
-        _session_cache = {
+        _session_cache[key] = {
             "ok": True,
             "source": source,
             "username": target,
             "note": _note,
         }
     except RuntimeError as e:
-        _session_cache = {
+        _session_cache[key] = {
             "ok": False,
             "source": None,
             "username": settings.username or None,
             "error": str(e),
         }
-    return _session_cache
+    return _session_cache[key]
 
 
 def _asset_version() -> str:
@@ -155,8 +178,19 @@ def _asset_version() -> str:
     return str(int(latest))
 
 
+def _page_ctx(request: Request, page: str) -> dict:
+    user = getattr(request.state, "user", None) or session_user(request)
+    return {
+        "v": _asset_version(),
+        "page": page,
+        "public_mode": is_public_mode(),
+        "auth_user": user,
+    }
+
+
 def create_app() -> FastAPI:
-    init_db()
+    if not is_public_mode():
+        init_db()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -166,35 +200,109 @@ def create_app() -> FastAPI:
             stop_interval_scheduler,
         )
 
-        remove_legacy_systemd()
-        start_interval_scheduler()
+        if not is_public_mode():
+            remove_legacy_systemd()
+            start_interval_scheduler()
         yield
-        stop_interval_scheduler()
+        if not is_public_mode():
+            stop_interval_scheduler()
 
     app = FastAPI(title="Instree", docs_url=None, redoc_url=None, lifespan=lifespan)
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+    if is_public_mode():
+        app.add_middleware(PublicAuthMiddleware)
+        install_session_middleware(app)
+
     @app.get("/", include_in_schema=False)
     async def root():
         return RedirectResponse("/changes", status_code=307)
 
+    @app.get("/login", response_class=HTMLResponse)
+    async def login_page(request: Request):
+        if not is_public_mode():
+            return RedirectResponse("/changes", status_code=307)
+        if session_user(request):
+            return RedirectResponse("/changes", status_code=307)
+        return templates.TemplateResponse(
+            request, "login.html", _page_ctx(request, "login")
+        )
+
+    @app.get("/register", response_class=HTMLResponse)
+    async def register_page(request: Request):
+        if not is_public_mode():
+            return RedirectResponse("/changes", status_code=307)
+        if session_user(request):
+            return RedirectResponse("/changes", status_code=307)
+        return templates.TemplateResponse(
+            request, "register.html", _page_ctx(request, "register")
+        )
+
+    @app.post("/api/auth/register")
+    async def api_auth_register(request: Request, body: AuthBody):
+        if not is_public_mode():
+            raise HTTPException(404, "Indisponible en mode local")
+        try:
+            account = register_account(body.username, body.password)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        login_user(request, account.id, account.username)
+        from instree.config import set_current_user
+
+        token = set_current_user(account.id)
+        try:
+            init_db()
+        finally:
+            from instree.config import reset_current_user
+
+            reset_current_user(token)
+        return {"ok": True, "user": {"id": account.id, "username": account.username}}
+
+    @app.post("/api/auth/login")
+    async def api_auth_login(request: Request, body: AuthBody):
+        if not is_public_mode():
+            raise HTTPException(404, "Indisponible en mode local")
+        account = authenticate(body.username, body.password)
+        if not account:
+            raise HTTPException(401, "Identifiants incorrects")
+        login_user(request, account.id, account.username)
+        return {"ok": True, "user": {"id": account.id, "username": account.username}}
+
+    @app.post("/api/auth/logout")
+    async def api_auth_logout(request: Request):
+        logout_user(request)
+        return {"ok": True}
+
+    @app.get("/api/auth/me")
+    async def api_auth_me(request: Request):
+        user = session_user(request)
+        if not user:
+            raise HTTPException(401, "Authentification requise")
+        return {"ok": True, "user": user, "public_mode": is_public_mode()}
+
     @app.get("/settings", response_class=HTMLResponse)
     async def settings_page(request: Request):
+        if is_public_mode():
+            init_db()
         return templates.TemplateResponse(
-            request, "settings.html", {"v": _asset_version(), "page": "settings"}
+            request, "settings.html", _page_ctx(request, "settings")
         )
 
     @app.get("/changes", response_class=HTMLResponse)
     async def changes_page(request: Request):
+        if is_public_mode():
+            init_db()
         return templates.TemplateResponse(
-            request, "changes.html", {"v": _asset_version(), "page": "changes"}
+            request, "changes.html", _page_ctx(request, "changes")
         )
 
     @app.get("/graph", response_class=HTMLResponse)
     async def graph_page(request: Request):
+        if is_public_mode():
+            init_db()
         return templates.TemplateResponse(
-            request, "graph.html", {"v": _asset_version(), "page": "graph"}
+            request, "graph.html", _page_ctx(request, "graph")
         )
 
     @app.get("/actions", include_in_schema=False)
@@ -202,13 +310,18 @@ def create_app() -> FastAPI:
         return RedirectResponse("/changes", status_code=307)
 
     @app.get("/api/status")
-    async def api_status():
+    async def api_status(request: Request):
+        if is_public_mode():
+            init_db()
         session = _session_info()
+        user = getattr(request.state, "user", None)
         return {
             "session": session,
             "config": config_for_api(),
             "job": job_status(),
             "profiles": list_profiles(),
+            "public_mode": is_public_mode(),
+            "auth_user": user,
         }
 
     @app.get("/api/profiles")

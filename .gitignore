@@ -22,3 +22,6 @@ config/profiles/
 
 # Données locales (snapshots, journal)
 data/
+
+# Mode serveur public (comptes, données multi-utilisateurs)
+serveur/

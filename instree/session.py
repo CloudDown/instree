@@ -83,6 +83,13 @@ def connect() -> tuple[Client, str, str | None]:
                 f"dans Settings ou vide {local_label} pour relire le navigateur"
             ) from e
 
+    from instree.config import is_public_mode
+
+    if is_public_mode():
+        raise RuntimeError(
+            "Pas de session configurée — colle sessionid et user id dans Paramètres"
+        )
+
     found = _cookies_from_browser()
     if not found:
         raise RuntimeError(

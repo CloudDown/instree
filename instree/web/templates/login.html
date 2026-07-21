@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Instree · Connexion</title>
+  <link rel="stylesheet" href="/static/style.css?v={{ v }}">
+</head>
+<body data-page="login" data-asset-v="{{ v }}" data-public="1">
+  <main class="page page-auth">
+    <section class="card auth-card">
+      <h1 class="auth-brand">Instree</h1>
+      <p class="auth-sub" data-i18n="auth.loginSub">Connexion au compte</p>
+      <form id="auth-form" class="auth-form" data-mode="login">
+        <label class="field">
+          <span class="field-label" data-i18n="auth.username">Nom d'utilisateur</span>
+          <input type="text" id="auth-username" name="username" autocomplete="username" required maxlength="32">
+        </label>
+        <label class="field">
+          <span class="field-label" data-i18n="auth.password">Mot de passe</span>
+          <input type="password" id="auth-password" name="password" autocomplete="current-password" required minlength="8">
+        </label>
+        <p id="auth-error" class="config-msg err hidden" role="alert"></p>
+        <button type="submit" class="btn btn-main" data-i18n="auth.login">Se connecter</button>
+      </form>
+      <p class="auth-switch">
+        <span data-i18n="auth.noAccount">Pas encore de compte ?</span>
+        <a href="/register" data-i18n="auth.goRegister">Créer un compte</a>
+      </p>
+    </section>
+  </main>
+  <script src="/static/i18n.js?v={{ v }}"></script>
+  <script src="/static/auth.js?v={{ v }}"></script>
+</body>
+</html>

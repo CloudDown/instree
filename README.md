@@ -10,7 +10,7 @@ Surveillance **locale** de tes abonnements mutuels Instagram (tu les suis, ils t
 | pastille jaune **mutuel** | déjà dans ta liste |
 | pastille bleue | compte vérifié |
 
-Interface web en FR / EN / ES. Données uniquement dans `data/` (SQLite).
+Interface web en FR / EN / ES. Données locales dans `data/` (SQLite). Mode **serveur public** multi-utilisateurs possible (voir plus bas).
 
 ---
 
@@ -98,3 +98,37 @@ Configurer Instree sans éditer les fichiers à la main :
 | `data/profiles/<id>/` | SQLite + journal de la session |
 
 Les mêmes options sont éditables dans **Paramètres**.
+
+---
+
+## Mode serveur public (multi-utilisateurs)
+
+Pour héberger Instree derrière un DNS public, chaque visiteur a son **compte** (username + mot de passe) et ses propres sessions IG / scans, isolés sous `serveur/` (**hors git**).
+
+```bash
+# Linux / macOS
+./run-public
+
+# ou
+.venv/bin/instree serve --public
+```
+
+```bat
+REM Windows
+run-public.bat
+```
+
+Au premier lancement, Instree crée :
+
+```
+serveur/
+  instree.toml       # host/port (défaut 0.0.0.0:8765)
+  secret.key         # signature des cookies de session
+  accounts.db        # comptes
+  users/<id>/        # config + data de chaque utilisateur
+```
+
+Puis ouvre `/login` : inscription → connexion → usage normal (sessions IG, scans).  
+Le mode local (`./run` / `run.bat`) reste inchangé : pas d’auth, données dans `config/` + `data/`.
+
+Place un reverse-proxy (HTTPS) devant le bind `0.0.0.0` en production.

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Instree — mode serveur public multi-utilisateurs
+# Usage : ./run-public
+# Données (hors git) : ./serveur/
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT"
+
+echo
+echo "  Instree (public)"
+echo "  ----------------"
+echo
+
+if [[ ! -f config/instree.toml && ! -f pyproject.toml ]]; then
+  echo "[ERREUR] Lance ./run-public depuis la racine du projet Instree."
+  exit 1
+fi
+
+# Réutilise l'install locale si besoin
+if [[ ! -x .venv/bin/instree ]]; then
+  echo "[..] Environnement manquant — lancement de ./run une fois pour installer…"
+  echo "         (Ctrl+C après install si tu préfères, puis relance ./run-public)"
+  ./run --help >/dev/null 2>&1 || true
+fi
+
+if [[ ! -x .venv/bin/instree ]]; then
+  export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
+  if command -v uv >/dev/null 2>&1; then
+    uv sync
+  else
+    python3 -m venv .venv
+    .venv/bin/pip install -q --upgrade pip
+    .venv/bin/pip install -q -e .
+  fi
+fi
+
+if [[ ! -x .venv/bin/instree ]]; then
+  echo "[ERREUR] instree introuvable. Lance d'abord ./run pour installer les deps."
+  exit 1
+fi
+
+echo "[OK] Mode public — données dans $ROOT/serveur/"
+exec .venv/bin/instree serve --public "$@"

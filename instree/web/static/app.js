@@ -227,12 +227,24 @@ function fillConfigForm(config) {
   if (elCfgAutostart) {
     elCfgAutostart.checked = Boolean(config.autostart_on_boot);
   }
-  elCfgHost.value = config.host || "127.0.0.1";
-  elCfgPort.value = config.port || 8765;
-  elCfgSessionid.placeholder = t("settings.sessionPaste");
-  elCfgDsUserId.placeholder = t("settings.userIdPaste");
-  elCfgSessionid.value = config.sessionid || "";
-  elCfgDsUserId.value = config.ds_user_id || "";
+  if (elCfgHost) elCfgHost.value = config.host || "127.0.0.1";
+  if (elCfgPort) elCfgPort.value = config.port || 8765;
+  const publicMode = Boolean(config.public_mode || document.body.dataset.public);
+  if (publicMode) {
+    elCfgSessionid.placeholder = config.sessionid_set
+      ? t("settings.sessionKeep")
+      : t("settings.sessionPaste");
+    elCfgDsUserId.placeholder = config.ds_user_id_set
+      ? t("settings.sessionKeep")
+      : t("settings.userIdPaste");
+    elCfgSessionid.value = "";
+    elCfgDsUserId.value = "";
+  } else {
+    elCfgSessionid.placeholder = t("settings.sessionPaste");
+    elCfgDsUserId.placeholder = t("settings.userIdPaste");
+    elCfgSessionid.value = config.sessionid || "";
+    elCfgDsUserId.value = config.ds_user_id || "";
+  }
 }
 
 let latestProfiles = [];
@@ -1068,12 +1080,26 @@ function onLocaleChange() {
   if (btnStopScan && !btnStopScan.disabled) btnStopScan.textContent = t("actions.stopScan");
 }
 
+function initLogout() {
+  const btn = document.getElementById("btn-logout");
+  if (!btn) return;
+  btn.onclick = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    location.href = "/login";
+  };
+}
+
 async function init() {
   await I18n.ready;
   initLangSwitch();
+  initLogout();
   window.addEventListener("instree:locale", onLocaleChange);
 
   const status = await fetchStatus();
+  if (status.public_mode) {
+    document.body.classList.add("public-mode");
+    document.body.dataset.public = "1";
+  }
   renderSession(status.session);
   renderProfiles(status.profiles || []);
   renderJob(status.job);

@@ -6,7 +6,7 @@
   <title>Instree · Graph</title>
   <link rel="stylesheet" href="/static/style.css?v={{ v }}">
 </head>
-<body data-page="{{ page }}" data-asset-v="{{ v }}">
+<body data-page="{{ page }}" data-asset-v="{{ v }}"{% if public_mode %} class="public-mode" data-public="1"{% endif %}>
   {% include "_header.html" %}
 
   <main class="page page-graph">

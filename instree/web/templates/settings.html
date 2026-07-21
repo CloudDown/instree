@@ -6,7 +6,7 @@
   <title>Instree · Paramètres</title>
   <link rel="stylesheet" href="/static/style.css?v={{ v }}">
 </head>
-<body data-page="{{ page }}" data-asset-v="{{ v }}">
+<body data-page="{{ page }}" data-asset-v="{{ v }}"{% if public_mode %} class="public-mode" data-public="1"{% endif %}>
   {% include "_header.html" %}
 
   <main class="page page-settings">
@@ -67,19 +67,21 @@
 
         <fieldset class="config-fieldset">
           <legend data-i18n="settings.schedule">Planification</legend>
-          <label class="field">
-            <span class="field-label" data-i18n="settings.scheduleInterval">Intervalle (minutes)</span>
-            <input type="number" id="cfg-schedule-interval" name="schedule_interval_minutes" min="0" step="1" value="0">
-          </label>
-          <p class="field-hint" data-i18n="settings.scheduleIntervalHint">0 = désactivé. Relance un scan automatiquement tant que le serveur tourne.</p>
-          <label class="field field-checkbox">
-            <input type="checkbox" id="cfg-autostart" name="autostart_on_boot">
-            <span data-i18n="settings.autostartOnBoot">Lancement au démarrage de l'ordinateur</span>
-          </label>
-          <p class="field-hint" data-i18n="settings.autostartHint">Lance instree serve automatiquement à la connexion (scans planifiés tant que le serveur tourne).</p>
+          <div class="settings-server-only">
+            <label class="field">
+              <span class="field-label" data-i18n="settings.scheduleInterval">Intervalle (minutes)</span>
+              <input type="number" id="cfg-schedule-interval" name="schedule_interval_minutes" min="0" step="1" value="0">
+            </label>
+            <p class="field-hint" data-i18n="settings.scheduleIntervalHint">0 = désactivé. Relance un scan automatiquement tant que le serveur tourne.</p>
+            <label class="field field-checkbox">
+              <input type="checkbox" id="cfg-autostart" name="autostart_on_boot">
+              <span data-i18n="settings.autostartOnBoot">Lancement au démarrage de l'ordinateur</span>
+            </label>
+            <p class="field-hint" data-i18n="settings.autostartHint">Lance instree serve automatiquement à la connexion (scans planifiés tant que le serveur tourne).</p>
+          </div>
         </fieldset>
 
-        <fieldset class="config-fieldset">
+        <fieldset class="config-fieldset settings-server-only">
           <legend data-i18n="settings.webUi">Interface web</legend>
           <label class="field">
             <span class="field-label" data-i18n="settings.host">Hôte</span>
