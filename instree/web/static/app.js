@@ -1088,21 +1088,45 @@ async function initSettingsPage() {
     });
   }
   if (btnTestSession) {
+    const labelEl =
+      btnTestSession.querySelector(".btn-test-label") || btnTestSession;
+    let testBtnResetTimer = 0;
+    const setTestBtnState = (state) => {
+      btnTestSession.classList.remove("is-ok", "is-err", "is-testing");
+      if (state) btnTestSession.classList.add(`is-${state}`);
+      if (state === "testing") {
+        labelEl.textContent = t("settings.testing");
+      } else if (state === "ok") {
+        labelEl.textContent = t("settings.testOk");
+      } else if (state === "err") {
+        labelEl.textContent = t("settings.testFail");
+      } else {
+        labelEl.textContent = t("settings.testSession");
+      }
+    };
+
     btnTestSession.onclick = async () => {
+      clearTimeout(testBtnResetTimer);
       btnTestSession.disabled = true;
-      btnTestSession.textContent = t("settings.testing");
+      setTestBtnState("testing");
       try {
         const session = await resolveIgUsername();
         await loadConfig();
         if (session.ok) {
+          setTestBtnState("ok");
           if (session.note) showConfigMsg(session.note);
           else showConfigMsg(t("settings.connectedAs", { user: session.username }));
         } else {
+          setTestBtnState("err");
           showConfigMsg(session.error || t("settings.connectionFailed"), false);
         }
+      } catch {
+        setTestBtnState("err");
+        showConfigMsg(t("settings.connectionFailed"), false);
       } finally {
         btnTestSession.disabled = false;
-        btnTestSession.textContent = t("settings.testSession");
+        // Garde le V / X un moment, puis revient au libellé normal.
+        testBtnResetTimer = setTimeout(() => setTestBtnState(null), 4000);
       }
     };
   }
@@ -1179,19 +1203,45 @@ function onLocaleChange() {
   if (btnStopScan && !btnStopScan.disabled) btnStopScan.textContent = t("actions.stopScan");
 }
 
-function initLogout() {
-  const btn = document.getElementById("btn-logout");
-  if (!btn) return;
-  btn.onclick = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    location.href = "/login";
+function initProfileMenu() {
+  const menu = document.getElementById("profile-menu");
+  const trigger = document.getElementById("profile-menu-trigger");
+  const panel = document.getElementById("profile-menu-panel");
+  const logoutBtn = document.getElementById("btn-logout");
+  if (!menu || !trigger || !panel) return;
+
+  const setOpen = (open) => {
+    menu.classList.toggle("is-open", open);
+    trigger.setAttribute("aria-expanded", open ? "true" : "false");
+    panel.hidden = !open;
   };
+
+  trigger.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setOpen(panel.hidden);
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!menu.contains(e.target)) setOpen(false);
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") setOpen(false);
+  });
+
+  if (logoutBtn) {
+    logoutBtn.onclick = async () => {
+      setOpen(false);
+      await fetch("/api/auth/logout", { method: "POST" });
+      location.href = "/login";
+    };
+  }
 }
 
 async function init() {
   await I18n.ready;
   initLangSwitch();
-  initLogout();
+  initProfileMenu();
   window.addEventListener("instree:locale", onLocaleChange);
 
   const status = await fetchStatus();

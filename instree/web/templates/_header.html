@@ -11,9 +11,22 @@
     </nav>
     <div class="topbar-end">
       {% if auth_user %}
-      <div class="auth-userbar">
-        <span class="auth-username">{{ auth_user.username }}</span>
-        <button type="button" id="btn-logout" class="btn btn-ghost btn-sm" data-i18n="auth.logout">Déconnexion</button>
+      <div class="profile-menu" id="profile-menu">
+        <button type="button" class="profile-menu-trigger" id="profile-menu-trigger" aria-expanded="false" aria-haspopup="true" data-i18n-aria-label="auth.profile" aria-label="Profil">
+          <span class="profile-avatar" aria-hidden="true">{{ auth_user.username[:1]|upper }}</span>
+          <span class="profile-menu-name">{{ auth_user.username }}</span>
+          <span class="profile-menu-caret" aria-hidden="true"></span>
+        </button>
+        <div class="profile-menu-panel" id="profile-menu-panel" hidden>
+          <div class="profile-menu-head">
+            <span class="profile-avatar profile-avatar-lg" aria-hidden="true">{{ auth_user.username[:1]|upper }}</span>
+            <div class="profile-menu-meta">
+              <span class="profile-menu-label" data-i18n="auth.profile">Profil</span>
+              <strong class="profile-menu-user">{{ auth_user.username }}</strong>
+            </div>
+          </div>
+          <button type="button" id="btn-logout" class="profile-menu-item profile-menu-logout" data-i18n="auth.logout">Déconnexion</button>
+        </div>
       </div>
       {% endif %}
       <div class="lang-switch" role="group" data-i18n-aria-label="lang.label" aria-label="Langue">
