@@ -77,6 +77,11 @@ def _print_serve_banner(
         lan = _lan_ipv4()
         if lan:
             print(f"  wifi     http://{lan}:{port}", flush=True)
+            print(
+                "  tip      autres téléphones : même Wi‑Fi que ce PC "
+                "(pas 4G, pas Wi‑Fi invité). Hors Wi‑Fi : --ngrok",
+                flush=True,
+            )
         print(f"  local    http://127.0.0.1:{port}", flush=True)
     if ngrok:
         print("  mode     multi-utilisateurs + ngrok", flush=True)

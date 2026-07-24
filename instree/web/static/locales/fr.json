@@ -121,7 +121,7 @@
   "settings.account": "Compte à suivre",
   "settings.accountPlaceholder": "@toi ou vide = session",
   "settings.mutualsCount": "Nombre de personnes suivies",
-  "settings.mutualsPlaceholder": "100 ou MAX",
+  "settings.mutualsPlaceholder": "MAX",
   "settings.watchN": "Abonnements suivis par personne",
   "settings.watchNHint": "MAX = tous les abonnements de chaque mutuel. Un nombre = seulement les N plus récents.",
   "settings.maxPersonFollowing": "Plafond par personne (si MAX)",

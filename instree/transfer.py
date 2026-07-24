@@ -171,7 +171,7 @@ def import_profile_zip(
             _format_profile_settings_toml(
                 label=final_label,
                 username=str(scan.get("username", "")).strip().lstrip("@"),
-                n=parse_limit(scan.get("n", 100)),
+                n=parse_limit(scan.get("n", 0)),
                 watch_n=parse_limit(scan.get("watch_n", 0)),
                 max_person_following=parse_max_person_following(
                     scan.get("max_person_following", 0)

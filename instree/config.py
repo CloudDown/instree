@@ -313,7 +313,7 @@ class Settings:
     sessionid: str = ""
     ds_user_id: str = ""
     username: str = ""
-    n: int = 100
+    n: int = 0  # 0 = MAX
     watch_n: int = 0
     max_person_following: int = 0
     page_sleep: float = 0.6
@@ -448,7 +448,7 @@ def ensure_profiles_migrated() -> None:
             _format_profile_settings_toml(
                 label="Session 1",
                 username=str(scan.get("username", "")).strip().lstrip("@"),
-                n=parse_limit(scan.get("n", 100)),
+                n=parse_limit(scan.get("n", 0)),
                 watch_n=parse_limit(scan.get("watch_n", 0)),
                 max_person_following=parse_max_person_following(
                     scan.get("max_person_following", 0)
@@ -522,7 +522,7 @@ def ensure_profiles_migrated() -> None:
                 _format_profile_settings_toml(
                     label=f"Session {pid}",
                     username="",
-                    n=100,
+                    n=0,
                     watch_n=0,
                     max_person_following=0,
                     page_sleep=0.6,
@@ -603,7 +603,7 @@ def remember_profile_ig_username(username: str, profile_id: str | None = None) -
             label=str(profile.get("label") or pid).strip() or pid,
             ig_username=str(username or "").strip().lstrip("@"),
             username=str(scan.get("username", "")).strip().lstrip("@"),
-            n=parse_limit(scan.get("n", 100)),
+            n=parse_limit(scan.get("n", 0)),
             watch_n=parse_limit(scan.get("watch_n", 0)),
             max_person_following=parse_max_person_following(
                 scan.get("max_person_following", 0)
@@ -629,7 +629,7 @@ def create_profile(*, label: str = "") -> str:
         _format_profile_settings_toml(
             label=final_label,
             username="",
-            n=100,
+            n=0,
             watch_n=0,
             max_person_following=0,
             page_sleep=0.6,
@@ -678,7 +678,7 @@ def rename_profile(profile_id: str, label: str) -> None:
             label=new_label,
             ig_username=str(profile.get("ig_username") or "").strip().lstrip("@"),
             username=str(scan.get("username", "")).strip().lstrip("@"),
-            n=parse_limit(scan.get("n", 100)),
+            n=parse_limit(scan.get("n", 0)),
             watch_n=parse_limit(scan.get("watch_n", 0)),
             max_person_following=parse_max_person_following(
                 scan.get("max_person_following", 0)
@@ -746,7 +746,7 @@ def load_settings() -> Settings:
         sessionid=str(ig.get("sessionid", "")).strip(),
         ds_user_id=str(ig.get("ds_user_id", "")).strip(),
         username=str(scan.get("username", "")).strip().lstrip("@"),
-        n=parse_limit(scan.get("n", 100)),
+        n=parse_limit(scan.get("n", 0)),
         watch_n=parse_limit(scan.get("watch_n", 0)),
         max_person_following=parse_max_person_following(
             scan.get("max_person_following", 0)
@@ -791,7 +791,7 @@ def config_for_api() -> dict:
 def save_config(
     *,
     username: str = "",
-    n: int | str = 100,
+    n: int | str = 0,
     watch_n: int | str = 0,
     max_person_following: int | str = 0,
     page_sleep: float = 0.6,

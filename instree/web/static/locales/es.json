@@ -121,7 +121,7 @@
   "settings.account": "Cuenta a seguir",
   "settings.accountPlaceholder": "@tú o vacío = sesión",
   "settings.mutualsCount": "Número de personas seguidas",
-  "settings.mutualsPlaceholder": "100 o MAX",
+  "settings.mutualsPlaceholder": "MAX",
   "settings.watchN": "Suscripciones seguidas por persona",
   "settings.watchNHint": "MAX = todas las suscripciones de cada mutuo. Un número = solo las N más recientes.",
   "settings.maxPersonFollowing": "Tope por persona (si MAX)",

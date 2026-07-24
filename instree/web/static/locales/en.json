@@ -121,7 +121,7 @@
   "settings.account": "Account to watch",
   "settings.accountPlaceholder": "@you or empty = session",
   "settings.mutualsCount": "Number of tracked people",
-  "settings.mutualsPlaceholder": "100 or MAX",
+  "settings.mutualsPlaceholder": "MAX",
   "settings.watchN": "Subscriptions tracked per person",
   "settings.watchNHint": "MAX = every subscription for each mutual. A number = only the N most recent.",
   "settings.maxPersonFollowing": "Cap per person (if MAX)",

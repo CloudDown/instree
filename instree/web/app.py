@@ -54,7 +54,7 @@ class ScanRequest(BaseModel):
 
 class ConfigUpdate(BaseModel):
     username: str = ""
-    n: str | int = 100
+    n: str | int = "MAX"
     watch_n: str | int = "MAX"
     max_person_following: str | int = "MAX"
     page_sleep: float = 0.6

@@ -55,12 +55,8 @@
           <legend data-i18n="settings.scan">Scan</legend>
           <p class="field-hint" data-i18n="settings.mutualsHint">Personnes que tu suis et qui te suivent aussi. Entre un nombre ou MAX.</p>
           <label class="field">
-            <span class="field-label" data-i18n="settings.account">Compte à suivre</span>
-            <input type="text" id="cfg-username" name="username" data-i18n-placeholder="settings.accountPlaceholder" placeholder="@toi ou vide = session">
-          </label>
-          <label class="field">
             <span class="field-label" data-i18n="settings.mutualsCount">Nombre de personnes suivies</span>
-            <input type="text" id="cfg-n-input" name="n" inputmode="numeric" data-i18n-placeholder="settings.mutualsPlaceholder" placeholder="100 ou MAX" value="100">
+            <input type="text" id="cfg-n-input" name="n" inputmode="numeric" data-i18n-placeholder="settings.mutualsPlaceholder" placeholder="MAX" value="MAX">
           </label>
           <label class="field">
             <span class="field-label" data-i18n="settings.watchN">Abonnements suivis par personne</span>
@@ -78,6 +74,7 @@
           <p class="field-hint" data-i18n="settings.pageSizeHint">Abonnements demandés par requête (12–200). Instagram peut en renvoyer moins (~25).</p>
         </fieldset>
 
+        {% if not public_mode %}
         <fieldset class="config-fieldset">
           <legend data-i18n="settings.schedule">Planification</legend>
           <label class="field">
@@ -85,16 +82,13 @@
             <input type="number" id="cfg-schedule-interval" name="schedule_interval_minutes" min="0" step="1" value="0">
           </label>
           <p class="field-hint" data-i18n="settings.scheduleIntervalHint">0 = désactivé. Relance un scan automatiquement tant que le serveur tourne.</p>
-          {% if not public_mode %}
           <label class="field field-checkbox">
             <input type="checkbox" id="cfg-autostart" name="autostart_on_boot">
             <span data-i18n="settings.autostartOnBoot">Lancement au démarrage de l'ordinateur</span>
           </label>
           <p class="field-hint" data-i18n="settings.autostartHint">Lance instree serve automatiquement à la connexion (scans planifiés tant que le serveur tourne).</p>
-          {% endif %}
         </fieldset>
 
-        {% if not public_mode %}
         <fieldset class="config-fieldset">
           <legend data-i18n="settings.webUi">Interface web</legend>
           <label class="field">

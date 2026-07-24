@@ -16,7 +16,6 @@ const elSub = document.getElementById("header-sub");
 let latestSession = null;
 
 const configForm = document.getElementById("config-form");
-const elCfgUsername = document.getElementById("cfg-username");
 const elCfgSessionid = document.getElementById("cfg-sessionid");
 const elCfgDsUserId = document.getElementById("cfg-ds-user-id");
 const elCfgNInput = document.getElementById("cfg-n-input");
@@ -249,8 +248,7 @@ function setSecretValue(input, value, { masked = true } = {}) {
 
 function fillConfigForm(config) {
   if (!configForm) return;
-  elCfgUsername.value = config.username || "";
-  elCfgNInput.value = String(config.n ?? "100");
+  elCfgNInput.value = String(config.n ?? "MAX");
   elCfgWatchNInput.value = String(config.watch_n ?? "MAX");
   elCfgPageSleep.value = config.page_sleep;
   elCfgPageSize.value = config.page_size ?? 200;
@@ -502,7 +500,7 @@ async function saveConfig(e) {
   const sessionChanged =
     Boolean(pastedSession) && pastedSession !== lastLoadedSessionid;
   const body = {
-    username: elCfgUsername.value.trim().replace(/^@/, ""),
+    username: "",
     n: elCfgNInput.value.trim(),
     watch_n: elCfgWatchNInput.value.trim(),
     max_person_following: "MAX",
