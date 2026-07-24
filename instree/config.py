@@ -59,7 +59,11 @@ def runtime_root() -> Path:
 
 
 def enable_public_mode(home: Path | str | None = None) -> Path:
-    """Active le mode multi-utilisateurs et bootstrap le dossier serveur/."""
+    """Active le déploiement public : même app + auth + données sous serveur/.
+
+    L'UI reste identique au local ; seules s'ajoutent login / déconnexion
+    et l'isolation `serveur/users/<id>/`.
+    """
     global _public_mode
     _public_mode = True
     os.environ["INSTREE_PUBLIC"] = "1"
@@ -761,9 +765,9 @@ def load_settings() -> Settings:
 
 
 def config_for_api() -> dict:
-    """Config éditable pour l'interface web."""
+    """Config éditable pour l'interface web (tokens du compte courant)."""
     s = load_settings()
-    out = {
+    return {
         "profile_id": s.profile_id,
         "profile_label": s.profile_label,
         "username": s.username,
@@ -776,18 +780,12 @@ def config_for_api() -> dict:
         "port": s.port,
         "autostart_on_boot": s.autostart_on_boot,
         "schedule_interval_minutes": s.schedule_interval_minutes,
+        "sessionid": s.sessionid,
+        "ds_user_id": s.ds_user_id,
         "sessionid_set": bool(s.sessionid),
         "ds_user_id_set": bool(s.ds_user_id),
         "public_mode": is_public_mode(),
     }
-    # Local : cookies visibles. Public : jamais en clair.
-    if not is_public_mode():
-        out["sessionid"] = s.sessionid
-        out["ds_user_id"] = s.ds_user_id
-    else:
-        out["sessionid"] = ""
-        out["ds_user_id"] = ""
-    return out
 
 
 def save_config(

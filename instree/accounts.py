@@ -152,3 +152,10 @@ def get_account(user_id: str) -> Account | None:
         username=row["username"],
         created_at=float(row["created_at"]),
     )
+
+
+def list_user_ids() -> list[str]:
+    """Ids comptes (mode public) pour les tâches périodiques."""
+    with _connect() as conn:
+        rows = conn.execute("SELECT id FROM accounts ORDER BY id").fetchall()
+    return [str(r["id"]) for r in rows]

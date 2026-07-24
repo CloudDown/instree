@@ -192,17 +192,20 @@ function renderSession(session) {
   latestSession = session || null;
   if (elProfileList) {
     // Sur Paramètres, le @ est rendu dans les cartes de session.
+    renderProfiles(latestProfiles);
     return;
   }
   if (!elSessionUser || !elSessionBadge || !elSub) return;
-  if (session.ok) {
-    elSessionUser.innerHTML = igUser(session.username);
+  if (session?.ok) {
+    elSessionUser.innerHTML = session.username
+      ? igUser(session.username)
+      : esc(t("session.configured"));
     elSessionBadge.className = "session-dot ok";
     elSub.textContent = session.note ? `${session.source} · ${session.note}` : session.source;
   } else {
     elSessionUser.textContent = t("session.notConnected");
     elSessionBadge.className = "session-dot err";
-    elSub.textContent = session.error || t("session.configure");
+    elSub.textContent = session?.error || t("session.configure");
   }
 }
 
@@ -212,6 +215,36 @@ function showConfigMsg(text, ok = true) {
   elConfigMsg.className = ok ? "config-msg ok" : "config-msg err";
   elConfigMsg.classList.remove("hidden");
   setTimeout(() => elConfigMsg.classList.add("hidden"), 4000);
+}
+
+let lastLoadedSessionid = "";
+
+function supportsTextSecurity() {
+  try {
+    return (
+      typeof CSS !== "undefined" &&
+      CSS.supports &&
+      CSS.supports("-webkit-text-security", "disc")
+    );
+  } catch {
+    return false;
+  }
+}
+
+function setSecretValue(input, value, { masked = true } = {}) {
+  if (!input) return;
+  const v = value || "";
+  input.classList.toggle("is-secret-masked", masked);
+  if (supportsTextSecurity()) {
+    input.type = "text";
+  } else {
+    input.type = masked ? "password" : "text";
+  }
+  input.value = v;
+  // Re-applique au cas où le navigateur a vidé le champ.
+  queueMicrotask(() => {
+    if (input.value !== v) input.value = v;
+  });
 }
 
 function fillConfigForm(config) {
@@ -229,22 +262,42 @@ function fillConfigForm(config) {
   }
   if (elCfgHost) elCfgHost.value = config.host || "127.0.0.1";
   if (elCfgPort) elCfgPort.value = config.port || 8765;
-  const publicMode = Boolean(config.public_mode || document.body.dataset.public);
-  if (publicMode) {
-    elCfgSessionid.placeholder = config.sessionid_set
-      ? t("settings.sessionKeep")
-      : t("settings.sessionPaste");
-    elCfgDsUserId.placeholder = config.ds_user_id_set
-      ? t("settings.sessionKeep")
-      : t("settings.userIdPaste");
-    elCfgSessionid.value = "";
-    elCfgDsUserId.value = "";
-  } else {
-    elCfgSessionid.placeholder = t("settings.sessionPaste");
-    elCfgDsUserId.placeholder = t("settings.userIdPaste");
-    elCfgSessionid.value = config.sessionid || "";
-    elCfgDsUserId.value = config.ds_user_id || "";
-  }
+  elCfgSessionid.placeholder = t("settings.sessionPaste");
+  elCfgDsUserId.placeholder = t("settings.userIdPaste");
+  lastLoadedSessionid = config.sessionid || "";
+  const sidMasked = elCfgSessionid?.classList.contains("is-secret-masked") !== false;
+  const uidMasked = elCfgDsUserId?.classList.contains("is-secret-masked") !== false;
+  setSecretValue(elCfgSessionid, lastLoadedSessionid, { masked: sidMasked });
+  setSecretValue(elCfgDsUserId, config.ds_user_id || "", { masked: uidMasked });
+  // Sync bouton œil
+  document.querySelectorAll("[data-secret-toggle]").forEach((btn) => {
+    const id = btn.getAttribute("data-secret-toggle");
+    const input = id ? document.getElementById(id) : null;
+    if (!input) return;
+    const shown = !input.classList.contains("is-secret-masked") && input.type !== "password";
+    btn.setAttribute("aria-pressed", shown ? "true" : "false");
+  });
+}
+
+function initSecretToggles() {
+  document.querySelectorAll("[data-secret-toggle]").forEach((btn) => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-secret-toggle");
+      const input = id ? document.getElementById(id) : null;
+      if (!input) return;
+      const currentlyMasked =
+        input.classList.contains("is-secret-masked") || input.type === "password";
+      const showPlain = currentlyMasked;
+      setSecretValue(input, input.value, { masked: !showPlain });
+      btn.setAttribute("aria-pressed", showPlain ? "true" : "false");
+      btn.setAttribute(
+        "aria-label",
+        t(showPlain ? "settings.hideSecret" : "settings.showSecret")
+      );
+    });
+  });
 }
 
 let latestProfiles = [];
@@ -260,11 +313,16 @@ function renderProfiles(profiles) {
   elProfileList.innerHTML = list
     .map((p) => {
       const pending = Boolean(p.pending);
-      const user = (!pending && p.active && liveUser) || p.ig_username || p.username || "";
+      const user =
+        (!pending && p.active && liveUser) || p.ig_username || p.username || "";
+      const connected = Boolean(user) || Boolean(p.sessionid_set) ||
+        (!pending && p.active && latestSession?.ok);
       const userHtml = user
         ? igUser(user, "session-user")
-        : `<span class="session-user is-empty">${esc(t("session.notConnected"))}</span>`;
-      const ok = Boolean(user) || p.sessionid_set;
+        : connected
+          ? `<span class="session-user">${esc(t("session.configured"))}</span>`
+          : `<span class="session-user is-empty">${esc(t("session.notConnected"))}</span>`;
+      const ok = connected;
       const del =
         !pending && list.length > 1 && !p.active
           ? `<button type="button" class="profile-delete" data-profile-delete="${esc(p.id)}" title="${esc(t("session.delete"))}" aria-label="${esc(t("session.delete"))}">×</button>`
@@ -416,8 +474,33 @@ async function loadConfig() {
   return config;
 }
 
+async function refreshSessionUi() {
+  const status = await fetchStatus();
+  renderSession(status.session);
+  renderProfiles(status.profiles || []);
+  return status;
+}
+
+async function resolveIgUsername() {
+  const session = await fetch("/api/session/test", { method: "POST" }).then((r) =>
+    r.json()
+  );
+  renderSession(session);
+  if (session.ok) {
+    const status = await fetchStatus();
+    renderProfiles(status.profiles || []);
+  } else {
+    await refreshSessionUi();
+  }
+  return session;
+}
+
 async function saveConfig(e) {
   e.preventDefault();
+  const pastedSession = elCfgSessionid.value.trim();
+  const pastedUserId = elCfgDsUserId.value.trim();
+  const sessionChanged =
+    Boolean(pastedSession) && pastedSession !== lastLoadedSessionid;
   const body = {
     username: elCfgUsername.value.trim().replace(/^@/, ""),
     n: elCfgNInput.value.trim(),
@@ -425,12 +508,12 @@ async function saveConfig(e) {
     max_person_following: "MAX",
     page_sleep: Number(elCfgPageSleep.value),
     page_size: Number(elCfgPageSize.value),
-    host: elCfgHost.value.trim(),
-    port: Number(elCfgPort.value),
+    host: elCfgHost?.value?.trim() || "127.0.0.1",
+    port: Number(elCfgPort?.value || 8765),
     autostart_on_boot: Boolean(elCfgAutostart?.checked),
     schedule_interval_minutes: Number(elCfgScheduleInterval?.value || 0),
-    sessionid: elCfgSessionid.value.trim(),
-    ds_user_id: elCfgDsUserId.value.trim(),
+    sessionid: pastedSession,
+    ds_user_id: pastedUserId,
   };
   const res = await fetch("/api/config", {
     method: "PUT",
@@ -444,10 +527,18 @@ async function saveConfig(e) {
   }
   const data = await res.json();
   fillConfigForm(data.config);
-  const status = await fetchStatus();
-  renderSession(status.session);
-  renderProfiles(status.profiles);
+  await refreshSessionUi();
   showConfigMsg(t("settings.saved"));
+
+  // Nouveau sessionid collé → résoudre le @ Instagram pour la carte Session.
+  if (sessionChanged) {
+    const session = await resolveIgUsername();
+    if (session.ok && session.username) {
+      showConfigMsg(t("settings.connectedAs", { user: session.username }));
+    } else if (!session.ok) {
+      showConfigMsg(session.error || t("settings.connectionFailed"), false);
+    }
+  }
 }
 
 function askConfirm(title, message) {
@@ -961,6 +1052,7 @@ async function triggerScan(body) {
 }
 
 async function initSettingsPage() {
+  initSecretToggles();
   await loadConfig();
   if (configForm) configForm.addEventListener("submit", saveConfig);
   if (btnProfileAdd) btnProfileAdd.onclick = () => addProfile();
@@ -999,24 +1091,31 @@ async function initSettingsPage() {
     btnTestSession.onclick = async () => {
       btnTestSession.disabled = true;
       btnTestSession.textContent = t("settings.testing");
-      const session = await fetch("/api/session/test", { method: "POST" }).then((r) => r.json());
-      btnTestSession.disabled = false;
-      btnTestSession.textContent = t("settings.testSession");
-      renderSession(session);
-      if (session.ok) {
-        if (session.note) showConfigMsg(session.note);
-        else showConfigMsg(t("settings.connectedAs", { user: session.username }));
+      try {
+        const session = await resolveIgUsername();
         await loadConfig();
-        const status = await fetchStatus();
-        renderSession(status.session);
-        renderProfiles(status.profiles);
-      } else {
-        showConfigMsg(session.error || t("settings.connectionFailed"), false);
-        renderProfiles(
-          (await fetchStatus()).profiles
-        );
+        if (session.ok) {
+          if (session.note) showConfigMsg(session.note);
+          else showConfigMsg(t("settings.connectedAs", { user: session.username }));
+        } else {
+          showConfigMsg(session.error || t("settings.connectionFailed"), false);
+        }
+      } finally {
+        btnTestSession.disabled = false;
+        btnTestSession.textContent = t("settings.testSession");
       }
     };
+  }
+
+  // Cookies déjà là mais @ pas encore mémorisé → résoudre une fois.
+  const st = await fetchStatus();
+  const active = (st.profiles || []).find((p) => p.active);
+  if (
+    st.config?.sessionid_set &&
+    !st.session?.username &&
+    !active?.ig_username
+  ) {
+    await resolveIgUsername();
   }
 }
 
@@ -1096,10 +1195,6 @@ async function init() {
   window.addEventListener("instree:locale", onLocaleChange);
 
   const status = await fetchStatus();
-  if (status.public_mode) {
-    document.body.classList.add("public-mode");
-    document.body.dataset.public = "1";
-  }
   renderSession(status.session);
   renderProfiles(status.profiles || []);
   renderJob(status.job);

@@ -1,4 +1,7 @@
-"""Auth cookie + middleware (mode serveur public)."""
+"""Auth cookie + middleware — seule couche UI propre au mode public.
+
+Le reste de l'app (scans, settings, graph) est partagé avec le mode local.
+"""
 
 from __future__ import annotations
 

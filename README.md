@@ -103,7 +103,10 @@ Les mêmes options sont éditables dans **Paramètres**.
 
 ## Mode serveur public (multi-utilisateurs)
 
-Pour héberger Instree derrière un DNS public, chaque visiteur a son **compte** (username + mot de passe) et ses propres sessions IG / scans, isolés sous `serveur/` (**hors git**).
+**Même application** que le mode local : mêmes pages, mêmes paramètres, mêmes scans.  
+Les **seules** différences visibles : écran **login / inscription** au départ, et bouton **Déconnexion** dans la barre.
+
+Sous le capot, chaque compte a ses données isolées dans `serveur/` (**hors git**).
 
 ```bash
 # Linux / macOS

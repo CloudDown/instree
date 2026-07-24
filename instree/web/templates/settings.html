@@ -6,7 +6,7 @@
   <title>Instree · Paramètres</title>
   <link rel="stylesheet" href="/static/style.css?v={{ v }}">
 </head>
-<body data-page="{{ page }}" data-asset-v="{{ v }}"{% if public_mode %} class="public-mode" data-public="1"{% endif %}>
+<body data-page="{{ page }}" data-asset-v="{{ v }}">
   {% include "_header.html" %}
 
   <main class="page page-settings">
@@ -28,13 +28,23 @@
           <legend data-i18n="settings.instagram">Instagram</legend>
           <label class="field">
             <span class="field-label" data-i18n="settings.sessionId">Session ID</span>
-            <input type="text" id="cfg-sessionid" name="sessionid" autocomplete="off" spellcheck="false" data-i18n-placeholder="settings.sessionPaste" placeholder="Coller le sessionid Instagram">
+            <div class="secret-input">
+              <input type="text" id="cfg-sessionid" name="sessionid" class="is-secret-masked" autocomplete="off" spellcheck="false" data-i18n-placeholder="settings.sessionPaste" placeholder="Coller le sessionid Instagram">
+              <button type="button" class="secret-toggle" data-secret-toggle="cfg-sessionid" aria-pressed="false" data-i18n-aria-label="settings.showSecret" aria-label="Afficher">
+                <span class="secret-toggle-icon" aria-hidden="true"></span>
+              </button>
+            </div>
           </label>
           <label class="field">
             <span class="field-label" data-i18n="settings.userId">User ID</span>
-            <input type="text" id="cfg-ds-user-id" name="ds_user_id" autocomplete="off" spellcheck="false" data-i18n-placeholder="settings.userIdPaste" placeholder="Coller le ds_user_id">
+            <div class="secret-input">
+              <input type="text" id="cfg-ds-user-id" name="ds_user_id" class="is-secret-masked" autocomplete="off" spellcheck="false" data-i18n-placeholder="settings.userIdPaste" placeholder="Coller le ds_user_id">
+              <button type="button" class="secret-toggle" data-secret-toggle="cfg-ds-user-id" aria-pressed="false" data-i18n-aria-label="settings.showSecret" aria-label="Afficher">
+                <span class="secret-toggle-icon" aria-hidden="true"></span>
+              </button>
+            </div>
           </label>
-          <p class="field-hint" data-i18n="settings.sessionHint">Colle sessionid / user id, ou utilise « Tester la connexion » pour lire Chrome/Edge/Firefox et enregistrer les cookies.</p>
+          <p class="field-hint" data-i18n="settings.sessionHint">Colle sessionid / user id, puis « Tester la connexion ». En local, le test peut aussi lire Chrome/Edge/Firefox.</p>
           <button type="button" id="btn-test-session" class="btn btn-ghost btn-sm" data-i18n="settings.testSession">Tester la connexion</button>
         </fieldset>
 
@@ -67,21 +77,19 @@
 
         <fieldset class="config-fieldset">
           <legend data-i18n="settings.schedule">Planification</legend>
-          <div class="settings-server-only">
-            <label class="field">
-              <span class="field-label" data-i18n="settings.scheduleInterval">Intervalle (minutes)</span>
-              <input type="number" id="cfg-schedule-interval" name="schedule_interval_minutes" min="0" step="1" value="0">
-            </label>
-            <p class="field-hint" data-i18n="settings.scheduleIntervalHint">0 = désactivé. Relance un scan automatiquement tant que le serveur tourne.</p>
-            <label class="field field-checkbox">
-              <input type="checkbox" id="cfg-autostart" name="autostart_on_boot">
-              <span data-i18n="settings.autostartOnBoot">Lancement au démarrage de l'ordinateur</span>
-            </label>
-            <p class="field-hint" data-i18n="settings.autostartHint">Lance instree serve automatiquement à la connexion (scans planifiés tant que le serveur tourne).</p>
-          </div>
+          <label class="field">
+            <span class="field-label" data-i18n="settings.scheduleInterval">Intervalle (minutes)</span>
+            <input type="number" id="cfg-schedule-interval" name="schedule_interval_minutes" min="0" step="1" value="0">
+          </label>
+          <p class="field-hint" data-i18n="settings.scheduleIntervalHint">0 = désactivé. Relance un scan automatiquement tant que le serveur tourne.</p>
+          <label class="field field-checkbox">
+            <input type="checkbox" id="cfg-autostart" name="autostart_on_boot">
+            <span data-i18n="settings.autostartOnBoot">Lancement au démarrage de l'ordinateur</span>
+          </label>
+          <p class="field-hint" data-i18n="settings.autostartHint">Lance instree serve automatiquement à la connexion (scans planifiés tant que le serveur tourne).</p>
         </fieldset>
 
-        <fieldset class="config-fieldset settings-server-only">
+        <fieldset class="config-fieldset">
           <legend data-i18n="settings.webUi">Interface web</legend>
           <label class="field">
             <span class="field-label" data-i18n="settings.host">Hôte</span>

@@ -122,19 +122,14 @@ def _session_info(*, verify: bool = False) -> dict:
                 "note": None,
             }
         else:
-            err = (
-                "Pas de session configurée — colle sessionid / user id"
-                if is_public_mode()
-                else (
-                    "Pas de session configurée — colle sessionid / user id, "
-                    "ou utilise « Tester la connexion » pour lire le navigateur"
-                )
-            )
             _session_cache[key] = {
                 "ok": False,
                 "source": None,
                 "username": settings.username or None,
-                "error": err,
+                "error": (
+                    "Pas de session configurée — colle sessionid / user id, "
+                    "ou utilise « Tester la connexion »"
+                ),
             }
         return _session_cache[key]
 
@@ -179,16 +174,17 @@ def _asset_version() -> str:
 
 
 def _page_ctx(request: Request, page: str) -> dict:
+    """Contexte template commun. auth_user n'est renseigné qu'en mode public connecté."""
     user = getattr(request.state, "user", None) or session_user(request)
     return {
         "v": _asset_version(),
         "page": page,
-        "public_mode": is_public_mode(),
         "auth_user": user,
     }
 
 
 def create_app() -> FastAPI:
+    # Local : une seule base. Public : init au premier request authentifié.
     if not is_public_mode():
         init_db()
 
@@ -202,10 +198,9 @@ def create_app() -> FastAPI:
 
         if not is_public_mode():
             remove_legacy_systemd()
-            start_interval_scheduler()
+        start_interval_scheduler()
         yield
-        if not is_public_mode():
-            stop_interval_scheduler()
+        stop_interval_scheduler()
 
     app = FastAPI(title="Instree", docs_url=None, redoc_url=None, lifespan=lifespan)
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -214,7 +209,7 @@ def create_app() -> FastAPI:
     if is_public_mode():
         from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-        # Derrière ngrok / reverse-proxy : schéma HTTPS et host publics.
+        # Seule différence runtime : auth + proxy (ngrok / reverse-proxy).
         app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
         app.add_middleware(PublicAuthMiddleware)
         install_session_middleware(app)

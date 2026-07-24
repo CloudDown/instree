@@ -10,7 +10,7 @@
       <a href="/settings" class="topnav-link{% if page == 'settings' %} active{% endif %}" data-i18n="nav.settings">Paramètres</a>
     </nav>
     <div class="topbar-end">
-      {% if public_mode and auth_user %}
+      {% if auth_user %}
       <div class="auth-userbar">
         <span class="auth-username">{{ auth_user.username }}</span>
         <button type="button" id="btn-logout" class="btn btn-ghost btn-sm" data-i18n="auth.logout">Déconnexion</button>

@@ -85,25 +85,22 @@ def connect() -> tuple[Client, str, str | None]:
 
     from instree.config import is_public_mode
 
-    if is_public_mode():
-        raise RuntimeError(
-            "Pas de session configurée — colle sessionid et user id dans Paramètres"
-        )
+    # En public : ne pas lire les cookies du navigateur *du serveur*.
+    if not is_public_mode():
+        found = _cookies_from_browser()
+        if found:
+            browser, jar = found
+            client = _login(jar)
+            save_session_credentials(jar["sessionid"], jar.get("ds_user_id", ""))
+            return (
+                client,
+                f"navigateur ({browser})",
+                f"Session enregistrée dans {local_label}",
+            )
 
-    found = _cookies_from_browser()
-    if not found:
-        raise RuntimeError(
-            "Pas de session configurée — remplis sessionid dans Settings, "
-            "ou connecte-toi sur instagram.com dans Chromium/Chrome"
-        )
-
-    browser, jar = found
-    client = _login(jar)
-    save_session_credentials(jar["sessionid"], jar.get("ds_user_id", ""))
-    return (
-        client,
-        f"navigateur ({browser})",
-        f"Session enregistrée dans {local_label}",
+    raise RuntimeError(
+        "Pas de session configurée — colle sessionid et user id dans Paramètres, "
+        "ou utilise « Tester la connexion »"
     )
 
 
