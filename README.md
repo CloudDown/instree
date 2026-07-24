@@ -21,7 +21,7 @@ Interface web en FR / EN / ES. Données locales dans `data/` (SQLite). Mode **se
 1. Télécharge le projet (ZIP GitHub ou `git clone`).
 2. Double-clique **`run.bat`**.
 
-Au premier lancement : Python (winget si besoin), dépendances, config, ouverture de [http://127.0.0.1:8765](http://127.0.0.1:8765).
+Au premier lancement : Python (winget si besoin), dépendances, config, ouverture de [http://127.0.0.1:1488](http://127.0.0.1:1488).
 
 ### Linux / macOS
 
@@ -31,7 +31,7 @@ cd instree
 ./run
 ```
 
-Au premier lancement : installation de **uv** si besoin, Python 3.11+, dépendances, config locale, ouverture du navigateur sur [http://127.0.0.1:8765](http://127.0.0.1:8765).
+Au premier lancement : installation de **uv** si besoin, Python 3.11+, dépendances, config locale, ouverture du navigateur sur [http://127.0.0.1:1488](http://127.0.0.1:1488).
 
 Ensuite : **Paramètres** → session Instagram → **Home** → lancer un scan.
 
@@ -133,7 +133,7 @@ Au premier lancement, Instree crée :
 
 ```
 serveur/
-  instree.toml       # host/port (défaut 0.0.0.0:8765)
+  instree.toml       # host/port (défaut 0.0.0.0:1488)
   secret.key         # signature des cookies de session
   accounts.db        # comptes
   users/<id>/        # config + data de chaque utilisateur

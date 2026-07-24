@@ -95,9 +95,9 @@ fi
 
 # Ouvre le navigateur si possible (ne bloque pas)
 if command -v xdg-open >/dev/null 2>&1; then
-  (sleep 0.8 && xdg-open "http://127.0.0.1:8765" >/dev/null 2>&1) &
+  (sleep 0.8 && xdg-open "http://127.0.0.1:1488" >/dev/null 2>&1) &
 elif command -v open >/dev/null 2>&1; then
-  (sleep 0.8 && open "http://127.0.0.1:8765" >/dev/null 2>&1) &
+  (sleep 0.8 && open "http://127.0.0.1:1488" >/dev/null 2>&1) &
 fi
 
 exec .venv/bin/instree serve "$@"

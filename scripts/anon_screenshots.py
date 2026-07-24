@@ -8,7 +8,7 @@ from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "screenshots"
-BASE = "http://127.0.0.1:8765"
+BASE = "http://127.0.0.1:1488"
 
 # Injected before any page JS — rewrites JSON API usernames consistently.
 ANON_INIT = r"""

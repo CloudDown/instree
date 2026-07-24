@@ -1,10 +1,87 @@
 """CLI instree scan | instree serve."""
 
 import argparse
+import socket
 import subprocess
 import sys
 import threading
 import time
+
+
+def _is_usable_lan_ip(ip: str) -> bool:
+    if not ip or ip.startswith(("127.", "0.", "169.254.")):
+        return False
+    if ip.startswith(("172.17.", "172.18.", "172.19.")):
+        return False
+    return True
+
+
+def _lan_ipv4() -> str | None:
+    """IP IPv4 du réseau local (Wi‑Fi / Ethernet), pour y accéder depuis un autre appareil."""
+    try:
+        out = subprocess.check_output(
+            ["ip", "-4", "route", "get", "1.1.1.1"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+        )
+        parts = out.split()
+        if "src" in parts:
+            ip = parts[parts.index("src") + 1]
+            if _is_usable_lan_ip(ip):
+                return ip
+    except (OSError, subprocess.SubprocessError, ValueError, IndexError):
+        pass
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.settimeout(0.5)
+            s.connect(("1.1.1.1", 80))
+            ip = s.getsockname()[0]
+        if _is_usable_lan_ip(ip):
+            return ip
+    except OSError:
+        pass
+
+    try:
+        out = subprocess.check_output(
+            ["ip", "-4", "-o", "addr", "show", "scope", "global"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+        )
+        for line in out.splitlines():
+            cols = line.split()
+            if "inet" not in cols:
+                continue
+            iface = cols[1] if len(cols) > 1 else ""
+            if iface.startswith(("docker", "br-", "veth", "virbr", "waydroid")):
+                continue
+            ip = cols[cols.index("inet") + 1].split("/", 1)[0]
+            if _is_usable_lan_ip(ip):
+                return ip
+    except (OSError, subprocess.SubprocessError, ValueError, IndexError):
+        pass
+    return None
+
+
+def _print_serve_banner(
+    host: str,
+    port: int,
+    *,
+    public: bool = False,
+    ngrok: bool = False,
+) -> None:
+    print(f"instree web  http://{host}:{port}", flush=True)
+    if host in ("0.0.0.0", "::", "[::]"):
+        lan = _lan_ipv4()
+        if lan:
+            print(f"  wifi     http://{lan}:{port}", flush=True)
+        print(f"  local    http://127.0.0.1:{port}", flush=True)
+    if ngrok:
+        print("  mode     multi-utilisateurs + ngrok", flush=True)
+    elif public:
+        print("  mode     multi-utilisateurs (auth requise)", flush=True)
 
 
 def cmd_scan(args: argparse.Namespace) -> int:
@@ -112,8 +189,7 @@ def _serve_with_ngrok(host: str, port: int, app) -> int:
     thread.start()
     time.sleep(0.6)
 
-    print(f"instree web  http://{bind_host}:{port}", flush=True)
-    print("  mode     multi-utilisateurs + ngrok", flush=True)
+    _print_serve_banner(bind_host, port, public=True, ngrok=True)
     print("  […] ouverture du tunnel ngrok…", flush=True)
 
     try:
@@ -182,9 +258,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
     if use_ngrok:
         return _serve_with_ngrok(host, port, app)
 
-    print(f"instree web  http://{host}:{port}", flush=True)
-    if is_public_mode():
-        print("  mode     multi-utilisateurs (auth requise)", flush=True)
+    _print_serve_banner(host, port, public=is_public_mode())
     uvicorn.run(app, host=host, port=port, log_level="warning")
     return 0
 

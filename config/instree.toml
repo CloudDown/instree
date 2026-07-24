@@ -2,8 +2,8 @@
 # Sessions : config/profiles/<id>/  (+ data/profiles/<id>/)
 
 [web]
-host = "127.0.0.1"
-port = 8765
+host = "0.0.0.0"
+port = 1488
 autostart_on_boot = false
 
 [profiles]

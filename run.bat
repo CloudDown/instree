@@ -87,7 +87,7 @@ if not exist ".venv\Scripts\instree.exe" (
 echo [OK] Installation terminee.
 
 :launch
-start "" "http://127.0.0.1:8765"
+start "" "http://127.0.0.1:1488"
 ".venv\Scripts\instree.exe" serve %*
 set "EXIT_CODE=!ERRORLEVEL!"
 if not "!EXIT_CODE!"=="0" (

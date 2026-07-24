@@ -132,7 +132,7 @@ def bootstrap_public_home(root: Path | None = None) -> Path:
     if not cfg.is_file():
         _write_text(
             cfg,
-            _format_server_toml(host="0.0.0.0", port=8765),
+            _format_server_toml(host="0.0.0.0", port=1488),
         )
     key = home / "secret.key"
     if not key.is_file():
@@ -162,7 +162,7 @@ def load_server_web_settings() -> tuple[str, int]:
     raw = _read_toml(server_config_path())
     web = raw.get("web") if isinstance(raw.get("web"), dict) else {}
     host = str(web.get("host", "0.0.0.0")).strip() or "0.0.0.0"
-    port = int(web.get("port", 8765))
+    port = int(web.get("port", 1488))
     return host, max(1, min(65535, port))
 
 
@@ -319,7 +319,7 @@ class Settings:
     page_sleep: float = 0.6
     page_size: int = 200
     host: str = "127.0.0.1"
-    port: int = 8765
+    port: int = 1488
     autostart_on_boot: bool = False
     schedule_interval_minutes: int = 0
     profile_id: str = _DEFAULT_PROFILE
@@ -486,7 +486,7 @@ def ensure_profiles_migrated() -> None:
                         shutil.move(str(item), str(target))
 
         host = "127.0.0.1" if is_public_mode() else str(web.get("host", "127.0.0.1"))
-        port = int(web.get("port", 8765)) if not is_public_mode() else 8765
+        port = int(web.get("port", 1488)) if not is_public_mode() else 1488
         autostart = False if is_public_mode() else bool(web.get("autostart_on_boot", False))
         _write_text(
             main_path,
@@ -507,7 +507,7 @@ def ensure_profiles_migrated() -> None:
             main_path,
             _format_global_toml(
                 host=str(web.get("host", "127.0.0.1")),
-                port=int(web.get("port", 8765)),
+                port=int(web.get("port", 1488)),
                 autostart_on_boot=bool(web.get("autostart_on_boot", False)),
                 active_profile=active,
             ),
@@ -648,7 +648,7 @@ def set_active_profile(profile_id: str) -> None:
         raise ValueError(f"session introuvable : {pid}")
     existing = load_settings()
     host = "127.0.0.1" if is_public_mode() else existing.host
-    port = 8765 if is_public_mode() else existing.port
+    port = 1488 if is_public_mode() else existing.port
     autostart = False if is_public_mode() else existing.autostart_on_boot
     _write_text(
         main_config_path(),
@@ -720,7 +720,7 @@ def load_settings() -> Settings:
         autostart = False
     else:
         host = str(web.get("host", "127.0.0.1"))
-        port = int(web.get("port", 8765))
+        port = int(web.get("port", 1488))
         autostart = bool(web.get("autostart_on_boot", False))
     profile_raw = _read_toml(profile_settings_path(pid))
     local = _read_toml(profile_local_path(pid))
@@ -797,7 +797,7 @@ def save_config(
     page_sleep: float = 0.6,
     page_size: int = 200,
     host: str = "127.0.0.1",
-    port: int = 8765,
+    port: int = 1488,
     autostart_on_boot: bool | None = None,
     schedule_interval_minutes: int | None = None,
     sessionid: str | None = None,
@@ -837,7 +837,7 @@ def save_config(
 
     # En public : host/port viennent de serveur/instree.toml (inchangé ici).
     write_host = "127.0.0.1" if is_public_mode() else (host.strip() or "127.0.0.1")
-    write_port = 8765 if is_public_mode() else max(1, min(65535, int(port)))
+    write_port = 1488 if is_public_mode() else max(1, min(65535, int(port)))
     _write_text(
         main_config_path(),
         _format_global_toml(

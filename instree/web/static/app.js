@@ -261,7 +261,7 @@ function fillConfigForm(config) {
     elCfgAutostart.checked = Boolean(config.autostart_on_boot);
   }
   if (elCfgHost) elCfgHost.value = config.host || "127.0.0.1";
-  if (elCfgPort) elCfgPort.value = config.port || 8765;
+  if (elCfgPort) elCfgPort.value = config.port || 1488;
   elCfgSessionid.placeholder = t("settings.sessionPaste");
   elCfgDsUserId.placeholder = t("settings.userIdPaste");
   lastLoadedSessionid = config.sessionid || "";
@@ -509,7 +509,7 @@ async function saveConfig(e) {
     page_sleep: Number(elCfgPageSleep.value),
     page_size: Number(elCfgPageSize.value),
     host: elCfgHost?.value?.trim() || "127.0.0.1",
-    port: Number(elCfgPort?.value || 8765),
+    port: Number(elCfgPort?.value || 1488),
     autostart_on_boot: Boolean(elCfgAutostart?.checked),
     schedule_interval_minutes: Number(elCfgScheduleInterval?.value || 0),
     sessionid: pastedSession,

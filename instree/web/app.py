@@ -60,7 +60,7 @@ class ConfigUpdate(BaseModel):
     page_sleep: float = 0.6
     page_size: int = 200
     host: str = "127.0.0.1"
-    port: int = 8765
+    port: int = 1488
     autostart_on_boot: bool = False
     schedule_interval_minutes: int = 0
     sessionid: str = ""
@@ -175,11 +175,14 @@ def _asset_version() -> str:
 
 def _page_ctx(request: Request, page: str) -> dict:
     """Contexte template commun. auth_user n'est renseigné qu'en mode public connecté."""
-    user = getattr(request.state, "user", None) or session_user(request)
+    user = None
+    if is_public_mode():
+        user = getattr(request.state, "user", None) or session_user(request)
     return {
         "v": _asset_version(),
         "page": page,
         "auth_user": user,
+        "public_mode": is_public_mode(),
     }
 
 

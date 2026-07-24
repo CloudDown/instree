@@ -85,13 +85,16 @@
             <input type="number" id="cfg-schedule-interval" name="schedule_interval_minutes" min="0" step="1" value="0">
           </label>
           <p class="field-hint" data-i18n="settings.scheduleIntervalHint">0 = désactivé. Relance un scan automatiquement tant que le serveur tourne.</p>
+          {% if not public_mode %}
           <label class="field field-checkbox">
             <input type="checkbox" id="cfg-autostart" name="autostart_on_boot">
             <span data-i18n="settings.autostartOnBoot">Lancement au démarrage de l'ordinateur</span>
           </label>
           <p class="field-hint" data-i18n="settings.autostartHint">Lance instree serve automatiquement à la connexion (scans planifiés tant que le serveur tourne).</p>
+          {% endif %}
         </fieldset>
 
+        {% if not public_mode %}
         <fieldset class="config-fieldset">
           <legend data-i18n="settings.webUi">Interface web</legend>
           <label class="field">
@@ -100,10 +103,11 @@
           </label>
           <label class="field">
             <span class="field-label" data-i18n="settings.port">Port</span>
-            <input type="number" id="cfg-port" name="port" min="1" max="65535" value="8765">
+            <input type="number" id="cfg-port" name="port" min="1" max="65535" value="1488">
           </label>
           <p class="field-hint" data-i18n="settings.portHint">Un changement de port demande un redémarrage de instree serve.</p>
         </fieldset>
+        {% endif %}
 
         <div class="settings-form-footer">
           <div id="config-msg" class="config-msg hidden" role="status"></div>
