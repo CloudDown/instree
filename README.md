@@ -109,14 +109,22 @@ Pour héberger Instree derrière un DNS public, chaque visiteur a son **compte**
 # Linux / macOS
 ./run-public
 
+# Exposer sur Internet via ngrok (HTTPS)
+./run-public --ngrok
+
 # ou
 .venv/bin/instree serve --public
+.venv/bin/instree serve --ngrok
 ```
 
 ```bat
 REM Windows
 run-public.bat
+run-public.bat --ngrok
 ```
+
+**ngrok** : installe [ngrok](https://ngrok.com/download), puis `ngrok config add-authtoken <token>`.  
+`./run-public --ngrok` démarre le serveur public en local et affiche l’URL `https://….ngrok-free.app` (+ `/login`).
 
 Au premier lancement, Instree crée :
 

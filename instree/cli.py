@@ -1,15 +1,18 @@
 """CLI instree scan | instree serve."""
 
 import argparse
+import subprocess
 import sys
-
-from instree.config import load_settings, load_server_web_settings
-from instree.scan import run_scan
-from instree.session import connect, session_user
-from instree.store import init_db
+import threading
+import time
 
 
 def cmd_scan(args: argparse.Namespace) -> int:
+    from instree.config import format_limit, load_settings
+    from instree.scan import run_scan
+    from instree.session import connect, session_user
+    from instree.store import init_db
+
     settings = load_settings()
     init_db()
     try:
@@ -19,8 +22,6 @@ def cmd_scan(args: argparse.Namespace) -> int:
         return 1
 
     target = settings.username or session_user(ig)
-    from instree.config import format_limit
-
     n_label = format_limit(settings.n)
     watch_label = format_limit(settings.watch_n)
 
@@ -84,16 +85,89 @@ def cmd_scan(args: argparse.Namespace) -> int:
     return 0
 
 
+def _serve_with_ngrok(host: str, port: int, app) -> int:
+    import uvicorn
+
+    from instree.web.ngrok_tunnel import (
+        ngrok_available,
+        start_ngrok,
+        wait_for_ngrok_url,
+    )
+
+    if not ngrok_available():
+        print(
+            "! ngrok introuvable dans le PATH.\n"
+            "  1. Installe : https://ngrok.com/download\n"
+            "  2. ngrok config add-authtoken <ton-token>",
+            flush=True,
+        )
+        return 1
+
+    bind_host = host if host not in ("0.0.0.0", "::") else "127.0.0.1"
+
+    def _run_uvicorn() -> None:
+        uvicorn.run(app, host=bind_host, port=port, log_level="warning")
+
+    thread = threading.Thread(target=_run_uvicorn, name="instree-uvicorn", daemon=True)
+    thread.start()
+    time.sleep(0.6)
+
+    print(f"instree web  http://{bind_host}:{port}", flush=True)
+    print("  mode     multi-utilisateurs + ngrok", flush=True)
+    print("  […] ouverture du tunnel ngrok…", flush=True)
+
+    try:
+        ngrok_proc = start_ngrok(port)
+    except RuntimeError as e:
+        print(f"! {e}", flush=True)
+        return 1
+
+    url = wait_for_ngrok_url()
+    if url:
+        print(f"  public   {url}", flush=True)
+        print(f"  login    {url.rstrip('/')}/login", flush=True)
+    else:
+        print(
+            "  ! URL ngrok indisponible (authtoken manquant ?). "
+            "Vérifie http://127.0.0.1:4040",
+            flush=True,
+        )
+
+    try:
+        code = ngrok_proc.wait()
+    except KeyboardInterrupt:
+        print("\narrêt…", flush=True)
+        ngrok_proc.terminate()
+        try:
+            ngrok_proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            ngrok_proc.kill()
+        return 0
+    return int(code or 0)
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     import uvicorn
-    from instree.config import enable_public_mode, is_public_mode
+
+    from instree.config import (
+        enable_public_mode,
+        is_public_mode,
+        load_server_web_settings,
+        load_settings,
+    )
+    from instree.store import init_db
     from instree.web.app import create_app
 
-    if args.public:
+    use_ngrok = bool(args.ngrok)
+    use_public = bool(args.public) or use_ngrok
+
+    if use_public:
         root = enable_public_mode()
         host, port = load_server_web_settings()
         if args.host:
             host = args.host
+        elif use_ngrok:
+            host = "127.0.0.1"
         if args.port:
             port = args.port
         print(f"instree public  home={root}", flush=True)
@@ -104,6 +178,10 @@ def cmd_serve(args: argparse.Namespace) -> int:
         init_db()
 
     app = create_app()
+
+    if use_ngrok:
+        return _serve_with_ngrok(host, port, app)
+
     print(f"instree web  http://{host}:{port}", flush=True)
     if is_public_mode():
         print("  mode     multi-utilisateurs (auth requise)", flush=True)
@@ -129,6 +207,11 @@ def main() -> None:
         "--public",
         action="store_true",
         help="mode serveur public multi-utilisateurs (données dans serveur/)",
+    )
+    p_serve.add_argument(
+        "--ngrok",
+        action="store_true",
+        help="expose le mode public via ngrok (active --public, bind 127.0.0.1)",
     )
     p_serve.set_defaults(func=cmd_serve)
 

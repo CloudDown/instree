@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Instree — mode serveur public multi-utilisateurs
-# Usage : ./run-public
+# Usage :
+#   ./run-public           # écoute locale / 0.0.0.0
+#   ./run-public --ngrok   # tunnel public HTTPS via ngrok
 # Données (hors git) : ./serveur/
 set -euo pipefail
 

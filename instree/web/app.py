@@ -212,6 +212,10 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     if is_public_mode():
+        from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+        # Derrière ngrok / reverse-proxy : schéma HTTPS et host publics.
+        app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
         app.add_middleware(PublicAuthMiddleware)
         install_session_middleware(app)
 

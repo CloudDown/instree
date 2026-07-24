@@ -6,6 +6,8 @@ title Instree Public
 echo.
 echo   Instree (public)
 echo   ----------------
+echo   Usage: run-public.bat
+echo          run-public.bat --ngrok
 echo.
 
 if not exist "pyproject.toml" (
