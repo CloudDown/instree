@@ -81,7 +81,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
     host, port = load_server_web_settings()
     if args.host:
         host = args.host
-    elif args.ngrok:
+    elif args.ngrok and not args.no_ngrok:
         host = "127.0.0.1"
     if args.port:
         port = args.port
@@ -89,7 +89,8 @@ def cmd_serve(args: argparse.Namespace) -> int:
     print(f"instree-web  home={root}", flush=True)
     app = create_app()
 
-    if args.ngrok:
+    use_ngrok = args.ngrok and not args.no_ngrok
+    if use_ngrok:
         return _serve_with_ngrok(host, port, app)
 
     print_serve_banner(host, port, product="Instree Web")
@@ -106,7 +107,12 @@ def main() -> None:
     parser.add_argument(
         "--ngrok",
         action="store_true",
-        help="exposer via ngrok (HTTPS temporaire)",
+        help="exposer via ngrok (HTTPS temporaire ; défaut avec ./bin/run-web)",
+    )
+    parser.add_argument(
+        "--no-ngrok",
+        action="store_true",
+        help="LAN seulement, sans tunnel ngrok",
     )
     args = parser.parse_args()
     sys.exit(cmd_serve(args))

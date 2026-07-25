@@ -24,7 +24,7 @@ uv.lock
 
 | | Desktop | Web |
 |---|---------|-----|
-| Lancer | `./bin/run-desktop` | `./bin/run-web` |
+| Lancer | `./bin/run-desktop` | `./bin/run-web` (ngrok par défaut ; `--no-ngrok` pour LAN) |
 | CLI | `instree serve` | `instree-web` |
 | Données | `var/desktop/` | `var/web/` ou `INSTREE_HOME` |
 

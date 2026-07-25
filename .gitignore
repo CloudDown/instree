@@ -13,8 +13,9 @@ wheels/
 .ruff_cache/
 .cursor/
 
-# --- Runtime Web (tout) ---
+# --- Runtime Web (tout le serveur, hors git) ---
 /var/web/
+**/accounts.db
 
 # --- Runtime Desktop (sauf templates d'installation versionnés) ---
 /var/desktop/data/

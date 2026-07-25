@@ -118,12 +118,12 @@ Même UI que Desktop (cœur partagé `instree.core`).
 Différences : **login / inscription**, **Déconnexion**, données isolées par utilisateur.
 
 ```bash
-./bin/run-web                 # LAN
-./bin/run-web --ngrok         # HTTPS temporaire via ngrok
-# ou : .venv/bin/instree-web
+./bin/run-web                 # ngrok (HTTPS public, défaut)
+./bin/run-web --no-ngrok      # LAN seulement
+# ou : .venv/bin/instree-web --no-ngrok
 ```
 
-Données hors git (`var/web/` en dev, ou `INSTREE_HOME` en prod) :
+Données **hors git** (`var/web/` en dev, ou `INSTREE_HOME` en prod) :
 
 ```
 var/web/   # ou INSTREE_HOME

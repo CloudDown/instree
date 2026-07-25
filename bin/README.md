@@ -5,4 +5,6 @@
 | **Desktop** | `./bin/run-desktop` | `bin\run-desktop.bat` |
 | **Web** | `./bin/run-web` | `bin\run-web.bat` |
 
-Données runtime : `var/desktop/` (Desktop) · `var/web/` (Web).
+**Web** : ngrok par défaut (HTTPS public). LAN local : `./bin/run-web --no-ngrok`.
+
+Données runtime (hors git) : `var/desktop/` (Desktop) · `var/web/` (Web).

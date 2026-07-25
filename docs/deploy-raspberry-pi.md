@@ -26,7 +26,7 @@ export INSTREE_HOME=/var/lib/instree
 Premier lancement :
 
 ```bash
-./bin/run-web
+./bin/run-web --no-ngrok
 # → crée INSTREE_HOME/instree.toml, secret.key, accounts.db
 ```
 
@@ -44,7 +44,7 @@ sudo systemctl enable --now instree-web
 ## Accès Internet
 
 1. Reverse proxy (Caddy / nginx) + HTTPS
-2. Ou `./bin/run-web --ngrok` pour tester
+2. Ou `./bin/run-web` (ngrok) pour tester depuis l'extérieur
 3. DNS → IP fixe ou DynDNS
 
 ```

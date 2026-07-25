@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Instree Web — serveur multi-utilisateurs (auth, données isolées)
 # Usage :
-#   ./bin/run-web           # LAN
-#   ./bin/run-web --ngrok   # tunnel HTTPS temporaire
-# Données : var/web/  (ou serveur/ legacy, ou INSTREE_HOME)
+#   ./bin/run-web              # ngrok (HTTPS public, défaut)
+#   ./bin/run-web --no-ngrok   # LAN seulement
+#   ./bin/run-web --lan        # alias de --no-ngrok
+# Données : var/web/  (hors git ; ou INSTREE_HOME en prod)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,7 +15,7 @@ echo "  Instree Web"
 echo "  -----------"
 echo
 
-if [[ ! -f config/instree.toml && ! -f var/desktop/config/instree.toml && ! -f pyproject.toml ]]; then
+if [[ ! -f var/desktop/config/instree.toml && ! -f config/instree.toml && ! -f pyproject.toml ]]; then
   echo "[ERREUR] Lance depuis la racine du projet Instree."
   exit 1
 fi
@@ -36,17 +37,23 @@ if [[ ! -x .venv/bin/instree-web ]]; then
 fi
 
 if [[ ! -x .venv/bin/instree-web ]]; then
-  echo "[ERREUR] instree-web introuvable. Lance d'abord ./run."
+  echo "[ERREUR] instree-web introuvable. Lance d'abord ./bin/run-desktop."
   exit 1
 fi
 
-# Prefer new path; legacy serveur/ still works via default_web_home()
-if [[ -d "$ROOT/var/web" ]]; then
-  DATA="${INSTREE_HOME:-$ROOT/var/web}"
-elif [[ -d "$ROOT/serveur" ]]; then
-  DATA="${INSTREE_HOME:-$ROOT/serveur}"
-else
-  DATA="${INSTREE_HOME:-$ROOT/var/web}"
+DATA="${INSTREE_HOME:-$ROOT/var/web}"
+echo "[OK] Instree Web — données dans $DATA (hors git)"
+
+USE_NGROK=1
+ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    --no-ngrok|--lan) USE_NGROK=0 ;;
+    *) ARGS+=("$arg") ;;
+  esac
+done
+
+if [[ $USE_NGROK -eq 1 ]]; then
+  exec .venv/bin/instree-web --ngrok "${ARGS[@]}"
 fi
-echo "[OK] Instree Web — données dans $DATA"
-exec .venv/bin/instree-web "$@"
+exec .venv/bin/instree-web "${ARGS[@]}"
