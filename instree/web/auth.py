@@ -1,6 +1,6 @@
-"""Auth cookie + middleware — seule couche UI propre au mode public.
+"""Auth cookie + middleware — couche propre à Instree Web.
 
-Le reste de l'app (scans, settings, graph) est partagé avec le mode local.
+Le reste de l'app (scans, settings, graph) est partagé avec Desktop.
 """
 
 from __future__ import annotations
@@ -12,10 +12,10 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from instree.accounts import get_account
-from instree.config import (
+from instree.web.accounts import get_account
+from instree.core.config import (
     current_user_id,
-    is_public_mode,
+    is_web_mode,
     load_secret_key,
     reset_current_user,
     set_current_user,
@@ -63,11 +63,11 @@ def session_user(request: Request) -> dict | None:
     return {"id": account.id, "username": account.username}
 
 
-class PublicAuthMiddleware(BaseHTTPMiddleware):
-    """Exige une session pour le mode public ; injecte current_user_id."""
+class WebAuthMiddleware(BaseHTTPMiddleware):
+    """Exige une session pour Instree Web ; injecte current_user_id."""
 
     async def dispatch(self, request: Request, call_next: Callable):
-        if not is_public_mode():
+        if not is_web_mode():
             return await call_next(request)
 
         path = request.url.path
@@ -106,7 +106,7 @@ class PublicAuthMiddleware(BaseHTTPMiddleware):
 
 
 def job_user_key() -> str:
-    if is_public_mode():
+    if is_web_mode():
         uid = current_user_id()
         if not uid:
             raise RuntimeError("utilisateur requis")

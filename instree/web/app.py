@@ -9,13 +9,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from instree.accounts import authenticate, register_account
-from instree.config import (
+from instree.web.accounts import authenticate, register_account
+from instree.core.config import (
     config_for_api,
     create_profile,
     current_user_id,
     delete_profile,
-    is_public_mode,
+    is_web_mode,
     list_profiles,
     load_settings,
     profile_ig_username,
@@ -24,8 +24,8 @@ from instree.config import (
     save_config,
     set_active_profile,
 )
-from instree.session import connect
-from instree.store import (
+from instree.core.session import connect
+from instree.core.store import (
     get_changes_search_index,
     get_graph_data,
     get_scan,
@@ -33,9 +33,9 @@ from instree.store import (
     list_scans,
     scan_neighbors,
 )
-from instree.transfer import export_profile_zip, import_profile_zip
+from instree.core.transfer import export_profile_zip, import_profile_zip
 from instree.web.auth import (
-    PublicAuthMiddleware,
+    WebAuthMiddleware,
     install_session_middleware,
     login_user,
     logout_user,
@@ -135,7 +135,7 @@ def _session_info(*, verify: bool = False) -> dict:
 
     try:
         ig, source, _note = connect()
-        from instree.session import session_user as ig_session_user
+        from instree.core.session import session_user as ig_session_user
 
         target = settings.username or ig_session_user(ig)
         if target:
@@ -176,30 +176,30 @@ def _asset_version() -> str:
 def _page_ctx(request: Request, page: str) -> dict:
     """Contexte template commun. auth_user n'est renseigné qu'en mode public connecté."""
     user = None
-    if is_public_mode():
+    if is_web_mode():
         user = getattr(request.state, "user", None) or session_user(request)
     return {
         "v": _asset_version(),
         "page": page,
         "auth_user": user,
-        "public_mode": is_public_mode(),
+        "web_mode": is_web_mode(),
     }
 
 
 def create_app() -> FastAPI:
     # Local : une seule base. Public : init au premier request authentifié.
-    if not is_public_mode():
+    if not is_web_mode():
         init_db()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        from instree.autostart import remove_legacy_systemd
+        from instree.desktop.autostart import remove_legacy_systemd
         from instree.web.interval_scheduler import (
             start_interval_scheduler,
             stop_interval_scheduler,
         )
 
-        if not is_public_mode():
+        if not is_web_mode():
             remove_legacy_systemd()
         start_interval_scheduler()
         yield
@@ -209,12 +209,12 @@ def create_app() -> FastAPI:
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-    if is_public_mode():
+    if is_web_mode():
         from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
         # Seule différence runtime : auth + proxy (ngrok / reverse-proxy).
         app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
-        app.add_middleware(PublicAuthMiddleware)
+        app.add_middleware(WebAuthMiddleware)
         install_session_middleware(app)
 
     @app.get("/", include_in_schema=False)
@@ -223,7 +223,7 @@ def create_app() -> FastAPI:
 
     @app.get("/login", response_class=HTMLResponse)
     async def login_page(request: Request):
-        if not is_public_mode():
+        if not is_web_mode():
             return RedirectResponse("/changes", status_code=307)
         if session_user(request):
             return RedirectResponse("/changes", status_code=307)
@@ -233,7 +233,7 @@ def create_app() -> FastAPI:
 
     @app.get("/register", response_class=HTMLResponse)
     async def register_page(request: Request):
-        if not is_public_mode():
+        if not is_web_mode():
             return RedirectResponse("/changes", status_code=307)
         if session_user(request):
             return RedirectResponse("/changes", status_code=307)
@@ -243,27 +243,27 @@ def create_app() -> FastAPI:
 
     @app.post("/api/auth/register")
     async def api_auth_register(request: Request, body: AuthBody):
-        if not is_public_mode():
+        if not is_web_mode():
             raise HTTPException(404, "Indisponible en mode local")
         try:
             account = register_account(body.username, body.password)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         login_user(request, account.id, account.username)
-        from instree.config import set_current_user
+        from instree.core.config import set_current_user
 
         token = set_current_user(account.id)
         try:
             init_db()
         finally:
-            from instree.config import reset_current_user
+            from instree.core.config import reset_current_user
 
             reset_current_user(token)
         return {"ok": True, "user": {"id": account.id, "username": account.username}}
 
     @app.post("/api/auth/login")
     async def api_auth_login(request: Request, body: AuthBody):
-        if not is_public_mode():
+        if not is_web_mode():
             raise HTTPException(404, "Indisponible en mode local")
         account = authenticate(body.username, body.password)
         if not account:
@@ -281,11 +281,11 @@ def create_app() -> FastAPI:
         user = session_user(request)
         if not user:
             raise HTTPException(401, "Authentification requise")
-        return {"ok": True, "user": user, "public_mode": is_public_mode()}
+        return {"ok": True, "user": user, "web_mode": is_web_mode()}
 
     @app.get("/settings", response_class=HTMLResponse)
     async def settings_page(request: Request):
-        if is_public_mode():
+        if is_web_mode():
             init_db()
         return templates.TemplateResponse(
             request, "settings.html", _page_ctx(request, "settings")
@@ -293,7 +293,7 @@ def create_app() -> FastAPI:
 
     @app.get("/changes", response_class=HTMLResponse)
     async def changes_page(request: Request):
-        if is_public_mode():
+        if is_web_mode():
             init_db()
         return templates.TemplateResponse(
             request, "changes.html", _page_ctx(request, "changes")
@@ -301,7 +301,7 @@ def create_app() -> FastAPI:
 
     @app.get("/graph", response_class=HTMLResponse)
     async def graph_page(request: Request):
-        if is_public_mode():
+        if is_web_mode():
             init_db()
         return templates.TemplateResponse(
             request, "graph.html", _page_ctx(request, "graph")
@@ -313,7 +313,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/status")
     async def api_status(request: Request):
-        if is_public_mode():
+        if is_web_mode():
             init_db()
         session = _session_info()
         user = getattr(request.state, "user", None)
@@ -322,7 +322,7 @@ def create_app() -> FastAPI:
             "config": config_for_api(),
             "job": job_status(),
             "profiles": list_profiles(),
-            "public_mode": is_public_mode(),
+            "web_mode": is_web_mode(),
             "auth_user": user,
         }
 

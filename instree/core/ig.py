@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from instagrapi import Client
 
-from instree.errors import ScanCancelled
+from instree.core.errors import ScanCancelled
 
 # Backoff rate-limit : 5 min → 15 min → 60 min
 _RATE_LIMIT_BACKOFFS = (300, 900, 3600)

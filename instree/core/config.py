@@ -12,14 +12,17 @@ from contextvars import ContextVar, Token
 from dataclasses import dataclass
 from pathlib import Path
 
-_PKG_DIR = Path(__file__).resolve().parent
+_CORE_DIR = Path(__file__).resolve().parent
+_PACKAGE_DIR = _CORE_DIR.parent  # instree/
+_REPO_CANDIDATE = _PACKAGE_DIR.parent
 
 _DEFAULT_PROFILE = "default"
 _SAFE_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 _SAFE_USER = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+_TRUTHY = frozenset({"1", "true", "yes"})
 
 _current_user_id: ContextVar[str | None] = ContextVar("instree_user_id", default=None)
-_public_mode = False
+_web_mode = False
 _migrated_roots: set[str] = set()
 
 
@@ -27,54 +30,82 @@ def project_root() -> Path:
     """Racine du dépôt."""
     cwd = Path.cwd()
     candidates = [cwd]
-    pkg_parent = _PKG_DIR.parent
-    if pkg_parent != cwd:
-        candidates.append(pkg_parent)
+    if _REPO_CANDIDATE != cwd:
+        candidates.append(_REPO_CANDIDATE)
     for candidate in candidates:
+        if (candidate / "var" / "desktop" / "config" / "instree.toml").is_file():
+            return candidate
         if (candidate / "config" / "instree.toml").is_file():
             return candidate
         if (candidate / "instree.toml").is_file():
             return candidate
         if (candidate / "pyproject.toml").is_file():
             return candidate
-    return cwd if (cwd / "pyproject.toml").is_file() else pkg_parent
+    return cwd if (cwd / "pyproject.toml").is_file() else _REPO_CANDIDATE
 
 
-def is_public_mode() -> bool:
-    return _public_mode or os.environ.get("INSTREE_PUBLIC", "").strip() in (
-        "1",
-        "true",
-        "yes",
-    )
+def desktop_root() -> Path:
+    """Racine données Desktop : `var/desktop/` (nouveau) ou racine repo (legacy)."""
+    root = project_root()
+    new = (root / "var" / "desktop").resolve()
+    legacy_cfg = root / "config" / "instree.toml"
+    if (new / "config" / "instree.toml").is_file():
+        return new
+    if legacy_cfg.is_file():
+        return root
+    return new
+
+
+def desktop_data_root() -> Path:
+    if is_web_mode():
+        return user_home() / "data"
+    base = desktop_root()
+    return base / "data" if base.name == "desktop" else base / "data"
+
+
+def default_web_home() -> Path:
+    """Données Instree Web : `var/web/` (nouveau) ou `serveur/` (legacy)."""
+    root = project_root()
+    preferred = (root / "var" / "web").resolve()
+    legacy = (root / "serveur").resolve()
+    if preferred.is_dir():
+        return preferred
+    if legacy.is_dir():
+        return legacy
+    return preferred
+
+
+def is_web_mode() -> bool:
+    env = os.environ.get("INSTREE_WEB", "").strip().lower()
+    # Alias historique
+    if not env:
+        env = os.environ.get("INSTREE_PUBLIC", "").strip().lower()
+    return _web_mode or env in _TRUTHY
 
 
 def runtime_root() -> Path:
-    """Racine des données runtime : INSTREE_HOME (serveur/) ou dépôt local."""
+    """Racine des données : INSTREE_HOME (Web) ou dépôt (Desktop)."""
     env = os.environ.get("INSTREE_HOME", "").strip()
     if env:
         return Path(env).expanduser().resolve()
-    if is_public_mode():
-        return (project_root() / "serveur").resolve()
+    if is_web_mode():
+        return default_web_home()
     return project_root()
 
 
-def enable_public_mode(home: Path | str | None = None) -> Path:
-    """Active le déploiement public : même app + auth + données sous serveur/.
-
-    L'UI reste identique au local ; seules s'ajoutent login / déconnexion
-    et l'isolation `serveur/users/<id>/`.
-    """
-    global _public_mode
-    _public_mode = True
-    os.environ["INSTREE_PUBLIC"] = "1"
+def enable_web_mode(home: Path | str | None = None) -> Path:
+    """Active Instree Web : auth + données isolées sous var/web/ (ou INSTREE_HOME)."""
+    global _web_mode
+    _web_mode = True
+    os.environ["INSTREE_WEB"] = "1"
     if home is not None:
         root = Path(home).expanduser().resolve()
     elif os.environ.get("INSTREE_HOME", "").strip():
         root = Path(os.environ["INSTREE_HOME"]).expanduser().resolve()
     else:
-        root = (project_root() / "serveur").resolve()
+        root = default_web_home()
     os.environ["INSTREE_HOME"] = str(root)
-    bootstrap_public_home(root)
+    bootstrap_web_home(root)
     return root
 
 
@@ -111,7 +142,7 @@ def ensure_user_home(user_id: str) -> Path:
 
 
 def server_config_path() -> Path:
-    """Config globale du serveur public (bind host/port)."""
+    """Config globale Instree Web (bind host/port)."""
     return runtime_root() / "instree.toml"
 
 
@@ -123,8 +154,8 @@ def accounts_db_path() -> Path:
     return runtime_root() / "accounts.db"
 
 
-def bootstrap_public_home(root: Path | None = None) -> Path:
-    """Crée serveur/, instree.toml, secret.key si absents."""
+def bootstrap_web_home(root: Path | None = None) -> Path:
+    """Crée var/web/ (ou INSTREE_HOME), instree.toml, secret.key si absents."""
     home = Path(root).resolve() if root else runtime_root()
     home.mkdir(parents=True, exist_ok=True)
     (home / "users").mkdir(parents=True, exist_ok=True)
@@ -144,13 +175,13 @@ def bootstrap_public_home(root: Path | None = None) -> Path:
 def load_secret_key() -> str:
     path = secret_key_path()
     if not path.is_file():
-        bootstrap_public_home()
+        bootstrap_web_home()
     return secret_key_path().read_text(encoding="utf-8").strip()
 
 
 def _format_server_toml(*, host: str, port: int) -> str:
-    return f"""# Instree — serveur public (hors git)
-# Données comptes : users/<id>/
+    return f"""# Instree Web — données runtime (hors git)
+# Comptes : users/<id>/
 
 [web]
 host = {_toml_str(host)}
@@ -167,9 +198,10 @@ def load_server_web_settings() -> tuple[str, int]:
 
 
 def config_dir() -> Path:
-    if is_public_mode():
+    if is_web_mode():
         return user_home() / "config"
-    return project_root() / "config"
+    base = desktop_root()
+    return base / "config" if base.name == "desktop" else base / "config"
 
 
 def profiles_config_dir() -> Path:
@@ -177,15 +209,15 @@ def profiles_config_dir() -> Path:
 
 
 def profiles_data_dir() -> Path:
-    if is_public_mode():
+    if is_web_mode():
         return user_home() / "data" / "profiles"
-    return project_root() / "data" / "profiles"
+    return desktop_data_root() / "profiles"
 
 
 def _resolve_config_path(name: str) -> Path:
     """Chemin dans config/, avec repli sur la racine (legacy local uniquement)."""
     new = config_dir() / name
-    if is_public_mode():
+    if is_web_mode():
         return new
     root = project_root()
     legacy = root / name
@@ -414,7 +446,7 @@ def _new_profile_id() -> str:
 
 def ensure_profiles_migrated() -> None:
     """Crée le profil default et migre l'ancienne config mono-session si besoin."""
-    if is_public_mode() and not current_user_id():
+    if is_web_mode() and not current_user_id():
         return
 
     root_key = str(config_dir().resolve())
@@ -461,7 +493,7 @@ def ensure_profiles_migrated() -> None:
             ),
         )
 
-        if not is_public_mode():
+        if not is_web_mode():
             legacy_local = legacy_local_config_path()
             if legacy_local.is_file():
                 dest = profile_local_path(pid)
@@ -485,9 +517,9 @@ def ensure_profiles_migrated() -> None:
                     if not target.exists():
                         shutil.move(str(item), str(target))
 
-        host = "127.0.0.1" if is_public_mode() else str(web.get("host", "127.0.0.1"))
-        port = int(web.get("port", 1488)) if not is_public_mode() else 1488
-        autostart = False if is_public_mode() else bool(web.get("autostart_on_boot", False))
+        host = "127.0.0.1" if is_web_mode() else str(web.get("host", "127.0.0.1"))
+        port = int(web.get("port", 1488)) if not is_web_mode() else 1488
+        autostart = False if is_web_mode() else bool(web.get("autostart_on_boot", False))
         _write_text(
             main_path,
             _format_global_toml(
@@ -647,9 +679,9 @@ def set_active_profile(profile_id: str) -> None:
     if not profile_settings_path(pid).is_file():
         raise ValueError(f"session introuvable : {pid}")
     existing = load_settings()
-    host = "127.0.0.1" if is_public_mode() else existing.host
-    port = 1488 if is_public_mode() else existing.port
-    autostart = False if is_public_mode() else existing.autostart_on_boot
+    host = "127.0.0.1" if is_web_mode() else existing.host
+    port = 1488 if is_web_mode() else existing.port
+    autostart = False if is_web_mode() else existing.autostart_on_boot
     _write_text(
         main_config_path(),
         _format_global_toml(
@@ -715,7 +747,7 @@ def load_settings() -> Settings:
     pid = active_profile_id()
     main = _read_toml(main_config_path())
     web = main.get("web") if isinstance(main.get("web"), dict) else {}
-    if is_public_mode():
+    if is_web_mode():
         host, port = load_server_web_settings()
         autostart = False
     else:
@@ -726,7 +758,7 @@ def load_settings() -> Settings:
     local = _read_toml(profile_local_path(pid))
 
     # Compat : si secrets encore dans l'ancien local global
-    if not local and not is_public_mode():
+    if not local and not is_web_mode():
         legacy = _read_toml(legacy_local_config_path())
         if legacy:
             local = legacy
@@ -784,7 +816,7 @@ def config_for_api() -> dict:
         "ds_user_id": s.ds_user_id,
         "sessionid_set": bool(s.sessionid),
         "ds_user_id_set": bool(s.ds_user_id),
-        "public_mode": is_public_mode(),
+        "web_mode": is_web_mode(),
     }
 
 
@@ -815,7 +847,7 @@ def save_config(
     )
     autostart = (
         False
-        if is_public_mode()
+        if is_web_mode()
         else (
             bool(autostart_on_boot)
             if autostart_on_boot is not None
@@ -835,9 +867,9 @@ def save_config(
     if ds_user_id is not None and ds_user_id.strip():
         new_ds_user_id = ds_user_id.strip()
 
-    # En public : host/port viennent de serveur/instree.toml (inchangé ici).
-    write_host = "127.0.0.1" if is_public_mode() else (host.strip() or "127.0.0.1")
-    write_port = 1488 if is_public_mode() else max(1, min(65535, int(port)))
+    # En Web : host/port viennent de var/web/instree.toml (inchangé ici).
+    write_host = "127.0.0.1" if is_web_mode() else (host.strip() or "127.0.0.1")
+    write_port = 1488 if is_web_mode() else max(1, min(65535, int(port)))
     _write_text(
         main_config_path(),
         _format_global_toml(
@@ -873,8 +905,8 @@ def save_config(
     if new_sessionid or new_ds_user_id or sessionid is not None:
         save_session_credentials(new_sessionid, new_ds_user_id)
 
-    if not is_public_mode():
-        from instree.autostart import sync_autostart
+    if not is_web_mode():
+        from instree.desktop.autostart import sync_autostart
 
         try:
             sync_autostart(autostart)

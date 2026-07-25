@@ -5,7 +5,7 @@ import logging
 from instagrapi import Client
 from instagrapi.exceptions import LoginRequired
 
-from instree.config import load_settings, save_session_credentials
+from instree.core.config import load_settings, save_session_credentials
 
 _BROWSERS = (
     "chromium",
@@ -63,7 +63,7 @@ def _cookies_from_browser() -> tuple[str, dict] | None:
 
 def connect() -> tuple[Client, str, str | None]:
     """Retourne (client, source, note)."""
-    from instree.config import active_profile_id
+    from instree.core.config import active_profile_id
 
     settings = load_settings()
     local_label = f"config/profiles/{active_profile_id()}/local.toml"
@@ -83,10 +83,10 @@ def connect() -> tuple[Client, str, str | None]:
                 f"dans Settings ou vide {local_label} pour relire le navigateur"
             ) from e
 
-    from instree.config import is_public_mode
+    from instree.core.config import is_web_mode
 
-    # En public : ne pas lire les cookies du navigateur *du serveur*.
-    if not is_public_mode():
+    # Web : ne pas lire les cookies du navigateur de la machine hôte.
+    if not is_web_mode():
         found = _cookies_from_browser()
         if found:
             browser, jar = found

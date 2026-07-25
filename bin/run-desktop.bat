@@ -1,24 +1,26 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
-cd /d "%~dp0"
-title Instree
+cd /d "%~dp0\.."
+title Instree Desktop
 
 echo.
-echo   Instree
-echo   -------
+echo   Instree Desktop
+echo   ---------------
 echo.
 
-if not exist "config\instree.toml" (
-    echo [ERREUR] Lance run.bat depuis la racine du projet Instree.
-    pause
-    exit /b 1
+if not exist "var\desktop\config\instree.toml" (
+    if not exist "config\instree.toml" (
+        echo [ERREUR] Lance bin\run-desktop.bat depuis la racine du projet Instree.
+        pause
+        exit /b 1
+    )
 )
 
-if not exist "data" mkdir "data"
+if not exist "var\desktop\data" mkdir "var\desktop\data"
 
-if not exist "config\instree.local.toml" (
-    if exist "config\instree.local.toml.example" (
-        copy /Y "config\instree.local.toml.example" "config\instree.local.toml" >nul
+if not exist "var\desktop\config\instree.local.toml" (
+    if exist "var\desktop\config\instree.local.toml.example" (
+        copy /Y "var\desktop\config\instree.local.toml.example" "var\desktop\config\instree.local.toml" >nul
         echo [OK] Config locale creee.
     )
 )
@@ -35,7 +37,7 @@ call :find_python
 if not defined PYEXE (
     echo [ERREUR] Impossible d'installer Python automatiquement.
     echo          Installe Python 3.11+ depuis https://www.python.org/downloads/
-    echo          ^(coche "Add python.exe to PATH"^) puis relance run.bat
+    echo          ^(coche "Add python.exe to PATH"^) puis relance bin\run-desktop.bat
     pause
     exit /b 1
 )

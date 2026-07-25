@@ -5,16 +5,16 @@ from __future__ import annotations
 import threading
 from dataclasses import asdict, dataclass, field
 
-from instree.config import (
+from instree.core.config import (
     current_user_id,
-    is_public_mode,
+    is_web_mode,
     load_settings,
     reset_current_user,
     set_current_user,
 )
-from instree.errors import ScanCancelled
-from instree.scan import run_scan
-from instree.session import connect
+from instree.core.errors import ScanCancelled
+from instree.core.scan import run_scan
+from instree.core.session import connect
 
 _ACTIVE_STATES = frozenset({"running", "stopping"})
 
@@ -49,7 +49,7 @@ _slots: dict[str, _JobSlot] = {}
 def _user_key(user_id: str | None = None) -> str:
     if user_id:
         return user_id
-    if is_public_mode():
+    if is_web_mode():
         uid = current_user_id()
         if not uid:
             raise RuntimeError("utilisateur requis")

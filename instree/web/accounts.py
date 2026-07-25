@@ -1,4 +1,4 @@
-"""Comptes utilisateurs (mode serveur public)."""
+"""Comptes utilisateurs — Instree Web uniquement."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import sqlite3
 import time
 from dataclasses import dataclass
 
-from instree.config import accounts_db_path, bootstrap_public_home, ensure_user_home
+from instree.core.config import accounts_db_path, bootstrap_web_home, ensure_user_home
 
 _USER_RE = re.compile(r"^[a-zA-Z0-9_][a-zA-Z0-9_.-]{1,31}$")
 _PBKDF2_ROUNDS = 200_000
@@ -23,7 +23,7 @@ class Account:
 
 
 def _connect() -> sqlite3.Connection:
-    bootstrap_public_home()
+    bootstrap_web_home()
     path = accounts_db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)

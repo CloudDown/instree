@@ -14,8 +14,7 @@ User=pi
 Group=pi
 WorkingDirectory=/home/pi/instree
 Environment=INSTREE_HOME=/var/lib/instree
-Environment=INSTREE_PUBLIC=1
-ExecStart=/home/pi/instree/.venv/bin/instree serve --public
+ExecStart=/home/pi/instree/.venv/bin/instree-web
 Restart=on-failure
 RestartSec=5
 

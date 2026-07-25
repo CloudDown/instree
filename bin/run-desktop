@@ -11,15 +11,15 @@ echo "  Instree Desktop"
 echo "  ---------------"
 echo
 
-if [[ ! -f config/instree.toml ]]; then
+if [[ ! -f var/desktop/config/instree.toml && ! -f config/instree.toml ]]; then
   echo "[ERREUR] Lance depuis la racine du projet Instree."
   exit 1
 fi
 
-mkdir -p data
+mkdir -p var/desktop/data
 
-if [[ ! -f config/instree.local.toml && -f config/instree.local.toml.example ]]; then
-  cp config/instree.local.toml.example config/instree.local.toml
+if [[ ! -f var/desktop/config/instree.local.toml && -f var/desktop/config/instree.local.toml.example ]]; then
+  cp var/desktop/config/instree.local.toml.example var/desktop/config/instree.local.toml
   echo "[OK] Config locale créée."
 fi
 
@@ -39,10 +39,6 @@ ensure_uv() {
     exit 1
   fi
   export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
-  if ! command -v uv >/dev/null 2>&1; then
-    echo "[ERREUR] uv introuvable après installation."
-    exit 1
-  fi
 }
 
 install_with_uv() {
@@ -66,7 +62,6 @@ install_with_pip() {
     exit 1
   fi
   echo "[OK] Python via $py"
-  echo "[..] Création du venv…"
   "$py" -m venv .venv
   .venv/bin/pip install -q --upgrade pip
   .venv/bin/pip install -q -e .
@@ -88,6 +83,12 @@ if [[ ! -x .venv/bin/instree ]]; then
   fi
   echo "[OK] Installation terminée."
 else
+  # Resync entrypoints si le package a changé
+  if command -v uv >/dev/null 2>&1; then
+    uv sync -q 2>/dev/null || true
+  else
+    .venv/bin/pip install -q -e . 2>/dev/null || true
+  fi
   echo "[OK] Environnement prêt."
 fi
 

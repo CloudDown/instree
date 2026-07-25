@@ -1,7 +1,7 @@
 [project]
 name = "instree"
-version = "0.3.0"
-description = "Suivi des abonnements Instagram : ajouts, retraits et interface web"
+version = "0.4.0"
+description = "Suivi des abonnements Instagram — Desktop (local) et Web (multi-utilisateurs)"
 requires-python = ">=3.11"
 dependencies = [
     "instagrapi>=2.18.0",
@@ -15,7 +15,8 @@ dependencies = [
 ]
 
 [project.scripts]
-instree = "instree.cli:main"
+instree = "instree.desktop.cli:main"
+instree-web = "instree.web.cli:main"
 
 [build-system]
 requires = ["hatchling"]

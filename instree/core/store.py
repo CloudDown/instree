@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from instree.config import db_path, journal_dir
+from instree.core.config import db_path, journal_dir
 
 
 @dataclass

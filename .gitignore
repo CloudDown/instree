@@ -1,4 +1,4 @@
-# Python-generated files
+# Python
 __pycache__/
 *.py[oc]
 build/
@@ -13,15 +13,28 @@ wheels/
 .ruff_cache/
 .cursor/
 
-# Secrets locaux
-config/instree.local.toml
-instree.local.toml
+# --- Runtime Web (tout) ---
+/var/web/
 
-# Sessions locales (créées à l'usage)
-config/profiles/
+# --- Runtime Desktop (sauf templates d'installation versionnés) ---
+/var/desktop/data/
+/var/desktop/config/profiles/
+/var/desktop/config/instree.local.toml
 
-# Données locales (snapshots, journal)
-data/
+# Legacy racine (migration, ne pas versionner)
+/config/
+/data/
+/serveur/
 
-# Mode serveur public (comptes, données multi-utilisateurs)
-serveur/
+# Secrets & cookies (rattrapage hors var/)
+**/secret.key
+**/local.toml
+**/instree.local.toml
+!var/desktop/config/instree.local.toml.example
+
+# Bases SQLite
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+*.sqlite3

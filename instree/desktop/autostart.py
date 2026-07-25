@@ -8,7 +8,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from instree.config import project_root
+from instree.core.config import project_root
 
 
 DESKTOP_NAME = "instree.desktop"
@@ -148,11 +148,11 @@ def _write_macos(root: Path, exec_cmd: str) -> Path:
 
 def enable() -> Path:
     root = project_root().resolve()
-    if not (root / "config" / "instree.toml").is_file() and not (
-        root / "instree.toml"
-    ).is_file():
+    if not (root / "var" / "desktop" / "config" / "instree.toml").is_file() and not (
+        root / "config" / "instree.toml"
+    ).is_file() and not (root / "instree.toml").is_file():
         raise RuntimeError(
-            f"config/instree.toml introuvable dans {root} — lance la commande depuis le dépôt cloné"
+            f"var/desktop/config/instree.toml introuvable dans {root} — lance la commande depuis le dépôt cloné"
         )
     exec_cmd = resolve_serve_command(root)
     system = platform.system()

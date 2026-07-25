@@ -5,8 +5,8 @@ from __future__ import annotations
 import threading
 import time
 
-from instree.config import (
-    is_public_mode,
+from instree.core.config import (
+    is_web_mode,
     load_settings,
     reset_current_user,
     set_current_user,
@@ -44,9 +44,9 @@ def _tick_user(user_id: str | None) -> None:
 
 def _loop() -> None:
     while not _stop.is_set():
-        if is_public_mode():
+        if is_web_mode():
             try:
-                from instree.accounts import list_user_ids
+                from instree.web.accounts import list_user_ids
 
                 for uid in list_user_ids():
                     if _stop.is_set():

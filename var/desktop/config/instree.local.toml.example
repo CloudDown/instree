@@ -1,5 +1,5 @@
-# Secrets Instagram — copier vers config/instree.local.toml
-# config/instree.local.toml est gitignored et surcharge config/instree.toml
+# Secrets Instagram — copier vers var/desktop/config/instree.local.toml
+# var/desktop/config/instree.local.toml est gitignored et surcharge instree.toml
 #
 # Récupération manuelle : README.md section « Session Instagram »
 # (F12 → Application/Stockage → Cookies → instagram.com → sessionid + ds_user_id)

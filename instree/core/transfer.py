@@ -10,7 +10,7 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from instree.config import (
+from instree.core.config import (
     _format_local_toml,
     _format_profile_settings_toml,
     _read_toml,

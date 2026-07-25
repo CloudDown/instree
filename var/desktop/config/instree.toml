@@ -1,0 +1,10 @@
+# Instree Desktop — configuration globale (éditable via l'interface web)
+# Sessions : var/desktop/config/profiles/<id>/  (+ var/desktop/data/profiles/<id>/)
+
+[web]
+host = "0.0.0.0"
+port = 1488
+autostart_on_boot = false
+
+[profiles]
+active = "default"

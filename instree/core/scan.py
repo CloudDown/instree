@@ -7,9 +7,9 @@ from dataclasses import dataclass
 
 from instagrapi import Client
 
-from instree.config import Settings
-from instree.errors import ScanCancelled
-from instree.ig import (
+from instree.core.config import Settings
+from instree.core.errors import ScanCancelled
+from instree.core.ig import (
     IgUser,
     fetch_followers,
     fetch_following,
@@ -18,8 +18,8 @@ from instree.ig import (
     try_user_by_pk,
     user_profile,
 )
-from instree.session import session_user
-from instree.store import (
+from instree.core.session import session_user
+from instree.core.store import (
     FollowingEntry,
     PersonChange,
     ScanDraft,

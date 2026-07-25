@@ -10,15 +10,16 @@ Surveillance **locale** de tes abonnements mutuels Instagram (tu les suis, ils t
 | pastille jaune **mutuel** | déjà dans ta liste |
 | pastille bleue | compte vérifié |
 
-Interface web en FR / EN / ES. Données locales dans `data/` (SQLite).
+Interface web en FR / EN / ES. Données Desktop dans `var/desktop/` (SQLite).
 
 Deux modes :
 
 | | **Instree Desktop** | **Instree Web** |
 |---|---------------------|-----------------|
-| Lancement | `./run` | `./run-public` |
-| Usage | 1 personne, chez toi | multi-comptes, serveur (Pi, VPS…) |
-| Données | `config/` + `data/` | `serveur/` ou `INSTREE_HOME` |
+| Lancement | `./bin/run-desktop` · `instree serve` | `./bin/run-web` · `instree-web` |
+| Package | `instree.desktop` | `instree.web` |
+| Usage | 1 personne, chez toi | multi-comptes (Pi, VPS…) |
+| Données | `var/desktop/` | `var/web/` ou `INSTREE_HOME` |
 
 Structure du dépôt : [docs/STRUCTURE.md](docs/STRUCTURE.md) · déploiement Pi : [docs/deploy-raspberry-pi.md](docs/deploy-raspberry-pi.md).
 
@@ -29,7 +30,7 @@ Structure du dépôt : [docs/STRUCTURE.md](docs/STRUCTURE.md) · déploiement Pi
 ### Windows
 
 1. Télécharge le projet (ZIP GitHub ou `git clone`).
-2. Double-clique **`run.bat`**.
+2. Double-clique **`bin\run-desktop.bat`**.
 
 Au premier lancement : Python (winget si besoin), dépendances, config, ouverture de [http://127.0.0.1:1488](http://127.0.0.1:1488).
 
@@ -38,7 +39,7 @@ Au premier lancement : Python (winget si besoin), dépendances, config, ouvertur
 ```bash
 git clone https://github.com/CloudDown/instree.git
 cd instree
-./run
+./bin/run-desktop
 ```
 
 Au premier lancement : installation de **uv** si besoin, Python 3.11+, dépendances, config locale, ouverture du navigateur sur [http://127.0.0.1:1488](http://127.0.0.1:1488).
@@ -53,7 +54,7 @@ Si Instagram limite les requêtes (`feedback_required`), Instree affiche une pau
 
 **Auto (recommandé)**  
 Connecté sur [instagram.com](https://www.instagram.com) → ferme le navigateur → **Paramètres** → **Tester la connexion**.  
-Les cookies vont dans `config/profiles/<session>/local.toml` (gitignored). Chaque session a ses propres paramètres et son historique (`data/profiles/<session>/`).
+Les cookies vont dans `var/desktop/config/profiles/<session>/local.toml` (gitignored). Chaque session a ses propres paramètres et son historique (`var/desktop/data/profiles/<session>/`).
 
 **Manuel** si l’auto échoue : F12 → Cookies → `instagram.com` → copie `sessionid` et `ds_user_id` dans **Paramètres**.
 
@@ -102,10 +103,10 @@ Configurer Instree sans éditer les fichiers à la main :
 
 | Fichier | Contenu |
 |---------|---------|
-| `config/instree.toml` | host, port, session active |
-| `config/profiles/<id>/settings.toml` | scan / planification de la session |
-| `config/profiles/<id>/local.toml` | cookies Instagram (gitignored) |
-| `data/profiles/<id>/` | SQLite + journal de la session |
+| `var/desktop/config/instree.toml` | host, port, session active |
+| `var/desktop/config/profiles/<id>/settings.toml` | scan / planification |
+| `var/desktop/config/profiles/<id>/local.toml` | cookies Instagram (gitignored) |
+| `var/desktop/data/profiles/<id>/` | SQLite + journal |
 
 Les mêmes options sont éditables dans **Paramètres**.
 
@@ -113,25 +114,24 @@ Les mêmes options sont éditables dans **Paramètres**.
 
 ## Instree Web (multi-utilisateurs)
 
-**Même application** que Desktop : mêmes pages et scans.  
+Même UI que Desktop (cœur partagé `instree.core`).  
 Différences : **login / inscription**, **Déconnexion**, données isolées par utilisateur.
 
 ```bash
-./run-public              # LAN
-./run-public --ngrok      # HTTPS temporaire via ngrok
-# ou : .venv/bin/instree serve --public
+./bin/run-web                 # LAN
+./bin/run-web --ngrok         # HTTPS temporaire via ngrok
+# ou : .venv/bin/instree-web
 ```
 
-Données hors git (`serveur/` en dev, ou `INSTREE_HOME=/var/lib/instree` en prod) :
+Données hors git (`var/web/` en dev, ou `INSTREE_HOME` en prod) :
 
 ```
-serveur/   # ou INSTREE_HOME
+var/web/   # ou INSTREE_HOME
   instree.toml       # host/port (défaut 0.0.0.0:1488)
   secret.key
   accounts.db
   users/<id>/        # config + data par utilisateur
 ```
 
-**Raspberry Pi** : voir [docs/deploy-raspberry-pi.md](docs/deploy-raspberry-pi.md) — faisable, léger, systemd + reverse-proxy HTTPS recommandé.
-
-Place un reverse-proxy (Caddy / nginx) devant le bind `0.0.0.0` pour un vrai nom de domaine.
+**Raspberry Pi** : [docs/deploy-raspberry-pi.md](docs/deploy-raspberry-pi.md).  
+En production : reverse-proxy (Caddy / nginx) + HTTPS devant le bind.
