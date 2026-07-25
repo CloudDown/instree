@@ -1,0 +1,23 @@
+# Instree Web — service systemd
+# 1. Copier vers /etc/systemd/system/instree-web.service
+# 2. Adapter User, WorkingDirectory, INSTREE_HOME
+# 3. sudo systemctl enable --now instree-web
+
+[Unit]
+Description=Instree Web
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/instree
+Environment=INSTREE_HOME=/var/lib/instree
+Environment=INSTREE_PUBLIC=1
+ExecStart=/home/pi/instree/.venv/bin/instree serve --public
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

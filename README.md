@@ -10,7 +10,17 @@ Surveillance **locale** de tes abonnements mutuels Instagram (tu les suis, ils t
 | pastille jaune **mutuel** | déjà dans ta liste |
 | pastille bleue | compte vérifié |
 
-Interface web en FR / EN / ES. Données locales dans `data/` (SQLite). Mode **serveur public** multi-utilisateurs possible (voir plus bas).
+Interface web en FR / EN / ES. Données locales dans `data/` (SQLite).
+
+Deux modes :
+
+| | **Instree Desktop** | **Instree Web** |
+|---|---------------------|-----------------|
+| Lancement | `./run` | `./run-public` |
+| Usage | 1 personne, chez toi | multi-comptes, serveur (Pi, VPS…) |
+| Données | `config/` + `data/` | `serveur/` ou `INSTREE_HOME` |
+
+Structure du dépôt : [docs/STRUCTURE.md](docs/STRUCTURE.md) · déploiement Pi : [docs/deploy-raspberry-pi.md](docs/deploy-raspberry-pi.md).
 
 ---
 
@@ -101,45 +111,27 @@ Les mêmes options sont éditables dans **Paramètres**.
 
 ---
 
-## Mode serveur public (multi-utilisateurs)
+## Instree Web (multi-utilisateurs)
 
-**Même application** que le mode local : mêmes pages, mêmes paramètres, mêmes scans.  
-Les **seules** différences visibles : écran **login / inscription** au départ, et bouton **Déconnexion** dans la barre.
-
-Sous le capot, chaque compte a ses données isolées dans `serveur/` (**hors git**).
+**Même application** que Desktop : mêmes pages et scans.  
+Différences : **login / inscription**, **Déconnexion**, données isolées par utilisateur.
 
 ```bash
-# Linux / macOS
-./run-public
-
-# Exposer sur Internet via ngrok (HTTPS)
-./run-public --ngrok
-
-# ou
-.venv/bin/instree serve --public
-.venv/bin/instree serve --ngrok
+./run-public              # LAN
+./run-public --ngrok      # HTTPS temporaire via ngrok
+# ou : .venv/bin/instree serve --public
 ```
 
-```bat
-REM Windows
-run-public.bat
-run-public.bat --ngrok
-```
-
-**ngrok** : installe [ngrok](https://ngrok.com/download), puis `ngrok config add-authtoken <token>`.  
-`./run-public --ngrok` démarre le serveur public en local et affiche l’URL `https://….ngrok-free.app` (+ `/login`).
-
-Au premier lancement, Instree crée :
+Données hors git (`serveur/` en dev, ou `INSTREE_HOME=/var/lib/instree` en prod) :
 
 ```
-serveur/
+serveur/   # ou INSTREE_HOME
   instree.toml       # host/port (défaut 0.0.0.0:1488)
-  secret.key         # signature des cookies de session
-  accounts.db        # comptes
-  users/<id>/        # config + data de chaque utilisateur
+  secret.key
+  accounts.db
+  users/<id>/        # config + data par utilisateur
 ```
 
-Puis ouvre `/login` : inscription → connexion → usage normal (sessions IG, scans).  
-Le mode local (`./run` / `run.bat`) reste inchangé : pas d’auth, données dans `config/` + `data/`.
+**Raspberry Pi** : voir [docs/deploy-raspberry-pi.md](docs/deploy-raspberry-pi.md) — faisable, léger, systemd + reverse-proxy HTTPS recommandé.
 
-Place un reverse-proxy (HTTPS) devant le bind `0.0.0.0` en production.
+Place un reverse-proxy (Caddy / nginx) devant le bind `0.0.0.0` pour un vrai nom de domaine.

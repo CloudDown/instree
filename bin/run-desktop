@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# Instree Desktop — installation + serveur local (1 utilisateur, pas de login)
+# Usage : ./bin/run-desktop   ou   ./run
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+echo
+echo "  Instree Desktop"
+echo "  ---------------"
+echo
+
+if [[ ! -f config/instree.toml ]]; then
+  echo "[ERREUR] Lance depuis la racine du projet Instree."
+  exit 1
+fi
+
+mkdir -p data
+
+if [[ ! -f config/instree.local.toml && -f config/instree.local.toml.example ]]; then
+  cp config/instree.local.toml.example config/instree.local.toml
+  echo "[OK] Config locale créée."
+fi
+
+export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
+
+ensure_uv() {
+  if command -v uv >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "[..] Installation de uv…"
+  if command -v curl >/dev/null 2>&1; then
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO- https://astral.sh/uv/install.sh | sh
+  else
+    echo "[ERREUR] curl ou wget requis pour installer uv."
+    exit 1
+  fi
+  export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
+  if ! command -v uv >/dev/null 2>&1; then
+    echo "[ERREUR] uv introuvable après installation."
+    exit 1
+  fi
+}
+
+install_with_uv() {
+  ensure_uv
+  echo "[..] Installation des dépendances (uv)…"
+  uv sync
+}
+
+install_with_pip() {
+  local py=""
+  for cand in python3.12 python3.11 python3; do
+    if command -v "$cand" >/dev/null 2>&1; then
+      if "$cand" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
+        py=$cand
+        break
+      fi
+    fi
+  done
+  if [[ -z "$py" ]]; then
+    echo "[ERREUR] Python 3.11+ introuvable et uv indisponible."
+    exit 1
+  fi
+  echo "[OK] Python via $py"
+  echo "[..] Création du venv…"
+  "$py" -m venv .venv
+  .venv/bin/pip install -q --upgrade pip
+  .venv/bin/pip install -q -e .
+}
+
+if [[ ! -x .venv/bin/instree ]]; then
+  echo "[..] Première installation…"
+  set +e
+  install_with_uv
+  uv_ok=$?
+  set -e
+  if [[ $uv_ok -ne 0 ]]; then
+    echo "[..] uv a échoué — repli sur pip…"
+    install_with_pip
+  fi
+  if [[ ! -x .venv/bin/instree ]]; then
+    echo "[ERREUR] instree introuvable après installation."
+    exit 1
+  fi
+  echo "[OK] Installation terminée."
+else
+  echo "[OK] Environnement prêt."
+fi
+
+if command -v xdg-open >/dev/null 2>&1; then
+  (sleep 0.8 && xdg-open "http://127.0.0.1:1488" >/dev/null 2>&1) &
+elif command -v open >/dev/null 2>&1; then
+  (sleep 0.8 && open "http://127.0.0.1:1488" >/dev/null 2>&1) &
+fi
+
+exec .venv/bin/instree serve "$@"

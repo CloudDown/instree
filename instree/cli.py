@@ -84,9 +84,9 @@ def _print_serve_banner(
             )
         print(f"  local    http://127.0.0.1:{port}", flush=True)
     if ngrok:
-        print("  mode     multi-utilisateurs + ngrok", flush=True)
+        print("  mode     Instree Web + ngrok", flush=True)
     elif public:
-        print("  mode     multi-utilisateurs (auth requise)", flush=True)
+        print("  mode     Instree Web (auth requise)", flush=True)
 
 
 def cmd_scan(args: argparse.Namespace) -> int:

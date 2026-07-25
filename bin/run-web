@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Instree Web — serveur multi-utilisateurs (auth, données isolées)
+# Usage :
+#   ./bin/run-web           # LAN (0.0.0.0)
+#   ./bin/run-web --ngrok   # tunnel HTTPS temporaire
+# Données : serveur/  (ou INSTREE_HOME)
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+echo
+echo "  Instree Web"
+echo "  -----------"
+echo
+
+if [[ ! -f config/instree.toml && ! -f pyproject.toml ]]; then
+  echo "[ERREUR] Lance depuis la racine du projet Instree."
+  exit 1
+fi
+
+if [[ ! -x .venv/bin/instree ]]; then
+  echo "[..] Environnement manquant — lancement de ./bin/run-desktop pour installer…"
+  "$ROOT/bin/run-desktop" --help >/dev/null 2>&1 || true
+fi
+
+if [[ ! -x .venv/bin/instree ]]; then
+  export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
+  if command -v uv >/dev/null 2>&1; then
+    uv sync
+  else
+    python3 -m venv .venv
+    .venv/bin/pip install -q --upgrade pip
+    .venv/bin/pip install -q -e .
+  fi
+fi
+
+if [[ ! -x .venv/bin/instree ]]; then
+  echo "[ERREUR] instree introuvable. Lance d'abord ./run pour installer les deps."
+  exit 1
+fi
+
+DATA="${INSTREE_HOME:-$ROOT/serveur}"
+echo "[OK] Instree Web — données dans $DATA"
+exec .venv/bin/instree serve --public "$@"
