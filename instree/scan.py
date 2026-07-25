@@ -10,8 +10,9 @@ from instagrapi import Client
 from instree.config import Settings
 from instree.errors import ScanCancelled
 from instree.ig import (
+    IgUser,
+    fetch_followers,
     fetch_following,
-    fetch_mutuals,
     interruptible_sleep,
     is_rate_limited,
     try_user_by_pk,
@@ -21,15 +22,24 @@ from instree.session import session_user
 from instree.store import (
     FollowingEntry,
     PersonChange,
+    ScanDraft,
     ScanResult,
+    clear_scan_draft,
     delete_person_snapshot,
     get_person_following,
     get_person_snapshot,
+    get_scan_draft,
+    has_draft_mutuals,
     has_scans,
     init_db,
     latest_following,
+    load_draft_friendships,
+    load_draft_mutuals,
+    save_draft_friendships,
+    save_draft_mutuals,
     save_person_snapshot,
     save_scan,
+    upsert_scan_draft,
 )
 
 
@@ -55,6 +65,20 @@ def _to_entry(u) -> FollowingEntry:
         following_count=getattr(u, "following_count", 0) or 0,
         is_verified=bool(getattr(u, "is_verified", False)),
     )
+
+
+def _to_ig_user(e: FollowingEntry) -> IgUser:
+    return IgUser(
+        pk=e.pk,
+        username=e.username,
+        full_name=e.full_name,
+        following_count=e.following_count,
+        is_verified=e.is_verified,
+    )
+
+
+def _entries_to_ig(entries: list[FollowingEntry]) -> list[IgUser]:
+    return [_to_ig_user(e) for e in entries]
 
 
 def _diff(
@@ -164,9 +188,20 @@ def _checkpoint(
     live: list[FollowingEntry],
     following_count: int,
     snapshots: list[tuple[str, list[FollowingEntry], int]],
+    *,
+    is_complete: bool = True,
+    pagination_cursor: str = "",
 ) -> None:
-    save_person_snapshot(username, live, following_count, scan_id=0)
-    snapshots.append((username, live, following_count))
+    save_person_snapshot(
+        username,
+        live,
+        following_count,
+        scan_id=0,
+        is_complete=is_complete,
+        pagination_cursor=pagination_cursor,
+    )
+    if is_complete:
+        snapshots.append((username, live, following_count))
 
 
 def _fetch_person_following(
@@ -183,11 +218,37 @@ def _fetch_person_following(
     total_hint: int = 0,
     known_usernames: set[str] | None = None,
     stop_after_new: int = 0,
+    following_count: int = 0,
 ) -> list[FollowingEntry]:
     target = limit if limit > 0 else total_hint
+    resume_users: list[IgUser] | None = None
+    resume_max_id = ""
+    snapshot = get_person_snapshot(username) if username else None
+    if (
+        username
+        and snapshot
+        and not snapshot.is_complete
+        and snapshot.tracked_count > 0
+    ):
+        resume_users = _entries_to_ig(get_person_following(username))
+        resume_max_id = snapshot.pagination_cursor or ""
 
     def on_page(fetched: int, total: int) -> None:
         _report(on_progress, fetched, total or target, username, "page", track="watch")
+
+    def on_checkpoint(users: list[IgUser], cursor: str) -> None:
+        if not username:
+            return
+        entries = [_to_entry(u) for u in users]
+        complete = not cursor
+        _checkpoint(
+            username,
+            entries,
+            following_count or snapshot.following_count if snapshot else 0,
+            [],
+            is_complete=complete,
+            pagination_cursor=cursor,
+        )
 
     users = fetch_following(
         ig,
@@ -201,6 +262,9 @@ def _fetch_person_following(
         total_hint=target,
         known_usernames=known_usernames,
         stop_after_new=stop_after_new,
+        resume_max_id=resume_max_id,
+        resume_users=resume_users,
+        on_checkpoint=on_checkpoint if username else None,
     )
     return [_to_entry(u) for u in users]
 
@@ -317,11 +381,16 @@ def _watch_persons(
         updated.append(entry)
 
         snapshot = get_person_snapshot(profile.username)
-        # Reprise : snapshot déjà checkpointé → pas de re-fetch baseline
-        need_baseline = snapshot is None or profile.username in new_usernames
+        # Reprise : snapshot complet → skip ; incomplet → reprendre le fetch
+        need_baseline = (
+            snapshot is None
+            or profile.username in new_usernames
+            or (snapshot is not None and not snapshot.is_complete)
+        )
         need_diff = (
             not need_baseline
             and snapshot is not None
+            and snapshot.is_complete
             and profile.following_count != snapshot.following_count
         )
 
@@ -359,6 +428,7 @@ def _watch_persons(
                         total_hint=total_hint,
                         known_usernames=stored_set,
                         stop_after_new=delta,
+                        following_count=profile.following_count,
                     )
                     added = [e for e in partial if e.username not in stored_set]
                     if len(added) >= delta:
@@ -389,6 +459,7 @@ def _watch_persons(
                             on_cooldown=on_cooldown,
                             username=profile.username,
                             total_hint=total_hint,
+                            following_count=profile.following_count,
                         )
                         _checkpoint(
                             profile.username, live, profile.following_count, snapshots
@@ -415,6 +486,7 @@ def _watch_persons(
                         on_cooldown=on_cooldown,
                         username=profile.username,
                         total_hint=total_hint,
+                        following_count=profile.following_count,
                     )
                     _checkpoint(
                         profile.username, live, profile.following_count, snapshots
@@ -448,6 +520,116 @@ def _watch_persons(
     return person_changes, updated, snapshots
 
 
+def _fetch_mutuals_with_draft(
+    ig: Client,
+    account_username: str,
+    account_pk: str,
+    *,
+    following_count: int,
+    follower_count: int,
+    limit: int,
+    is_baseline: bool,
+    page_sleep: float,
+    page_size: int,
+    draft: ScanDraft | None,
+    should_cancel: Callable[[], bool] | None = None,
+    on_progress=None,
+    on_cooldown: Callable[[float], None] | None = None,
+) -> list[FollowingEntry]:
+    """Fetch mutuels avec checkpoint (following → followers → intersection)."""
+    _report(on_progress, 0, 0, "", "mutuals")
+    phase = draft.phase if draft else "mutuals_following"
+    following_max_id = draft.following_max_id if draft else ""
+    followers_max_id = draft.followers_max_id if draft else ""
+
+    if phase == "mutuals_following":
+        following_entries = load_draft_friendships("following")
+        resume_users = _entries_to_ig(following_entries) if following_entries else None
+
+        def on_following_checkpoint(users: list[IgUser], cursor: str) -> None:
+            entries = [_to_entry(u) for u in users]
+            save_draft_friendships("following", entries)
+            upsert_scan_draft(
+                ScanDraft(
+                    account_username=account_username,
+                    is_baseline=is_baseline,
+                    following_count=following_count,
+                    follower_count=follower_count,
+                    phase="mutuals_following" if cursor else "mutuals_followers",
+                    following_max_id=cursor,
+                    followers_max_id=followers_max_id,
+                )
+            )
+
+        following_users = fetch_following(
+            ig,
+            account_pk,
+            page_sleep=page_sleep,
+            page_size=page_size,
+            should_cancel=should_cancel,
+            on_cooldown=on_cooldown,
+            resume_max_id=following_max_id,
+            resume_users=resume_users,
+            on_checkpoint=on_following_checkpoint,
+        )
+        following_entries = [_to_entry(u) for u in following_users]
+    else:
+        following_entries = load_draft_friendships("following")
+
+    _check_cancel(should_cancel)
+
+    follower_entries = load_draft_friendships("followers")
+    if phase in ("mutuals_following", "mutuals_followers"):
+        resume_users = _entries_to_ig(follower_entries) if follower_entries else None
+
+        def on_followers_checkpoint(users: list[IgUser], cursor: str) -> None:
+            entries = [_to_entry(u) for u in users]
+            save_draft_friendships("followers", entries)
+            upsert_scan_draft(
+                ScanDraft(
+                    account_username=account_username,
+                    is_baseline=is_baseline,
+                    following_count=following_count,
+                    follower_count=follower_count,
+                    phase="mutuals_followers" if cursor else "watch",
+                    following_max_id="",
+                    followers_max_id=cursor,
+                )
+            )
+
+        follower_users = fetch_followers(
+            ig,
+            account_pk,
+            page_sleep=page_sleep,
+            page_size=page_size,
+            should_cancel=should_cancel,
+            on_cooldown=on_cooldown,
+            resume_max_id=followers_max_id if phase == "mutuals_followers" else "",
+            resume_users=resume_users,
+            on_checkpoint=on_followers_checkpoint,
+        )
+        follower_entries = [_to_entry(u) for u in follower_users]
+
+    follower_pks = {e.pk for e in follower_entries}
+    mutuals = [e for e in following_entries if e.pk in follower_pks]
+    if limit > 0:
+        mutuals = mutuals[:limit]
+
+    save_draft_mutuals(mutuals)
+    upsert_scan_draft(
+        ScanDraft(
+            account_username=account_username,
+            is_baseline=is_baseline,
+            following_count=following_count,
+            follower_count=follower_count,
+            phase="watch",
+            following_max_id="",
+            followers_max_id="",
+        )
+    )
+    return mutuals
+
+
 def run_scan(
     ig: Client,
     settings: Settings,
@@ -459,7 +641,6 @@ def run_scan(
 ) -> ScanSummary:
     init_db()
     _check_cancel(should_cancel)
-    is_baseline = init or not has_scans()
 
     username = settings.username or session_user(ig)
     limit = settings.n
@@ -476,6 +657,27 @@ def run_scan(
     except Exception as e:
         raise RuntimeError(f"Impossible de charger @{username} : {e}") from e
 
+    if init:
+        clear_scan_draft()
+
+    draft = get_scan_draft()
+    if draft and draft.account_username != profile.username:
+        clear_scan_draft()
+        draft = None
+    if draft and (
+        draft.following_count != profile.following_count
+        or draft.follower_count != profile.follower_count
+    ):
+        clear_scan_draft()
+        draft = None
+
+    if draft:
+        is_baseline = draft.is_baseline
+    elif init or not has_scans():
+        is_baseline = True
+    else:
+        is_baseline = False
+
     old_total, old_followers, stored_list = latest_following(profile.username)
     counts_changed = (
         old_total is None
@@ -488,23 +690,53 @@ def run_scan(
     removed: list[FollowingEntry] = []
     gone: list[FollowingEntry] = []
 
-    if need_list:
-        _report(on_progress, 0, 0, "", "mutuals")
-        try:
-            live_users = fetch_mutuals(
+    if draft and draft.phase == "watch" and has_draft_mutuals():
+        live = load_draft_mutuals()
+        if is_baseline or not stored_list:
+            added, removed, gone = [], [], []
+        else:
+            added, removed_raw = _diff(stored_list, live)
+            removed, gone, rename_pks = _split_removed_gone(
                 ig,
+                removed_raw,
+                live,
+                page_sleep=settings.page_sleep,
+                should_cancel=should_cancel,
+            )
+            if rename_pks:
+                added = [a for a in added if not a.pk or a.pk not in rename_pks]
+    elif need_list:
+        if not draft:
+            upsert_scan_draft(
+                ScanDraft(
+                    account_username=profile.username,
+                    is_baseline=is_baseline,
+                    following_count=profile.following_count,
+                    follower_count=profile.follower_count,
+                    phase="mutuals_following",
+                )
+            )
+            draft = get_scan_draft()
+        try:
+            live = _fetch_mutuals_with_draft(
+                ig,
+                profile.username,
                 profile.pk,
+                following_count=profile.following_count,
+                follower_count=profile.follower_count,
                 limit=limit,
+                is_baseline=is_baseline,
                 page_sleep=settings.page_sleep,
                 page_size=settings.page_size,
+                draft=draft,
                 should_cancel=should_cancel,
+                on_progress=on_progress,
                 on_cooldown=on_cooldown,
             )
         except ScanCancelled:
             raise
         except Exception as e:
             raise RuntimeError(f"Erreur fetch abonnements mutuels : {e}") from e
-        live = [_to_entry(u) for u in live_users]
         if is_baseline or not stored_list:
             added, removed, gone = [], [], []
         else:

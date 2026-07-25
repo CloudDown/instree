@@ -45,7 +45,7 @@ Au premier lancement : installation de **uv** si besoin, Python 3.11+, dépendan
 
 Ensuite : **Paramètres** → session Instagram → **Home** → lancer un scan.
 
-Si Instagram limite les requêtes (`feedback_required`), Instree affiche une pause avec compte à rebours puis réessaie. Les snapshots des mutuels sont sauvés au fil de l’eau : tu peux **relancer** un scan après un blocage / cancel — les comptes déjà traités sont sautés. Avec `watch_n = MAX`, Instree charge tous les abonnements de chaque mutuel (la barre utilise le vrai compte Instagram).
+Si Instagram limite les requêtes (`feedback_required`), Instree affiche une pause avec compte à rebours puis réessaie. Les snapshots des mutuels sont sauvés au fil de l’eau : tu peux **relancer** un scan après un blocage / cancel — les comptes déjà traités sont sautés, la liste mutuelle et les fetch en cours reprennent là où ils se sont arrêtés. Avec `watch_n = MAX`, Instree charge tous les abonnements de chaque mutuel (la barre utilise le vrai compte Instagram).
 
 ---
 

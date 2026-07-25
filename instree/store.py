@@ -32,6 +32,19 @@ class PersonSnapshot:
     person_username: str
     following_count: int
     tracked_count: int
+    is_complete: bool = True
+    pagination_cursor: str = ""
+
+
+@dataclass
+class ScanDraft:
+    account_username: str
+    is_baseline: bool
+    following_count: int
+    follower_count: int
+    phase: str  # mutuals_following | mutuals_followers | watch
+    following_max_id: str = ""
+    followers_max_id: str = ""
 
 
 @dataclass
@@ -113,6 +126,13 @@ def _migrate(conn: sqlite3.Connection) -> None:
     cols = {r[1] for r in conn.execute("PRAGMA table_info(scans)")}
     if "follower_count" not in cols:
         conn.execute("ALTER TABLE scans ADD COLUMN follower_count INTEGER NOT NULL DEFAULT 0")
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(person_snapshots)")}
+    if "is_complete" not in cols:
+        conn.execute(
+            "ALTER TABLE person_snapshots ADD COLUMN is_complete INTEGER NOT NULL DEFAULT 1"
+        )
+    if "pagination_cursor" not in cols:
+        conn.execute("ALTER TABLE person_snapshots ADD COLUMN pagination_cursor TEXT NOT NULL DEFAULT ''")
 
 
 def init_db() -> None:
@@ -169,6 +189,27 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS account_flags (
                 username TEXT PRIMARY KEY,
                 is_verified INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS scan_drafts (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                account_username TEXT NOT NULL,
+                is_baseline INTEGER NOT NULL,
+                following_count INTEGER NOT NULL,
+                follower_count INTEGER NOT NULL,
+                phase TEXT NOT NULL,
+                following_max_id TEXT NOT NULL DEFAULT '',
+                followers_max_id TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS draft_friendships (
+                kind TEXT NOT NULL,
+                pk TEXT NOT NULL,
+                username TEXT NOT NULL,
+                full_name TEXT NOT NULL,
+                following_count INTEGER NOT NULL DEFAULT 0,
+                is_verified INTEGER NOT NULL DEFAULT 0,
+                position INTEGER NOT NULL,
+                PRIMARY KEY (kind, pk)
             );
             CREATE INDEX IF NOT EXISTS idx_changes_scan ON changes(scan_id);
             CREATE INDEX IF NOT EXISTS idx_person_following ON person_following(person_username);
@@ -267,7 +308,8 @@ def get_person_snapshot(person_username: str) -> PersonSnapshot | None:
     with _connect() as conn:
         row = conn.execute(
             """
-            SELECT person_username, following_count, tracked_count
+            SELECT person_username, following_count, tracked_count,
+                   is_complete, pagination_cursor
             FROM person_snapshots WHERE person_username = ?
             """,
             (person_username,),
@@ -278,6 +320,10 @@ def get_person_snapshot(person_username: str) -> PersonSnapshot | None:
             person_username=row["person_username"],
             following_count=int(row["following_count"]),
             tracked_count=int(row["tracked_count"]),
+            is_complete=bool(row["is_complete"] if "is_complete" in row.keys() else 1),
+            pagination_cursor=str(row["pagination_cursor"] or "")
+            if "pagination_cursor" in row.keys()
+            else "",
         )
 
 
@@ -311,18 +357,31 @@ def _save_person_snapshot_conn(
     entries: list[FollowingEntry],
     following_count: int,
     scan_id: int,
+    *,
+    is_complete: bool = True,
+    pagination_cursor: str = "",
 ) -> None:
     conn.execute(
         """
         INSERT INTO person_snapshots
-        (person_username, following_count, tracked_count, updated_scan_id)
-        VALUES (?, ?, ?, ?)
+        (person_username, following_count, tracked_count, updated_scan_id,
+         is_complete, pagination_cursor)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(person_username) DO UPDATE SET
             following_count = excluded.following_count,
             tracked_count = excluded.tracked_count,
-            updated_scan_id = excluded.updated_scan_id
+            updated_scan_id = excluded.updated_scan_id,
+            is_complete = excluded.is_complete,
+            pagination_cursor = excluded.pagination_cursor
         """,
-        (person_username, following_count, len(entries), scan_id),
+        (
+            person_username,
+            following_count,
+            len(entries),
+            scan_id,
+            1 if is_complete else 0,
+            pagination_cursor or "",
+        ),
     )
     conn.execute(
         "DELETE FROM person_following WHERE person_username = ?",
@@ -352,16 +411,155 @@ def save_person_snapshot(
     following_count: int,
     *,
     scan_id: int = 0,
+    is_complete: bool = True,
+    pagination_cursor: str = "",
 ) -> None:
     """Checkpoint immédiat (reprise après crash / cancel / rate-limit)."""
     with _connect() as conn:
         _save_person_snapshot_conn(
-            conn, person_username, entries, following_count, scan_id
+            conn,
+            person_username,
+            entries,
+            following_count,
+            scan_id,
+            is_complete=is_complete,
+            pagination_cursor=pagination_cursor,
         )
         verified = [e.username for e in entries if e.is_verified]
         if verified:
             _remember_verified_conn(conn, verified)
         conn.commit()
+
+
+def clear_scan_draft() -> None:
+    with _connect() as conn:
+        conn.execute("DELETE FROM scan_drafts")
+        conn.execute("DELETE FROM draft_friendships")
+        conn.commit()
+
+
+def get_scan_draft() -> ScanDraft | None:
+    with _connect() as conn:
+        row = conn.execute("SELECT * FROM scan_drafts WHERE id = 1").fetchone()
+        if not row:
+            return None
+        return ScanDraft(
+            account_username=row["account_username"],
+            is_baseline=bool(row["is_baseline"]),
+            following_count=int(row["following_count"]),
+            follower_count=int(row["follower_count"]),
+            phase=str(row["phase"]),
+            following_max_id=str(row["following_max_id"] or ""),
+            followers_max_id=str(row["followers_max_id"] or ""),
+        )
+
+
+def upsert_scan_draft(draft: ScanDraft) -> None:
+    now = datetime.now().isoformat(timespec="seconds")
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO scan_drafts
+            (id, account_username, is_baseline, following_count, follower_count,
+             phase, following_max_id, followers_max_id, updated_at)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                account_username = excluded.account_username,
+                is_baseline = excluded.is_baseline,
+                following_count = excluded.following_count,
+                follower_count = excluded.follower_count,
+                phase = excluded.phase,
+                following_max_id = excluded.following_max_id,
+                followers_max_id = excluded.followers_max_id,
+                updated_at = excluded.updated_at
+            """,
+            (
+                draft.account_username,
+                1 if draft.is_baseline else 0,
+                draft.following_count,
+                draft.follower_count,
+                draft.phase,
+                draft.following_max_id,
+                draft.followers_max_id,
+                now,
+            ),
+        )
+        conn.commit()
+
+
+def _draft_kind_mutuals() -> str:
+    return "mutuals"
+
+
+def _draft_kind_following() -> str:
+    return "following"
+
+
+def _draft_kind_followers() -> str:
+    return "followers"
+
+
+def save_draft_friendships(kind: str, entries: list[FollowingEntry]) -> None:
+    with _connect() as conn:
+        conn.execute("DELETE FROM draft_friendships WHERE kind = ?", (kind,))
+        for i, e in enumerate(entries):
+            conn.execute(
+                """
+                INSERT INTO draft_friendships
+                (kind, pk, username, full_name, following_count, is_verified, position)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    kind,
+                    e.pk,
+                    e.username,
+                    e.full_name,
+                    e.following_count,
+                    1 if e.is_verified else 0,
+                    i,
+                ),
+            )
+        conn.commit()
+
+
+def load_draft_friendships(kind: str) -> list[FollowingEntry]:
+    with _connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT pk, username, full_name, following_count, is_verified
+            FROM draft_friendships
+            WHERE kind = ?
+            ORDER BY position
+            """,
+            (kind,),
+        ).fetchall()
+        return [
+            FollowingEntry(
+                username=r["username"],
+                pk=r["pk"],
+                full_name=r["full_name"],
+                following_count=int(r["following_count"] or 0),
+                is_verified=bool(r["is_verified"]),
+            )
+            for r in rows
+        ]
+
+
+def has_draft_mutuals() -> bool:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM draft_friendships WHERE kind = ? LIMIT 1",
+            (_draft_kind_mutuals(),),
+        ).fetchone()
+        return row is not None
+
+
+def load_draft_mutuals() -> list[FollowingEntry]:
+    return load_draft_friendships(_draft_kind_mutuals())
+
+
+def save_draft_mutuals(entries: list[FollowingEntry]) -> None:
+    save_draft_friendships(_draft_kind_mutuals(), entries)
 
 
 def delete_person_snapshot(person_username: str) -> None:
@@ -474,6 +672,8 @@ def save_scan(result: ScanResult, following: list[FollowingEntry]) -> tuple[int,
                     if e.is_verified:
                         verified_names.append(e.username)
         _remember_verified_conn(conn, verified_names)
+        conn.execute("DELETE FROM scan_drafts")
+        conn.execute("DELETE FROM draft_friendships")
         conn.commit()
 
     return scan_id, write_journal(scan_id, label, result)

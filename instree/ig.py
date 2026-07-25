@@ -154,10 +154,13 @@ def _paginate_friendships(
     total_hint: int = 0,
     known_usernames: set[str] | None = None,
     stop_after_new: int = 0,
+    resume_max_id: str = "",
+    resume_users: list[IgUser] | None = None,
+    on_checkpoint: Callable[[list[IgUser], str], None] | None = None,
 ) -> list[IgUser]:
-    users: list[IgUser] = []
-    max_id = ""
-    seen: set[str] = set()
+    users: list[IgUser] = list(resume_users or [])
+    max_id = resume_max_id or ""
+    seen: set[str] = {u.pk for u in users if u.pk}
     target = limit if limit > 0 else total_hint
     new_found = 0
 
@@ -199,16 +202,23 @@ def _paginate_friendships(
                 if stop_after_new > 0 and new_found >= stop_after_new:
                     if on_page:
                         on_page(len(users), target or len(users))
+                    if on_checkpoint:
+                        on_checkpoint(users, "")
                     return users
             if limit > 0 and len(users) >= limit:
                 if on_page:
                     on_page(len(users), target or len(users))
+                if on_checkpoint:
+                    on_checkpoint(users, "")
                 return users[:limit]
         if on_page:
             on_page(len(users), target)
-        max_id = result.get("next_max_id")
-        if not max_id:
+        next_max_id = result.get("next_max_id") or ""
+        if on_checkpoint:
+            on_checkpoint(users, next_max_id)
+        if not next_max_id:
             break
+        max_id = next_max_id
         interruptible_sleep(page_sleep, should_cancel)
 
     return users
@@ -227,6 +237,9 @@ def fetch_following(
     total_hint: int = 0,
     known_usernames: set[str] | None = None,
     stop_after_new: int = 0,
+    resume_max_id: str = "",
+    resume_users: list[IgUser] | None = None,
+    on_checkpoint: Callable[[list[IgUser], str], None] | None = None,
 ) -> list[IgUser]:
     """Paginer friendships/{pk}/following/ (limit=0 → tous)."""
     return _paginate_friendships(
@@ -242,6 +255,9 @@ def fetch_following(
         total_hint=total_hint,
         known_usernames=known_usernames,
         stop_after_new=stop_after_new,
+        resume_max_id=resume_max_id,
+        resume_users=resume_users,
+        on_checkpoint=on_checkpoint,
     )
 
 
@@ -253,7 +269,11 @@ def fetch_followers(
     page_sleep: float = 0.6,
     page_size: int = 200,
     should_cancel: Callable[[], bool] | None = None,
+    on_page: Callable[[int, int], None] | None = None,
     on_cooldown: Callable[[float], None] | None = None,
+    resume_max_id: str = "",
+    resume_users: list[IgUser] | None = None,
+    on_checkpoint: Callable[[list[IgUser], str], None] | None = None,
 ) -> list[IgUser]:
     """Paginer friendships/{pk}/followers/ (limit=0 → tous)."""
     return _paginate_friendships(
@@ -264,7 +284,11 @@ def fetch_followers(
         page_sleep=page_sleep,
         page_size=page_size,
         should_cancel=should_cancel,
+        on_page=on_page,
         on_cooldown=on_cooldown,
+        resume_max_id=resume_max_id,
+        resume_users=resume_users,
+        on_checkpoint=on_checkpoint,
     )
 
 
