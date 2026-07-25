@@ -374,6 +374,11 @@ body {
   min-height: calc(100vh - 4.5rem);
 }
 
+.page-settings {
+  height: calc(100vh - 4.5rem);
+  overflow: hidden;
+}
+
 .home-sidebar,
 .settings-sidebar {
   display: flex;
@@ -382,23 +387,62 @@ body {
   min-height: 0;
 }
 
-.settings-main {
+.settings-sidebar {
+  overflow: hidden;
+}
+
+.settings-session-card {
+  flex: 1;
   min-height: 0;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.settings-session-card .profile-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-bottom: 0;
+}
+
+.settings-main {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 0.85rem 1rem 0.9rem;
+  gap: 0.65rem;
 }
 
 .settings-main .config-form {
   flex: 1;
-}
-
-.settings-form-footer {
-  grid-column: 1 / -1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
-  padding-top: 0.25rem;
+}
+
+.settings-main > .panel-title {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.settings-form-footer {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0;
+  flex-shrink: 0;
+  margin-top: auto;
+}
+
+.settings-form-footer .btn-main {
+  width: auto;
+  min-width: 8rem;
+  margin-left: auto;
 }
 
 .page-graph {
@@ -974,16 +1018,30 @@ body {
 }
 
 .config-form.config-form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  align-content: stretch;
+}
+
+.config-panels {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
-  align-content: start;
+  gap: 0.65rem 0.85rem;
+  flex: 1;
+  min-height: 0;
+  align-content: stretch;
+}
+
+.config-panels > .config-fieldset {
+  min-height: 0;
+  overflow: auto;
 }
 
 .config-fieldset {
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 0.65rem 0.75rem 0.75rem;
+  padding: 0.55rem 0.7rem 0.65rem;
   margin: 0;
 }
 
@@ -996,9 +1054,71 @@ body {
   padding: 0 0.25rem;
 }
 
-.config-fieldset-nested {
-  margin-top: 0.65rem;
-  background: color-mix(in srgb, var(--surface) 92%, var(--border));
+.config-behavior {
+  flex-shrink: 0;
+  padding: 0.55rem 0.7rem 0.7rem;
+}
+
+.config-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.config-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.config-option:hover {
+  border-color: var(--border-light);
+  background: var(--surface-2);
+}
+
+.config-option:has(input:checked) {
+  border-color: color-mix(in srgb, var(--text) 35%, var(--border));
+  background: color-mix(in srgb, var(--surface-2) 70%, var(--bg));
+}
+
+.config-option input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  margin: 0.1rem 0 0;
+  flex-shrink: 0;
+  accent-color: var(--text);
+  cursor: pointer;
+}
+
+.config-option-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.config-option-title {
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.config-option-hint {
+  font-size: 0.65rem;
+  color: var(--dim);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .field.is-disabled {
@@ -1008,7 +1128,7 @@ body {
 
 .field {
   display: block;
-  margin-bottom: 0.55rem;
+  margin-bottom: 0.4rem;
 }
 
 .field:last-child {
@@ -1017,19 +1137,19 @@ body {
 
 .field-label {
   display: block;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   color: var(--muted);
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.15rem;
 }
 
 .field input:not([type="checkbox"]) {
   width: 100%;
-  padding: 0.45rem 0.55rem;
+  padding: 0.38rem 0.5rem;
   border: 1px solid var(--border);
   border-radius: 5px;
   background: var(--bg);
   color: var(--text);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-family: ui-monospace, monospace;
 }
 
@@ -1111,10 +1231,14 @@ body {
 }
 
 .field-hint {
-  margin: 0.35rem 0 0;
-  font-size: 0.68rem;
+  margin: 0.25rem 0 0.4rem;
+  font-size: 0.66rem;
   color: var(--dim);
   line-height: 1.35;
+}
+
+.field + .field-hint {
+  margin-top: 0.2rem;
 }
 
 .btn-sm {
@@ -2055,11 +2179,30 @@ a.change-user:hover {
     min-height: auto;
   }
 
-  .config-form.config-form-grid {
+  .page-settings {
+    height: auto;
+    overflow: visible;
+  }
+
+  .settings-main {
+    overflow: visible;
+  }
+
+  .config-panels {
     grid-template-columns: 1fr;
+  }
+
+  .config-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .home-history-card {
     max-height: 14rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .config-options {
+    grid-template-columns: 1fr;
   }
 }

@@ -24,107 +24,120 @@
     <section class="card settings-main">
       <h2 class="panel-title" data-i18n="settings.config">Configuration</h2>
       <form id="config-form" class="config-form config-form-grid">
-        <fieldset class="config-fieldset">
-          <legend data-i18n="settings.instagram">Instagram</legend>
-          <label class="field">
-            <span class="field-label" data-i18n="settings.sessionId">Session ID</span>
-            <div class="secret-input">
-              <input type="text" id="cfg-sessionid" name="sessionid" class="is-secret-masked" autocomplete="off" spellcheck="false" data-i18n-placeholder="settings.sessionPaste" placeholder="Coller le sessionid Instagram">
-              <button type="button" class="secret-toggle" data-secret-toggle="cfg-sessionid" aria-pressed="false" data-i18n-aria-label="settings.showSecret" aria-label="Afficher">
-                <span class="secret-toggle-icon" aria-hidden="true"></span>
-              </button>
-            </div>
-          </label>
-          <label class="field">
-            <span class="field-label" data-i18n="settings.userId">User ID</span>
-            <div class="secret-input">
-              <input type="text" id="cfg-ds-user-id" name="ds_user_id" class="is-secret-masked" autocomplete="off" spellcheck="false" data-i18n-placeholder="settings.userIdPaste" placeholder="Coller le ds_user_id">
-              <button type="button" class="secret-toggle" data-secret-toggle="cfg-ds-user-id" aria-pressed="false" data-i18n-aria-label="settings.showSecret" aria-label="Afficher">
-                <span class="secret-toggle-icon" aria-hidden="true"></span>
-              </button>
-            </div>
-          </label>
-          <p class="field-hint" data-i18n="settings.sessionHint">Colle sessionid / user id, puis « Tester la connexion ». En local, le test peut aussi lire Chrome/Edge/Firefox.</p>
-          <button type="button" id="btn-test-session" class="btn btn-ghost btn-sm btn-test-session">
-            <span class="btn-test-mark" aria-hidden="true"></span>
-            <span class="btn-test-label" data-i18n="settings.testSession">Tester la connexion</span>
-          </button>
-        </fieldset>
-
-        <fieldset class="config-fieldset">
-          <legend data-i18n="settings.scan">Scan</legend>
-          <p class="field-hint" data-i18n="settings.mutualsHint">Personnes que tu suis et qui te suivent aussi. Entre un nombre ou MAX.</p>
-          <label class="field">
-            <span class="field-label" data-i18n="settings.mutualsCount">Nombre de personnes suivies</span>
-            <input type="text" id="cfg-n-input" name="n" inputmode="numeric" data-i18n-placeholder="settings.mutualsPlaceholder" placeholder="MAX" value="MAX">
-          </label>
-          <label class="field">
-            <span class="field-label" data-i18n="settings.watchN">Abonnements suivis par personne</span>
-            <input type="text" id="cfg-watch-n-input" name="watch_n" inputmode="numeric" placeholder="MAX" value="MAX">
-          </label>
-          <p class="field-hint" data-i18n="settings.watchNHint">MAX = tous les abonnements de chaque mutuel. Un nombre = seulement les N plus récents.</p>
-          <fieldset class="config-fieldset config-fieldset-nested">
-            <legend data-i18n="settings.scanBehavior">Comportement</legend>
-            <label class="field field-checkbox">
-              <input type="checkbox" id="cfg-watch-following" name="watch_following" checked>
-              <span data-i18n="settings.watchFollowing">Analyser les abonnements de chaque mutuel</span>
+        <div class="config-panels">
+          <fieldset class="config-fieldset">
+            <legend data-i18n="settings.instagram">Instagram</legend>
+            <label class="field">
+              <span class="field-label" data-i18n="settings.sessionId">Session ID</span>
+              <div class="secret-input">
+                <input type="text" id="cfg-sessionid" name="sessionid" class="is-secret-masked" autocomplete="off" spellcheck="false" data-i18n-placeholder="settings.sessionPaste" placeholder="Coller le sessionid Instagram">
+                <button type="button" class="secret-toggle" data-secret-toggle="cfg-sessionid" aria-pressed="false" data-i18n-aria-label="settings.showSecret" aria-label="Afficher">
+                  <span class="secret-toggle-icon" aria-hidden="true"></span>
+                </button>
+              </div>
             </label>
-            <p class="field-hint" data-i18n="settings.watchFollowingHint">Désactivé = scan de ta liste mutuelle seulement (rapide, pas de graph social).</p>
-            <label class="field field-checkbox">
-              <input type="checkbox" id="cfg-refetch-mutuals" name="refetch_mutuals">
-              <span data-i18n="settings.refetchMutuals">Retélécharger la liste mutuelle à chaque scan</span>
+            <label class="field">
+              <span class="field-label" data-i18n="settings.userId">User ID</span>
+              <div class="secret-input">
+                <input type="text" id="cfg-ds-user-id" name="ds_user_id" class="is-secret-masked" autocomplete="off" spellcheck="false" data-i18n-placeholder="settings.userIdPaste" placeholder="Coller le ds_user_id">
+                <button type="button" class="secret-toggle" data-secret-toggle="cfg-ds-user-id" aria-pressed="false" data-i18n-aria-label="settings.showSecret" aria-label="Afficher">
+                  <span class="secret-toggle-icon" aria-hidden="true"></span>
+                </button>
+              </div>
             </label>
-            <p class="field-hint" data-i18n="settings.refetchMutualsHint">Par défaut : réutilise la liste si tes totaux IG n'ont pas changé.</p>
-            <label class="field field-checkbox">
-              <input type="checkbox" id="cfg-skip-unchanged" name="skip_unchanged_profiles" checked>
-              <span data-i18n="settings.skipUnchanged">Ignorer les mutuels inchangés (rapide)</span>
-            </label>
-            <p class="field-hint" data-i18n="settings.skipUnchangedHint">Désactivé = refetch complet de chaque mutuel à chaque scan (lent, plus fiable).</p>
-            <label class="field field-checkbox">
-              <input type="checkbox" id="cfg-partial-fetch" name="partial_fetch" checked>
-              <span data-i18n="settings.partialFetch">Fetch partiel si +N abonnements (rapide)</span>
-            </label>
-            <p class="field-hint" data-i18n="settings.partialFetchHint">Désactivé = toujours retélécharger toute la liste quand le compte a changé.</p>
+            <p class="field-hint" data-i18n="settings.sessionHint">Colle sessionid / user id, puis « Tester la connexion ». En local, le test peut aussi lire Chrome/Edge/Firefox.</p>
+            <button type="button" id="btn-test-session" class="btn btn-ghost btn-sm btn-test-session">
+              <span class="btn-test-mark" aria-hidden="true"></span>
+              <span class="btn-test-label" data-i18n="settings.testSession">Tester la connexion</span>
+            </button>
           </fieldset>
-          <label class="field">
-            <span class="field-label" data-i18n="settings.pageSleep">Pause API (secondes)</span>
-            <input type="number" id="cfg-page-sleep" name="page_sleep" min="0" step="0.1" value="0.6">
-          </label>
-          <label class="field">
-            <span class="field-label" data-i18n="settings.pageSize">Taille de page API</span>
-            <input type="number" id="cfg-page-size" name="page_size" min="12" max="200" step="1" value="200">
-          </label>
-          <p class="field-hint" data-i18n="settings.pageSizeHint">Abonnements demandés par requête (12–200). Instagram peut en renvoyer moins (~25).</p>
-        </fieldset>
 
-        {% if not web_mode %}
-        <fieldset class="config-fieldset">
-          <legend data-i18n="settings.schedule">Planification</legend>
-          <label class="field">
-            <span class="field-label" data-i18n="settings.scheduleInterval">Intervalle (minutes)</span>
-            <input type="number" id="cfg-schedule-interval" name="schedule_interval_minutes" min="0" step="1" value="0">
-          </label>
-          <p class="field-hint" data-i18n="settings.scheduleIntervalHint">0 = désactivé. Relance un scan automatiquement tant que le serveur tourne.</p>
-          <label class="field field-checkbox">
-            <input type="checkbox" id="cfg-autostart" name="autostart_on_boot">
-            <span data-i18n="settings.autostartOnBoot">Lancement au démarrage de l'ordinateur</span>
-          </label>
-          <p class="field-hint" data-i18n="settings.autostartHint">Lance instree serve automatiquement à la connexion (scans planifiés tant que le serveur tourne).</p>
-        </fieldset>
+          <fieldset class="config-fieldset">
+            <legend data-i18n="settings.scan">Scan</legend>
+            <p class="field-hint" data-i18n="settings.mutualsHint">Personnes que tu suis et qui te suivent aussi. Entre un nombre ou MAX.</p>
+            <label class="field">
+              <span class="field-label" data-i18n="settings.mutualsCount">Nombre de personnes suivies</span>
+              <input type="text" id="cfg-n-input" name="n" inputmode="numeric" data-i18n-placeholder="settings.mutualsPlaceholder" placeholder="MAX" value="MAX">
+            </label>
+            <label class="field">
+              <span class="field-label" data-i18n="settings.watchN">Abonnements suivis par personne</span>
+              <input type="text" id="cfg-watch-n-input" name="watch_n" inputmode="numeric" placeholder="MAX" value="MAX">
+            </label>
+            <p class="field-hint" data-i18n="settings.watchNHint">MAX = tous les abonnements de chaque mutuel. Un nombre = seulement les N plus récents.</p>
+            <label class="field">
+              <span class="field-label" data-i18n="settings.pageSleep">Pause API (secondes)</span>
+              <input type="number" id="cfg-page-sleep" name="page_sleep" min="0" step="0.1" value="0.6">
+            </label>
+            <label class="field">
+              <span class="field-label" data-i18n="settings.pageSize">Taille de page API</span>
+              <input type="number" id="cfg-page-size" name="page_size" min="12" max="200" step="1" value="200">
+            </label>
+            <p class="field-hint" data-i18n="settings.pageSizeHint">Abonnements demandés par requête (12–200). Instagram peut en renvoyer moins (~25).</p>
+          </fieldset>
 
-        <fieldset class="config-fieldset">
-          <legend data-i18n="settings.webUi">Interface web</legend>
-          <label class="field">
-            <span class="field-label" data-i18n="settings.host">Hôte</span>
-            <input type="text" id="cfg-host" name="host" value="127.0.0.1">
-          </label>
-          <label class="field">
-            <span class="field-label" data-i18n="settings.port">Port</span>
-            <input type="number" id="cfg-port" name="port" min="1" max="65535" value="1488">
-          </label>
-          <p class="field-hint" data-i18n="settings.portHint">Un changement de port demande un redémarrage de instree serve.</p>
+          {% if not web_mode %}
+          <fieldset class="config-fieldset">
+            <legend data-i18n="settings.schedule">Planification</legend>
+            <label class="field">
+              <span class="field-label" data-i18n="settings.scheduleInterval">Intervalle (minutes)</span>
+              <input type="number" id="cfg-schedule-interval" name="schedule_interval_minutes" min="0" step="1" value="0">
+            </label>
+            <p class="field-hint" data-i18n="settings.scheduleIntervalHint">0 = désactivé. Relance un scan automatiquement tant que le serveur tourne.</p>
+            <label class="field field-checkbox">
+              <input type="checkbox" id="cfg-autostart" name="autostart_on_boot">
+              <span data-i18n="settings.autostartOnBoot">Lancement au démarrage de l'ordinateur</span>
+            </label>
+            <p class="field-hint" data-i18n="settings.autostartHint">Lance instree serve automatiquement à la connexion (scans planifiés tant que le serveur tourne).</p>
+          </fieldset>
+
+          <fieldset class="config-fieldset">
+            <legend data-i18n="settings.webUi">Interface web</legend>
+            <label class="field">
+              <span class="field-label" data-i18n="settings.host">Hôte</span>
+              <input type="text" id="cfg-host" name="host" value="127.0.0.1">
+            </label>
+            <label class="field">
+              <span class="field-label" data-i18n="settings.port">Port</span>
+              <input type="number" id="cfg-port" name="port" min="1" max="65535" value="1488">
+            </label>
+            <p class="field-hint" data-i18n="settings.portHint">Un changement de port demande un redémarrage de instree serve.</p>
+          </fieldset>
+          {% endif %}
+        </div>
+
+        <fieldset class="config-fieldset config-behavior">
+          <legend data-i18n="settings.scanBehavior">Comportement</legend>
+          <div class="config-options">
+            <label class="config-option">
+              <input type="checkbox" id="cfg-watch-following" name="watch_following" checked>
+              <span class="config-option-body">
+                <span class="config-option-title" data-i18n="settings.watchFollowing">Analyser les abonnements de chaque mutuel</span>
+                <span class="config-option-hint" data-i18n="settings.watchFollowingHint">Désactivé = scan de ta liste mutuelle seulement (rapide, pas de graph social).</span>
+              </span>
+            </label>
+            <label class="config-option">
+              <input type="checkbox" id="cfg-refetch-mutuals" name="refetch_mutuals">
+              <span class="config-option-body">
+                <span class="config-option-title" data-i18n="settings.refetchMutuals">Retélécharger la liste mutuelle à chaque scan</span>
+                <span class="config-option-hint" data-i18n="settings.refetchMutualsHint">Par défaut : réutilise la liste si tes totaux IG n'ont pas changé.</span>
+              </span>
+            </label>
+            <label class="config-option">
+              <input type="checkbox" id="cfg-skip-unchanged" name="skip_unchanged_profiles" checked>
+              <span class="config-option-body">
+                <span class="config-option-title" data-i18n="settings.skipUnchanged">Ignorer les mutuels inchangés (rapide)</span>
+                <span class="config-option-hint" data-i18n="settings.skipUnchangedHint">Désactivé = refetch complet de chaque mutuel à chaque scan (lent, plus fiable).</span>
+              </span>
+            </label>
+            <label class="config-option">
+              <input type="checkbox" id="cfg-partial-fetch" name="partial_fetch" checked>
+              <span class="config-option-body">
+                <span class="config-option-title" data-i18n="settings.partialFetch">Fetch partiel si +N abonnements (rapide)</span>
+                <span class="config-option-hint" data-i18n="settings.partialFetchHint">Désactivé = toujours retélécharger toute la liste quand le compte a changé.</span>
+              </span>
+            </label>
+          </div>
         </fieldset>
-        {% endif %}
 
         <div class="settings-form-footer">
           <div id="config-msg" class="config-msg hidden" role="status"></div>
