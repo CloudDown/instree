@@ -32,6 +32,7 @@ from instree.core.store import (
     init_db,
     list_scans,
     scan_neighbors,
+    scan_resume_info,
 )
 from instree.core.transfer import export_profile_zip, import_profile_zip
 from instree.web.auth import (
@@ -324,6 +325,7 @@ def create_app() -> FastAPI:
             "profiles": list_profiles(),
             "web_mode": is_web_mode(),
             "auth_user": user,
+            "scan_resume": scan_resume_info(),
         }
 
     @app.get("/api/profiles")

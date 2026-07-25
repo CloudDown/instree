@@ -40,6 +40,7 @@ const elJobWatchBlock = document.getElementById("job-watch-block");
 const elJobTextWatch = document.getElementById("job-text-watch");
 const elJobBarWatch = document.getElementById("job-bar-watch");
 const btnScan = document.getElementById("btn-scan");
+const elHomeScanTitle = document.getElementById("home-scan-title");
 const btnStopScan = document.getElementById("btn-stop-scan");
 const btnInit = document.getElementById("btn-init");
 
@@ -168,6 +169,32 @@ function formatScanDate(scannedAt) {
 async function fetchStatus() {
   const r = await fetch("/api/status");
   return r.json();
+}
+
+let scanResume = { can_resume: false };
+
+function renderScanAction() {
+  if (!btnScan) return;
+  const resume = Boolean(scanResume?.can_resume);
+  const btnKey = resume ? "actions.resumeBtn" : "actions.scanBtn";
+  const titleKey = resume ? "actions.resumeTitle" : "actions.title";
+  btnScan.dataset.i18n = btnKey;
+  btnScan.textContent = t(btnKey);
+  if (elHomeScanTitle) {
+    elHomeScanTitle.dataset.i18n = titleKey;
+    elHomeScanTitle.textContent = t(titleKey);
+  }
+}
+
+async function refreshScanAction() {
+  try {
+    const status = await fetchStatus();
+    scanResume = status.scan_resume || { can_resume: false };
+    renderScanAction();
+    return status;
+  } catch {
+    return null;
+  }
 }
 
 function setControlsDisabled(disabled) {
@@ -876,6 +903,10 @@ function startPolling() {
     const status = await fetchStatus();
     renderSession(status.session);
     renderJob(status.job);
+    if (status.scan_resume) {
+      scanResume = status.scan_resume;
+      renderScanAction();
+    }
   }, 800);
 }
 
@@ -993,6 +1024,10 @@ function renderJob(job) {
 
   const msg = jobMessage(job);
   const wasActive = isJobActive(lastJobState);
+
+  if (["done", "error", "cancelled"].includes(job.state) && wasActive) {
+    void refreshScanAction();
+  }
 
   if (job.state === "done" && wasActive) {
     elJobPanel.classList.remove("hidden");
@@ -1143,9 +1178,14 @@ async function initSettingsPage() {
 
 async function initChangesPage() {
   await loadScans();
+  await refreshScanAction();
   if (btnScan) {
     btnScan.onclick = async () => {
-      const ok = await askConfirm(t("actions.confirmScanTitle"), t("actions.confirmScanMsg"));
+      const resume = Boolean(scanResume?.can_resume);
+      const ok = await askConfirm(
+        t(resume ? "actions.confirmResumeTitle" : "actions.confirmScanTitle"),
+        t(resume ? "actions.confirmResumeMsg" : "actions.confirmScanMsg"),
+      );
       if (ok) triggerScan({ init: false });
     };
   }
@@ -1195,6 +1235,7 @@ function initLangSwitch() {
 
 function onLocaleChange() {
   I18n.applyI18n();
+  renderScanAction();
   if (page === "settings") loadConfig();
   if (page === "changes" && currentId) showScan(currentId);
   else if (page === "changes") loadScans();

@@ -9,6 +9,7 @@
   const elSearchForm = document.getElementById("graph-search-form");
   const elSearchInput = document.getElementById("graph-search-input");
   const elSearchMsg = document.getElementById("graph-search-msg");
+  const elNoLinks = document.getElementById("graph-no-links");
 
   const STORAGE_KEY = "instree.graph.display";
 
@@ -610,6 +611,14 @@
     graph.d3Force("center", null);
 
     updateStats(visible);
+
+    if (elNoLinks) {
+      const needHint =
+        (data.stats?.social_edges ?? data.links?.length ?? 0) === 0 &&
+        (data.stats?.mutuals ?? 0) > 0;
+      elNoLinks.textContent = needHint ? t("graph.noLinksHint") : "";
+      elNoLinks.classList.toggle("hidden", !needHint);
+    }
 
     let fitted = false;
     graph.onEngineStop(() => {

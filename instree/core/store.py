@@ -133,6 +133,42 @@ def _migrate(conn: sqlite3.Connection) -> None:
         )
     if "pagination_cursor" not in cols:
         conn.execute("ALTER TABLE person_snapshots ADD COLUMN pagination_cursor TEXT NOT NULL DEFAULT ''")
+    _migrate_person_snapshots_scan_ref(conn)
+
+
+def _migrate_person_snapshots_scan_ref(conn: sqlite3.Connection) -> None:
+    """Checkpoints en cours : updated_scan_id nullable (scan_id=0 violait la FK)."""
+    info = conn.execute("PRAGMA table_info(person_snapshots)").fetchall()
+    if not info:
+        return
+    scan_col = next((r for r in info if r[1] == "updated_scan_id"), None)
+    if not scan_col:
+        return
+    notnull = bool(scan_col[3])
+    has_fk = bool(conn.execute("PRAGMA foreign_key_list(person_snapshots)").fetchall())
+    if not notnull and not has_fk:
+        return
+    conn.executescript("""
+        CREATE TABLE person_snapshots_new (
+            person_username TEXT PRIMARY KEY,
+            following_count INTEGER NOT NULL,
+            tracked_count INTEGER NOT NULL,
+            updated_scan_id INTEGER,
+            is_complete INTEGER NOT NULL DEFAULT 1,
+            pagination_cursor TEXT NOT NULL DEFAULT ''
+        );
+        INSERT INTO person_snapshots_new
+            (person_username, following_count, tracked_count, updated_scan_id,
+             is_complete, pagination_cursor)
+        SELECT person_username, following_count, tracked_count,
+               CASE WHEN updated_scan_id IS NULL OR updated_scan_id = 0 THEN NULL
+                    ELSE updated_scan_id END,
+               COALESCE(is_complete, 1),
+               COALESCE(pagination_cursor, '')
+        FROM person_snapshots;
+        DROP TABLE person_snapshots;
+        ALTER TABLE person_snapshots_new RENAME TO person_snapshots;
+    """)
 
 
 def init_db() -> None:
@@ -174,8 +210,9 @@ def init_db() -> None:
                 person_username TEXT PRIMARY KEY,
                 following_count INTEGER NOT NULL,
                 tracked_count INTEGER NOT NULL,
-                updated_scan_id INTEGER NOT NULL,
-                FOREIGN KEY (updated_scan_id) REFERENCES scans(id)
+                updated_scan_id INTEGER,
+                is_complete INTEGER NOT NULL DEFAULT 1,
+                pagination_cursor TEXT NOT NULL DEFAULT ''
             );
             CREATE TABLE IF NOT EXISTS person_following (
                 person_username TEXT NOT NULL,
@@ -356,7 +393,7 @@ def _save_person_snapshot_conn(
     person_username: str,
     entries: list[FollowingEntry],
     following_count: int,
-    scan_id: int,
+    scan_id: int | None,
     *,
     is_complete: bool = True,
     pagination_cursor: str = "",
@@ -410,7 +447,7 @@ def save_person_snapshot(
     entries: list[FollowingEntry],
     following_count: int,
     *,
-    scan_id: int = 0,
+    scan_id: int | None = None,
     is_complete: bool = True,
     pagination_cursor: str = "",
 ) -> None:
@@ -428,6 +465,20 @@ def save_person_snapshot(
         verified = [e.username for e in entries if e.is_verified]
         if verified:
             _remember_verified_conn(conn, verified)
+        conn.commit()
+
+
+def attach_person_snapshots_to_scan(scan_id: int) -> None:
+    """Lie les checkpoints en cours (updated_scan_id NULL) au scan final."""
+    with _connect() as conn:
+        conn.execute(
+            """
+            UPDATE person_snapshots
+            SET updated_scan_id = ?
+            WHERE updated_scan_id IS NULL
+            """,
+            (scan_id,),
+        )
         conn.commit()
 
 
@@ -466,6 +517,33 @@ def get_scan_draft() -> ScanDraft | None:
             following_max_id=str(row["following_max_id"] or ""),
             followers_max_id=str(row["followers_max_id"] or ""),
         )
+
+
+def scan_resume_info() -> dict:
+    """Scan interrompu : brouillon global et/ou snapshots mutuels incomplets."""
+    with _connect() as conn:
+        draft = conn.execute(
+            "SELECT phase, is_baseline FROM scan_drafts WHERE id = 1"
+        ).fetchone()
+        draft_rows = conn.execute("SELECT COUNT(*) FROM draft_friendships").fetchone()[0]
+        incomplete = conn.execute(
+            "SELECT COUNT(*) FROM person_snapshots WHERE is_complete = 0"
+        ).fetchone()[0]
+        complete_watch = conn.execute(
+            "SELECT COUNT(*) FROM person_snapshots WHERE is_complete = 1"
+        ).fetchone()[0]
+
+    can = draft is not None or draft_rows > 0 or incomplete > 0
+    phase = str(draft["phase"]) if draft else None
+    if can and not phase and incomplete > 0:
+        phase = "watch"
+    return {
+        "can_resume": bool(can),
+        "phase": phase,
+        "is_baseline": bool(draft["is_baseline"]) if draft else False,
+        "incomplete_profiles": int(incomplete),
+        "complete_profiles": int(complete_watch),
+    }
 
 
 def upsert_scan_draft(draft: ScanDraft) -> None:
@@ -1070,12 +1148,11 @@ def get_graph_data(groups: int | None = None) -> dict | None:
                 continue
             seen.add(key)
             if ca == cb:
-                if ca < 0:
-                    continue
                 links.append({"source": key[0], "target": key[1], "kind": "social"})
             else:
                 links.append({"source": key[0], "target": key[1], "kind": "bridge"})
 
+        edge_rows = len(directed)
         return {
             "scan": {
                 "id": scan["id"],
@@ -1093,5 +1170,6 @@ def get_graph_data(groups: int | None = None) -> dict | None:
                 "clusters": len(social_clusters),
                 "max_groups": max(max_groups, len(social_clusters), 1),
                 "groups_mode": groups_mode,
+                "social_edges": edge_rows,
             },
         }

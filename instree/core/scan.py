@@ -40,6 +40,7 @@ from instree.core.store import (
     save_draft_mutuals,
     save_person_snapshot,
     save_scan,
+    attach_person_snapshots_to_scan,
     upsert_scan_draft,
 )
 
@@ -197,7 +198,7 @@ def _checkpoint(
         username,
         live,
         following_count,
-        scan_id=0,
+        scan_id=None,
         is_complete=is_complete,
         pagination_cursor=pagination_cursor,
     )
@@ -820,6 +821,7 @@ def run_scan(
         person_snapshots=None,
     )
     scan_id, journal_path = save_scan(result, following)
+    attach_person_snapshots_to_scan(scan_id)
 
     # Mettre à jour updated_scan_id des snapshots déjà présents
     if person_snapshots:
