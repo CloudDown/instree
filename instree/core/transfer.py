@@ -14,6 +14,7 @@ from instree.core.config import (
     _format_local_toml,
     _format_profile_settings_toml,
     _read_toml,
+    _scan_behavior,
     _validate_profile_id,
     _write_text,
     create_profile,
@@ -181,6 +182,7 @@ def import_profile_zip(
                 schedule_interval_minutes=parse_interval_minutes(
                     schedule.get("interval_minutes", 0)
                 ),
+                **_scan_behavior(scan),
             ),
         )
 

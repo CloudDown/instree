@@ -20,6 +20,10 @@ const elCfgSessionid = document.getElementById("cfg-sessionid");
 const elCfgDsUserId = document.getElementById("cfg-ds-user-id");
 const elCfgNInput = document.getElementById("cfg-n-input");
 const elCfgWatchNInput = document.getElementById("cfg-watch-n-input");
+const elCfgWatchFollowing = document.getElementById("cfg-watch-following");
+const elCfgRefetchMutuals = document.getElementById("cfg-refetch-mutuals");
+const elCfgSkipUnchanged = document.getElementById("cfg-skip-unchanged");
+const elCfgPartialFetch = document.getElementById("cfg-partial-fetch");
 const elCfgPageSleep = document.getElementById("cfg-page-sleep");
 const elCfgPageSize = document.getElementById("cfg-page-size");
 const elCfgScheduleInterval = document.getElementById("cfg-schedule-interval");
@@ -273,10 +277,30 @@ function setSecretValue(input, value, { masked = true } = {}) {
   });
 }
 
+function syncWatchFollowingUi() {
+  if (!elCfgWatchFollowing || !elCfgWatchNInput) return;
+  const enabled = elCfgWatchFollowing.checked;
+  elCfgWatchNInput.disabled = !enabled;
+  elCfgWatchNInput.closest(".field")?.classList.toggle("is-disabled", !enabled);
+}
+
 function fillConfigForm(config) {
   if (!configForm) return;
   elCfgNInput.value = String(config.n ?? "MAX");
   elCfgWatchNInput.value = String(config.watch_n ?? "MAX");
+  if (elCfgWatchFollowing) {
+    elCfgWatchFollowing.checked = config.watch_following !== false;
+  }
+  if (elCfgRefetchMutuals) {
+    elCfgRefetchMutuals.checked = Boolean(config.refetch_mutuals);
+  }
+  if (elCfgSkipUnchanged) {
+    elCfgSkipUnchanged.checked = config.skip_unchanged_profiles !== false;
+  }
+  if (elCfgPartialFetch) {
+    elCfgPartialFetch.checked = config.partial_fetch !== false;
+  }
+  syncWatchFollowingUi();
   elCfgPageSleep.value = config.page_sleep;
   elCfgPageSize.value = config.page_size ?? 200;
   if (elCfgScheduleInterval) {
@@ -537,6 +561,10 @@ async function saveConfig(e) {
     port: Number(elCfgPort?.value || 1488),
     autostart_on_boot: Boolean(elCfgAutostart?.checked),
     schedule_interval_minutes: Number(elCfgScheduleInterval?.value || 0),
+    watch_following: Boolean(elCfgWatchFollowing?.checked),
+    refetch_mutuals: Boolean(elCfgRefetchMutuals?.checked),
+    skip_unchanged_profiles: Boolean(elCfgSkipUnchanged?.checked),
+    partial_fetch: Boolean(elCfgPartialFetch?.checked),
     sessionid: pastedSession,
     ds_user_id: pastedUserId,
   };
@@ -1035,6 +1063,7 @@ function renderJob(job) {
     if (elJobTextProfiles) elJobTextProfiles.textContent = msg;
     if (elJobWatchBlock) elJobWatchBlock.classList.add("hidden");
     lastJobState = "done";
+    if (page === "changes") void loadScans();
     setTimeout(() => {
       elJobPanel.classList.add("hidden");
       fetch("/api/scan/reset", { method: "POST" });
@@ -1082,10 +1111,17 @@ async function triggerScan(body) {
   const job = await res.json();
   renderJob(job);
   startPolling();
+  if (body.init && page === "changes") {
+    currentId = null;
+    await loadScans();
+  }
 }
 
 async function initSettingsPage() {
   initSecretToggles();
+  if (elCfgWatchFollowing) {
+    elCfgWatchFollowing.addEventListener("change", syncWatchFollowingUi);
+  }
   await loadConfig();
   if (configForm) configForm.addEventListener("submit", saveConfig);
   if (btnProfileAdd) btnProfileAdd.onclick = () => addProfile();

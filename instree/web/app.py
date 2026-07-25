@@ -67,6 +67,10 @@ class ConfigUpdate(BaseModel):
     sessionid: str = ""
     ds_user_id: str = ""
     profile_label: str = ""
+    watch_following: bool = True
+    refetch_mutuals: bool = False
+    skip_unchanged_profiles: bool = True
+    partial_fetch: bool = True
 
 
 class ProfileCreate(BaseModel):
@@ -454,6 +458,10 @@ def create_app() -> FastAPI:
                 sessionid=body.sessionid or None,
                 ds_user_id=body.ds_user_id or None,
                 profile_label=body.profile_label or None,
+                watch_following=body.watch_following,
+                refetch_mutuals=body.refetch_mutuals,
+                skip_unchanged_profiles=body.skip_unchanged_profiles,
+                partial_fetch=body.partial_fetch,
             )
         except (ValueError, OSError) as e:
             raise HTTPException(400, str(e)) from e

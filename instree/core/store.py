@@ -497,8 +497,22 @@ def clear_person_watch_data() -> None:
         conn.commit()
 
 
+def clear_scan_history() -> None:
+    """Efface l'historique des scans (DB + fichiers journal)."""
+    with _connect() as conn:
+        conn.execute("DELETE FROM changes")
+        conn.execute("DELETE FROM following")
+        conn.execute("DELETE FROM scans")
+        conn.commit()
+    jdir = journal_dir()
+    if jdir.is_dir():
+        for path in jdir.glob("*.log"):
+            path.unlink(missing_ok=True)
+
+
 def reset_baseline_state() -> None:
-    """Brouillon de reprise + données watch par mutuel — repartir de zéro."""
+    """Repartir de zéro : historique, brouillon, données watch par mutuel."""
+    clear_scan_history()
     clear_scan_draft()
     clear_person_watch_data()
 

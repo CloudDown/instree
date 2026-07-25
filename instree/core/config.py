@@ -273,6 +273,31 @@ def parse_limit(raw) -> int:
     raise ValueError(f"limite invalide : {raw!r} (utilise un nombre ou MAX)")
 
 
+def _parse_bool(raw, *, default: bool = True) -> bool:
+    if raw is None:
+        return default
+    if isinstance(raw, bool):
+        return raw
+    s = str(raw).strip().lower()
+    if s in ("1", "true", "yes", "on"):
+        return True
+    if s in ("0", "false", "no", "off"):
+        return False
+    return default
+
+
+def _scan_behavior(scan: dict | None) -> dict[str, bool]:
+    scan = scan if isinstance(scan, dict) else {}
+    return {
+        "watch_following": _parse_bool(scan.get("watch_following"), default=True),
+        "refetch_mutuals": _parse_bool(scan.get("refetch_mutuals"), default=False),
+        "skip_unchanged_profiles": _parse_bool(
+            scan.get("skip_unchanged_profiles"), default=True
+        ),
+        "partial_fetch": _parse_bool(scan.get("partial_fetch"), default=True),
+    }
+
+
 def parse_page_size(raw) -> int:
     """Taille de page API friendships (Instagram peut renvoyer moins)."""
     if isinstance(raw, bool):
@@ -354,6 +379,10 @@ class Settings:
     port: int = 1488
     autostart_on_boot: bool = False
     schedule_interval_minutes: int = 0
+    watch_following: bool = True
+    refetch_mutuals: bool = False
+    skip_unchanged_profiles: bool = True
+    partial_fetch: bool = True
     profile_id: str = _DEFAULT_PROFILE
     profile_label: str = "Session 1"
 
@@ -388,6 +417,10 @@ def _format_profile_settings_toml(
     page_sleep: float,
     page_size: int,
     schedule_interval_minutes: int,
+    watch_following: bool = True,
+    refetch_mutuals: bool = False,
+    skip_unchanged_profiles: bool = True,
+    partial_fetch: bool = True,
     ig_username: str = "",
 ) -> str:
     return f"""# Instree — paramètres de session (profil)
@@ -404,6 +437,10 @@ watch_n = {_toml_limit(watch_n)}
 max_person_following = {_toml_limit(max_person_following)}
 page_sleep = {page_sleep}
 page_size = {page_size}
+watch_following = {"true" if watch_following else "false"}
+refetch_mutuals = {"true" if refetch_mutuals else "false"}
+skip_unchanged_profiles = {"true" if skip_unchanged_profiles else "false"}
+partial_fetch = {"true" if partial_fetch else "false"}
 
 [schedule]
 interval_minutes = {schedule_interval_minutes}
@@ -490,6 +527,7 @@ def ensure_profiles_migrated() -> None:
                 schedule_interval_minutes=parse_interval_minutes(
                     schedule.get("interval_minutes", 0)
                 ),
+                **_scan_behavior(scan),
             ),
         )
 
@@ -560,6 +598,7 @@ def ensure_profiles_migrated() -> None:
                     page_sleep=0.6,
                     page_size=200,
                     schedule_interval_minutes=0,
+                    **_scan_behavior({}),
                 ),
             )
 
@@ -645,6 +684,7 @@ def remember_profile_ig_username(username: str, profile_id: str | None = None) -
             schedule_interval_minutes=parse_interval_minutes(
                 schedule.get("interval_minutes", 0)
             ),
+            **_scan_behavior(scan),
         ),
     )
 
@@ -720,6 +760,7 @@ def rename_profile(profile_id: str, label: str) -> None:
             schedule_interval_minutes=parse_interval_minutes(
                 schedule.get("interval_minutes", 0)
             ),
+            **_scan_behavior(scan),
         ),
     )
 
@@ -791,6 +832,7 @@ def load_settings() -> Settings:
         schedule_interval_minutes=parse_interval_minutes(
             schedule.get("interval_minutes", 0)
         ),
+        **_scan_behavior(scan),
         profile_id=pid,
         profile_label=str(profile_meta.get("label") or pid).strip() or pid,
     )
@@ -812,6 +854,10 @@ def config_for_api() -> dict:
         "port": s.port,
         "autostart_on_boot": s.autostart_on_boot,
         "schedule_interval_minutes": s.schedule_interval_minutes,
+        "watch_following": s.watch_following,
+        "refetch_mutuals": s.refetch_mutuals,
+        "skip_unchanged_profiles": s.skip_unchanged_profiles,
+        "partial_fetch": s.partial_fetch,
         "sessionid": s.sessionid,
         "ds_user_id": s.ds_user_id,
         "sessionid_set": bool(s.sessionid),
@@ -835,6 +881,10 @@ def save_config(
     sessionid: str | None = None,
     ds_user_id: str | None = None,
     profile_label: str | None = None,
+    watch_following: bool | None = None,
+    refetch_mutuals: bool | None = None,
+    skip_unchanged_profiles: bool | None = None,
+    partial_fetch: bool | None = None,
 ) -> None:
     """Écrit le profil actif + la config web globale."""
     ensure_profiles_migrated()
@@ -899,6 +949,24 @@ def save_config(
             page_sleep=max(0.0, float(page_sleep)),
             page_size=parse_page_size(page_size),
             schedule_interval_minutes=interval,
+            watch_following=(
+                watch_following
+                if watch_following is not None
+                else existing.watch_following
+            ),
+            refetch_mutuals=(
+                refetch_mutuals
+                if refetch_mutuals is not None
+                else existing.refetch_mutuals
+            ),
+            skip_unchanged_profiles=(
+                skip_unchanged_profiles
+                if skip_unchanged_profiles is not None
+                else existing.skip_unchanged_profiles
+            ),
+            partial_fetch=(
+                partial_fetch if partial_fetch is not None else existing.partial_fetch
+            ),
         ),
     )
 

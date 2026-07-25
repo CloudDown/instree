@@ -996,6 +996,16 @@ body {
   padding: 0 0.25rem;
 }
 
+.config-fieldset-nested {
+  margin-top: 0.65rem;
+  background: color-mix(in srgb, var(--surface) 92%, var(--border));
+}
+
+.field.is-disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
 .field {
   display: block;
   margin-bottom: 0.55rem;

@@ -337,6 +337,8 @@ def _watch_persons(
     page_sleep: float,
     page_size: int,
     new_usernames: set[str],
+    skip_unchanged_profiles: bool = True,
+    partial_fetch: bool = True,
     on_progress=None,
     should_cancel: Callable[[], bool] | None = None,
     on_cooldown: Callable[[float], None] | None = None,
@@ -384,17 +386,21 @@ def _watch_persons(
 
         snapshot = get_person_snapshot(profile.username)
         # Reprise : snapshot complet → skip ; incomplet → reprendre le fetch
-        need_baseline = (
-            snapshot is None
-            or profile.username in new_usernames
-            or (snapshot is not None and not snapshot.is_complete)
-        )
-        need_diff = (
-            not need_baseline
-            and snapshot is not None
-            and snapshot.is_complete
-            and profile.following_count != snapshot.following_count
-        )
+        if skip_unchanged_profiles:
+            need_baseline = (
+                snapshot is None
+                or profile.username in new_usernames
+                or (snapshot is not None and not snapshot.is_complete)
+            )
+            need_diff = (
+                not need_baseline
+                and snapshot is not None
+                and snapshot.is_complete
+                and profile.following_count != snapshot.following_count
+            )
+        else:
+            need_baseline = True
+            need_diff = False
 
         if need_baseline or need_diff:
             phase = "baseline" if need_baseline else "fetch"
@@ -429,7 +435,7 @@ def _watch_persons(
                         username=profile.username,
                         total_hint=total_hint,
                         known_usernames=stored_set,
-                        stop_after_new=delta,
+                        stop_after_new=delta if partial_fetch else 0,
                         following_count=profile.following_count,
                     )
                     added = [e for e in partial if e.username not in stored_set]
@@ -687,6 +693,10 @@ def run_scan(
         or profile.follower_count != old_followers
     )
     need_list = is_baseline or not stored_list or counts_changed
+    if settings.refetch_mutuals and not (
+        draft and draft.phase == "watch" and has_draft_mutuals()
+    ):
+        need_list = True
 
     added: list[FollowingEntry] = []
     removed: list[FollowingEntry] = []
@@ -761,18 +771,25 @@ def run_scan(
 
     new_usernames = {a.username for a in added}
 
-    person_changes, following, person_snapshots = _watch_persons(
-        ig,
-        live,
-        watch_n=settings.watch_n,
-        max_person_following=settings.max_person_following,
-        page_sleep=settings.page_sleep,
-        page_size=settings.page_size,
-        new_usernames=new_usernames,
-        on_progress=on_progress,
-        should_cancel=should_cancel,
-        on_cooldown=on_cooldown,
-    )
+    if settings.watch_following:
+        person_changes, following, person_snapshots = _watch_persons(
+            ig,
+            live,
+            watch_n=settings.watch_n,
+            max_person_following=settings.max_person_following,
+            page_sleep=settings.page_sleep,
+            page_size=settings.page_size,
+            new_usernames=new_usernames,
+            skip_unchanged_profiles=settings.skip_unchanged_profiles,
+            partial_fetch=settings.partial_fetch,
+            on_progress=on_progress,
+            should_cancel=should_cancel,
+            on_cooldown=on_cooldown,
+        )
+    else:
+        person_changes = []
+        following = list(live)
+        person_snapshots = []
 
     person_added = sum(1 for c in person_changes if c.op == "sub_add")
     person_removed = sum(1 for c in person_changes if c.op == "sub_remove")

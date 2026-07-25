@@ -63,6 +63,29 @@
             <input type="text" id="cfg-watch-n-input" name="watch_n" inputmode="numeric" placeholder="MAX" value="MAX">
           </label>
           <p class="field-hint" data-i18n="settings.watchNHint">MAX = tous les abonnements de chaque mutuel. Un nombre = seulement les N plus récents.</p>
+          <fieldset class="config-fieldset config-fieldset-nested">
+            <legend data-i18n="settings.scanBehavior">Comportement</legend>
+            <label class="field field-checkbox">
+              <input type="checkbox" id="cfg-watch-following" name="watch_following" checked>
+              <span data-i18n="settings.watchFollowing">Analyser les abonnements de chaque mutuel</span>
+            </label>
+            <p class="field-hint" data-i18n="settings.watchFollowingHint">Désactivé = scan de ta liste mutuelle seulement (rapide, pas de graph social).</p>
+            <label class="field field-checkbox">
+              <input type="checkbox" id="cfg-refetch-mutuals" name="refetch_mutuals">
+              <span data-i18n="settings.refetchMutuals">Retélécharger la liste mutuelle à chaque scan</span>
+            </label>
+            <p class="field-hint" data-i18n="settings.refetchMutualsHint">Par défaut : réutilise la liste si tes totaux IG n'ont pas changé.</p>
+            <label class="field field-checkbox">
+              <input type="checkbox" id="cfg-skip-unchanged" name="skip_unchanged_profiles" checked>
+              <span data-i18n="settings.skipUnchanged">Ignorer les mutuels inchangés (rapide)</span>
+            </label>
+            <p class="field-hint" data-i18n="settings.skipUnchangedHint">Désactivé = refetch complet de chaque mutuel à chaque scan (lent, plus fiable).</p>
+            <label class="field field-checkbox">
+              <input type="checkbox" id="cfg-partial-fetch" name="partial_fetch" checked>
+              <span data-i18n="settings.partialFetch">Fetch partiel si +N abonnements (rapide)</span>
+            </label>
+            <p class="field-hint" data-i18n="settings.partialFetchHint">Désactivé = toujours retélécharger toute la liste quand le compte a changé.</p>
+          </fieldset>
           <label class="field">
             <span class="field-label" data-i18n="settings.pageSleep">Pause API (secondes)</span>
             <input type="number" id="cfg-page-sleep" name="page_sleep" min="0" step="0.1" value="0.6">

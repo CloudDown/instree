@@ -113,7 +113,7 @@ def main() -> None:
     p_scan.add_argument(
         "--init",
         action="store_true",
-        help="baseline complète (efface snapshots mutuels + brouillon)",
+        help="baseline complète (efface historique + snapshots mutuels + brouillon)",
     )
     p_scan.add_argument("-q", "--quiet", action="store_true", help="sans progression")
     p_scan.set_defaults(func=cmd_scan)
