@@ -438,6 +438,20 @@ def clear_scan_draft() -> None:
         conn.commit()
 
 
+def clear_person_watch_data() -> None:
+    """Efface snapshots et listes d'abonnements des mutuels suivis (baseline complète)."""
+    with _connect() as conn:
+        conn.execute("DELETE FROM person_following")
+        conn.execute("DELETE FROM person_snapshots")
+        conn.commit()
+
+
+def reset_baseline_state() -> None:
+    """Brouillon de reprise + données watch par mutuel — repartir de zéro."""
+    clear_scan_draft()
+    clear_person_watch_data()
+
+
 def get_scan_draft() -> ScanDraft | None:
     with _connect() as conn:
         row = conn.execute("SELECT * FROM scan_drafts WHERE id = 1").fetchone()

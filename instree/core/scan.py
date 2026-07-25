@@ -35,6 +35,7 @@ from instree.core.store import (
     latest_following,
     load_draft_friendships,
     load_draft_mutuals,
+    reset_baseline_state,
     save_draft_friendships,
     save_draft_mutuals,
     save_person_snapshot,
@@ -658,7 +659,7 @@ def run_scan(
         raise RuntimeError(f"Impossible de charger @{username} : {e}") from e
 
     if init:
-        clear_scan_draft()
+        reset_baseline_state()
 
     draft = get_scan_draft()
     if draft and draft.account_username != profile.username:

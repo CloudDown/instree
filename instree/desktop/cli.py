@@ -110,7 +110,11 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_scan = sub.add_parser("scan", help="scanner les abonnements")
-    p_scan.add_argument("--init", action="store_true", help="baseline complète")
+    p_scan.add_argument(
+        "--init",
+        action="store_true",
+        help="baseline complète (efface snapshots mutuels + brouillon)",
+    )
     p_scan.add_argument("-q", "--quiet", action="store_true", help="sans progression")
     p_scan.set_defaults(func=cmd_scan)
 
