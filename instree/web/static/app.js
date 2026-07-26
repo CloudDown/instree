@@ -47,6 +47,8 @@ const btnScan = document.getElementById("btn-scan");
 const elHomeScanTitle = document.getElementById("home-scan-title");
 const btnStopScan = document.getElementById("btn-stop-scan");
 const btnInit = document.getElementById("btn-init");
+const elWebScheduleHint = document.getElementById("web-schedule-hint");
+const elWebBaselinePending = document.getElementById("web-baseline-pending");
 
 const elDate = document.getElementById("scan-date");
 const elMeta = document.getElementById("scan-meta");
@@ -176,6 +178,8 @@ async function fetchStatus() {
 }
 
 let scanResume = { can_resume: false };
+let latestJob = { state: "idle", is_baseline: false };
+let latestWebMode = document.body.dataset.webMode === "true";
 
 function renderScanAction() {
   if (!btnScan) return;
@@ -190,11 +194,29 @@ function renderScanAction() {
   }
 }
 
+function renderWebSchedule(status) {
+  if (!elWebScheduleHint && !elWebBaselinePending) return;
+  const sched = status?.scan_schedule;
+  if (elWebScheduleHint && sched) {
+    elWebScheduleHint.textContent = t("webSchedule.hint", {
+      hour: sched.daily_hour,
+      tz: sched.timezone,
+    });
+  }
+  if (elWebBaselinePending) {
+    elWebBaselinePending.classList.toggle("hidden", !status?.pending_baseline);
+  }
+}
+
 async function refreshScanAction() {
   try {
     const status = await fetchStatus();
+    latestWebMode = Boolean(status.web_mode);
+    latestJob = status.job || latestJob;
     scanResume = status.scan_resume || { can_resume: false };
     renderScanAction();
+    renderWebSchedule(status);
+    if (page === "changes") renderHistory();
     return status;
   } catch {
     return null;
@@ -841,8 +863,21 @@ function applyChangesSearch() {
 
 function renderHistory() {
   if (!elHistory || !elHistoryEmpty) return;
+  if (
+    latestWebMode &&
+    isJobActive(latestJob.state) &&
+    (latestJob.is_baseline || scanResume?.is_baseline)
+  ) {
+    elHistoryEmpty.classList.remove("hidden");
+    elHistoryEmpty.textContent = t("webSchedule.baselineInProgress");
+    elHistory.innerHTML = "";
+    return;
+  }
   const empty = scans.length === 0;
   elHistoryEmpty.classList.toggle("hidden", !empty);
+  if (empty) {
+    elHistoryEmpty.textContent = t("changes.historyEmpty");
+  }
   elHistory.innerHTML = [...scans]
     .reverse()
     .map((s) => {
@@ -929,12 +964,16 @@ function startPolling() {
   if (pollTimer) return;
   pollTimer = setInterval(async () => {
     const status = await fetchStatus();
+    latestWebMode = Boolean(status.web_mode);
+    latestJob = status.job || latestJob;
     renderSession(status.session);
     renderJob(status.job);
+    if (status.web_mode) renderWebSchedule(status);
     if (status.scan_resume) {
       scanResume = status.scan_resume;
       renderScanAction();
     }
+    if (page === "changes") renderHistory();
   }, 800);
 }
 
@@ -974,6 +1013,7 @@ function isJobActive(state) {
 
 function renderJob(job) {
   if (!elJobPanel) return;
+  latestJob = job || latestJob;
 
   if (isJobActive(job.state)) {
     setControlsDisabled(true);
@@ -1041,7 +1081,12 @@ function renderJob(job) {
       elJobBarWatch.style.width = `${Math.min(pct, 100)}%`;
     }
 
+    const justStarted = !isJobActive(lastJobState);
     startPolling();
+    if (justStarted && page === "changes") {
+      void loadScans();
+    }
+    if (page === "changes") renderHistory();
     lastJobState = job.state;
     return;
   }
@@ -1068,6 +1113,14 @@ function renderJob(job) {
       elJobPanel.classList.add("hidden");
       fetch("/api/scan/reset", { method: "POST" });
     }, 3000);
+  } else if (
+    ["done", "error", "cancelled"].includes(job.state) &&
+    !wasActive &&
+    !isJobActive(lastJobState)
+  ) {
+    elJobPanel.classList.add("hidden");
+    void fetch("/api/scan/reset", { method: "POST" });
+    lastJobState = "idle";
   } else if (job.state === "error" && wasActive) {
     elJobPanel.classList.remove("hidden");
     elJobPanel.classList.add("job-error");
@@ -1273,8 +1326,16 @@ function onLocaleChange() {
   I18n.applyI18n();
   renderScanAction();
   if (page === "settings") loadConfig();
-  if (page === "changes" && currentId) showScan(currentId);
-  else if (page === "changes") loadScans();
+  if (page === "changes") {
+    void fetchStatus().then((st) => {
+      latestWebMode = Boolean(st.web_mode);
+      latestJob = st.job || latestJob;
+      renderWebSchedule(st);
+      renderHistory();
+    });
+    if (currentId) showScan(currentId);
+    else loadScans();
+  }
   if (btnStopScan && !btnStopScan.disabled) btnStopScan.textContent = t("actions.stopScan");
 }
 
@@ -1319,10 +1380,18 @@ async function init() {
   initProfileMenu();
   window.addEventListener("instree:locale", onLocaleChange);
 
-  const status = await fetchStatus();
+  let status = await fetchStatus();
+  if (["done", "error", "cancelled"].includes(status.job?.state)) {
+    await fetch("/api/scan/reset", { method: "POST" });
+    status = await fetchStatus();
+  }
+  latestWebMode = Boolean(status.web_mode);
+  latestJob = status.job || latestJob;
+  lastJobState = isJobActive(status.job?.state) ? status.job.state : "idle";
   renderSession(status.session);
   renderProfiles(status.profiles || []);
   renderJob(status.job);
+  renderWebSchedule(status);
 
   if (page === "settings") await initSettingsPage();
   if (page === "changes") await initChangesPage();

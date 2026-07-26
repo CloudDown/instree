@@ -179,14 +179,33 @@ def load_secret_key() -> str:
     return secret_key_path().read_text(encoding="utf-8").strip()
 
 
-def _format_server_toml(*, host: str, port: int) -> str:
+def _format_server_toml(
+    *, host: str, port: int, daily_hour: int = 2, timezone: str = "Europe/Paris"
+) -> str:
     return f"""# Instree Web — données runtime (hors git)
 # Comptes : users/<id>/
 
 [web]
 host = {_toml_str(host)}
 port = {port}
+
+[schedule]
+daily_hour = {daily_hour}
+timezone = {_toml_str(timezone)}
 """
+
+
+def load_server_schedule_settings() -> dict:
+    """Planification serveur Web (scan quotidien, anti-spam)."""
+    raw = _read_toml(server_config_path())
+    schedule = raw.get("schedule") if isinstance(raw.get("schedule"), dict) else {}
+    hour = int(schedule.get("daily_hour", 2))
+    tz = str(schedule.get("timezone", "Europe/Paris")).strip() or "Europe/Paris"
+    return {
+        "daily_hour": max(0, min(23, hour)),
+        "timezone": tz,
+        "manual_scans_disabled": True,
+    }
 
 
 def load_server_web_settings() -> tuple[str, int]:

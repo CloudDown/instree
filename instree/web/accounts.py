@@ -34,10 +34,16 @@ def _connect() -> sqlite3.Connection:
             id TEXT PRIMARY KEY,
             username TEXT NOT NULL UNIQUE COLLATE NOCASE,
             password_hash TEXT NOT NULL,
-            created_at REAL NOT NULL
+            created_at REAL NOT NULL,
+            pending_baseline INTEGER NOT NULL DEFAULT 0
         )
         """
     )
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(accounts)")}
+    if "pending_baseline" not in cols:
+        conn.execute(
+            "ALTER TABLE accounts ADD COLUMN pending_baseline INTEGER NOT NULL DEFAULT 0"
+        )
     conn.commit()
     return conn
 
@@ -105,8 +111,8 @@ def register_account(username: str, password: str) -> Account:
     with _connect() as conn:
         try:
             conn.execute(
-                "INSERT INTO accounts (id, username, password_hash, created_at) "
-                "VALUES (?, ?, ?, ?)",
+                "INSERT INTO accounts (id, username, password_hash, created_at, pending_baseline) "
+                "VALUES (?, ?, ?, ?, 1)",
                 (uid, username, pw_hash, created),
             )
             conn.commit()
@@ -159,3 +165,19 @@ def list_user_ids() -> list[str]:
     with _connect() as conn:
         rows = conn.execute("SELECT id FROM accounts ORDER BY id").fetchall()
     return [str(r["id"]) for r in rows]
+
+
+def get_pending_baseline(user_id: str) -> bool:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT pending_baseline FROM accounts WHERE id = ?", (user_id,)
+        ).fetchone()
+    return bool(row and row["pending_baseline"])
+
+
+def clear_pending_baseline(user_id: str) -> None:
+    with _connect() as conn:
+        conn.execute(
+            "UPDATE accounts SET pending_baseline = 0 WHERE id = ?", (user_id,)
+        )
+        conn.commit()

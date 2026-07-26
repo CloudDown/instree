@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from instree.web.accounts import authenticate, register_account
+from instree.web.accounts import authenticate, get_pending_baseline, register_account
 from instree.core.config import (
     config_for_api,
     create_profile,
@@ -17,6 +17,7 @@ from instree.core.config import (
     delete_profile,
     is_web_mode,
     list_profiles,
+    load_server_schedule_settings,
     load_settings,
     profile_ig_username,
     remember_profile_ig_username,
@@ -203,11 +204,16 @@ def create_app() -> FastAPI:
             start_interval_scheduler,
             stop_interval_scheduler,
         )
+        from instree.web.web_scheduler import start_web_scheduler, stop_web_scheduler
 
         if not is_web_mode():
             remove_legacy_systemd()
         start_interval_scheduler()
+        if is_web_mode():
+            start_web_scheduler()
         yield
+        if is_web_mode():
+            stop_web_scheduler()
         stop_interval_scheduler()
 
     app = FastAPI(title="Instree", docs_url=None, redoc_url=None, lifespan=lifespan)
@@ -322,7 +328,7 @@ def create_app() -> FastAPI:
             init_db()
         session = _session_info()
         user = getattr(request.state, "user", None)
-        return {
+        payload = {
             "session": session,
             "config": config_for_api(),
             "job": job_status(),
@@ -331,6 +337,11 @@ def create_app() -> FastAPI:
             "auth_user": user,
             "scan_resume": scan_resume_info(),
         }
+        if is_web_mode():
+            uid = current_user_id()
+            payload["scan_schedule"] = load_server_schedule_settings()
+            payload["pending_baseline"] = bool(uid and get_pending_baseline(uid))
+        return payload
 
     @app.get("/api/profiles")
     async def api_profiles_list():
@@ -466,6 +477,12 @@ def create_app() -> FastAPI:
         except (ValueError, OSError) as e:
             raise HTTPException(400, str(e)) from e
         clear_session_cache()
+        if is_web_mode():
+            from instree.web.web_scheduler import try_start_pending_baseline
+
+            uid = current_user_id()
+            if uid:
+                try_start_pending_baseline(uid)
         return {"ok": True, "config": config_for_api()}
 
     @app.post("/api/session/test")
@@ -475,6 +492,20 @@ def create_app() -> FastAPI:
 
     @app.get("/api/scans")
     async def api_scans():
+        return list_scans()
+
+    @app.delete("/api/scans/{scan_id}")
+    async def api_scan_delete(scan_id: int):
+        if job_status().get("state") in ("running", "stopping"):
+            raise HTTPException(409, "Impossible pendant un scan")
+        try:
+            from instree.core.store import compact_scan_ids, delete_scan
+
+            delete_scan(scan_id)
+            compact_scan_ids()
+        except ValueError as e:
+            raise HTTPException(404, str(e)) from e
+        reset_job()
         return list_scans()
 
     @app.get("/api/search-index")
@@ -552,6 +583,14 @@ def create_app() -> FastAPI:
 
     @app.post("/api/scan")
     async def api_scan_start(body: ScanRequest):
+        if is_web_mode():
+            sched = load_server_schedule_settings()
+            hour = sched["daily_hour"]
+            raise HTTPException(
+                403,
+                f"Scans manuels désactivés sur le serveur web "
+                f"(scan automatique chaque nuit à {hour}h).",
+            )
         clear_session_cache()
         try:
             start_scan(init=body.init)

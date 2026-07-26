@@ -44,17 +44,7 @@ def _tick_user(user_id: str | None) -> None:
 
 def _loop() -> None:
     while not _stop.is_set():
-        if is_web_mode():
-            try:
-                from instree.web.accounts import list_user_ids
-
-                for uid in list_user_ids():
-                    if _stop.is_set():
-                        break
-                    _tick_user(uid)
-            except Exception:
-                pass
-        else:
+        if not is_web_mode():
             _tick_user(None)
         if _stop.wait(timeout=60):
             break

@@ -22,6 +22,7 @@ _ACTIVE_STATES = frozenset({"running", "stopping"})
 @dataclass
 class ScanJob:
     state: str = "idle"
+    is_baseline: bool = False
     progress_current: int = 0
     progress_total: int = 0
     progress_user: str = ""
@@ -44,6 +45,23 @@ class _JobSlot:
 
 _lock = threading.Lock()
 _slots: dict[str, _JobSlot] = {}
+_threads: dict[str, threading.Thread] = {}
+
+
+def _reconcile_job(user_id: str | None = None) -> None:
+    """Remet le job à idle si le thread de scan n'existe plus."""
+    try:
+        key = _user_key(user_id)
+    except RuntimeError:
+        return
+    slot = _slot(user_id)
+    thread = _threads.get(key)
+    with _lock:
+        if slot.job.state in _ACTIVE_STATES and (
+            thread is None or not thread.is_alive()
+        ):
+            slot.job = ScanJob()
+            _threads.pop(key, None)
 
 
 def _user_key(user_id: str | None = None) -> str:
@@ -66,6 +84,7 @@ def _slot(user_id: str | None = None) -> _JobSlot:
 
 
 def job_status(user_id: str | None = None) -> dict:
+    _reconcile_job(user_id)
     slot = _slot(user_id)
     with _lock:
         return asdict(slot.job)
@@ -78,10 +97,42 @@ def start_scan(*, init: bool = False, user_id: str | None = None) -> None:
         if slot.job.state in _ACTIVE_STATES:
             raise RuntimeError("Un scan est déjà en cours")
 
+    is_baseline = init
+    token = None
+    if key != "local":
+        token = set_current_user(key)
+    try:
+        if init:
+            from instree.core.store import reset_baseline_state
+
+            reset_baseline_state()
+        else:
+            from instree.core.store import (
+                clear_scan_history,
+                get_scan_draft,
+                has_scans,
+                scan_resume_info,
+            )
+
+            info = scan_resume_info()
+            if info.get("can_resume") and info.get("is_baseline") and has_scans():
+                clear_scan_history()
+            draft = get_scan_draft()
+            is_baseline = bool(
+                (draft and draft.is_baseline) or info.get("is_baseline")
+            )
+    finally:
+        if token is not None:
+            reset_current_user(token)
+
     slot.cancel.clear()
     thread = threading.Thread(
-        target=_worker, args=(init, key), daemon=True, name=f"instree-scan-{key}"
+        target=_worker,
+        args=(init, key, is_baseline),
+        daemon=True,
+        name=f"instree-scan-{key}",
     )
+    _threads[key] = thread
     thread.start()
 
 
@@ -99,7 +150,7 @@ def cancel_scan(user_id: str | None = None) -> bool:
     return True
 
 
-def _worker(init: bool, user_key: str) -> None:
+def _worker(init: bool, user_key: str, is_baseline: bool = False) -> None:
     slot = _slot(user_key)
     token = None
     if user_key != "local":
@@ -144,7 +195,7 @@ def _worker(init: bool, user_key: str) -> None:
         return slot.cancel.is_set()
 
     with _lock:
-        slot.job = ScanJob(state="running")
+        slot.job = ScanJob(state="running", is_baseline=bool(is_baseline or init))
 
     try:
         settings = load_settings()
@@ -167,6 +218,10 @@ def _worker(init: bool, user_key: str) -> None:
             else:
                 slot.job.message_key = "job.done"
                 slot.job.message = f"Scan #{summary.scan_id} terminé"
+        if init and is_web_mode() and user_key != "local":
+            from instree.web.web_scheduler import on_baseline_completed
+
+            on_baseline_completed(user_key)
     except ScanCancelled:
         with _lock:
             slot.job.state = "cancelled"
@@ -181,6 +236,7 @@ def _worker(init: bool, user_key: str) -> None:
             slot.job.message = str(e)
     finally:
         slot.cancel.clear()
+        _threads.pop(user_key, None)
         if token is not None:
             reset_current_user(token)
 

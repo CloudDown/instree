@@ -852,6 +852,73 @@ def list_scans() -> list[dict]:
         return [dict(r) for r in rows]
 
 
+def delete_scan(scan_id: int) -> None:
+    """Supprime un scan et ses changements / listes associés."""
+    if scan_id <= 0:
+        raise ValueError("id de scan invalide")
+    journal_label: str | None = None
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT label FROM scans WHERE id = ?", (scan_id,)
+        ).fetchone()
+        if not row:
+            raise ValueError(f"scan #{scan_id} introuvable")
+        journal_label = str(row["label"])
+        conn.execute("DELETE FROM changes WHERE scan_id = ?", (scan_id,))
+        conn.execute("DELETE FROM following WHERE scan_id = ?", (scan_id,))
+        conn.execute("DELETE FROM scans WHERE id = ?", (scan_id,))
+        conn.commit()
+    if journal_label:
+        safe = journal_label.replace(":", "-").replace(" ", "T")
+        path = journal_dir() / f"{safe}.log"
+        if path.is_file():
+            path.unlink()
+
+
+def compact_scan_ids() -> dict[int, int]:
+    """Renumérote les scans en 1..N (après suppression)."""
+    with _open_db() as conn:
+        conn.execute("PRAGMA foreign_keys=OFF")
+        rows = conn.execute("SELECT id FROM scans ORDER BY id ASC").fetchall()
+        old_ids = [int(r[0]) for r in rows]
+        mapping = {old: idx for idx, old in enumerate(old_ids, start=1)}
+        if not mapping or all(old == new for old, new in mapping.items()):
+            conn.execute("PRAGMA foreign_keys=ON")
+            return mapping
+        offset = max(old_ids) + 10000
+        for old_id in old_ids:
+            tmp = old_id + offset
+            conn.execute("UPDATE scans SET id = ? WHERE id = ?", (tmp, old_id))
+            conn.execute(
+                "UPDATE following SET scan_id = ? WHERE scan_id = ?", (tmp, old_id)
+            )
+            conn.execute(
+                "UPDATE changes SET scan_id = ? WHERE scan_id = ?", (tmp, old_id)
+            )
+            conn.execute(
+                "UPDATE person_snapshots SET updated_scan_id = ? "
+                "WHERE updated_scan_id = ?",
+                (tmp, old_id),
+            )
+        for old_id, new_id in mapping.items():
+            tmp = old_id + offset
+            conn.execute("UPDATE scans SET id = ? WHERE id = ?", (new_id, tmp))
+            conn.execute(
+                "UPDATE following SET scan_id = ? WHERE scan_id = ?", (new_id, tmp)
+            )
+            conn.execute(
+                "UPDATE changes SET scan_id = ? WHERE scan_id = ?", (new_id, tmp)
+            )
+            conn.execute(
+                "UPDATE person_snapshots SET updated_scan_id = ? "
+                "WHERE updated_scan_id = ?",
+                (new_id, tmp),
+            )
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.commit()
+    return mapping
+
+
 def get_changes_search_index() -> list[dict]:
     """Index léger pour la recherche (mutuels + abonnements de mutuels)."""
     with _connect() as conn:
