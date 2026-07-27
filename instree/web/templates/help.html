@@ -66,14 +66,42 @@
         <div class="help-block-body">
           <p class="help-intro" data-i18n="help.tokens.intro">Instree a besoin de deux valeurs copiées depuis ton navigateur, là où tu es déjà connecté à Instagram. Ce ne sont pas ton mot de passe : ce sont des jetons de session temporaires.</p>
 
-          <ol class="help-step-list">
+          <div class="help-token-targets">
+            <span class="help-token-chip"><code class="help-code">sessionid</code></span>
+            <span class="help-token-chip"><code class="help-code">ds_user_id</code></span>
+          </div>
+
+          {% if web_mode %}
+          <aside class="help-callout help-callout-info">
+            <span class="help-callout-icon" aria-hidden="true">ℹ</span>
+            <div>
+              <strong data-i18n="help.tokens.webTitle">Sur ce serveur (Web)</strong>
+              <p data-i18n="help.tokens.webNote">Instree ne peut pas lire ton navigateur à distance : tu dois coller les codes toi-même. Après l'enregistrement, la première analyse (baseline) démarre automatiquement.</p>
+            </div>
+          </aside>
+          {% else %}
+          <aside class="help-callout help-callout-info">
+            <span class="help-callout-icon" aria-hidden="true">ℹ</span>
+            <div>
+              <strong data-i18n="help.tokens.desktopTitle">Sur ton ordinateur</strong>
+              <p data-i18n="help.tokens.desktopNote">Instree peut parfois lire Chrome, Edge ou Firefox automatiquement. Si ça ne marche pas, colle les codes à la main comme ci-dessous.</p>
+            </div>
+          </aside>
+          {% endif %}
+
+          <section class="help-path" aria-labelledby="help-path-win">
+            <header class="help-path-head">
+              <h4 class="help-path-title" id="help-path-win" data-i18n="help.tokens.winTitle">Windows et Linux</h4>
+              <p class="help-path-lead" data-i18n="help.tokens.winHint">Chrome, Firefox ou Edge — touche F12.</p>
+            </header>
+            <ol class="help-step-list">
             <li class="help-step">
               <span class="help-step-num">1</span>
               <p data-i18n="help.tokens.step1">Ouvre instagram.com dans Chrome, Firefox ou Edge et connecte-toi à ton compte.</p>
             </li>
             <li class="help-step">
               <span class="help-step-num">2</span>
-              <p data-i18n="help.tokens.step2">Appuie sur F12 (ou clic droit → Inspecter) pour ouvrir les outils développeur.</p>
+              <p data-i18n="help.tokens.winStep2">Appuie sur F12 pour ouvrir les outils développeur (ou clic droit → Inspecter).</p>
             </li>
             <li class="help-step">
               <span class="help-step-num">3</span>
@@ -99,16 +127,21 @@
                 <span data-i18n="help.tokens.step6b">(souvent un numéro à 10 chiffres).</span>
               </p>
             </li>
-            <li class="help-step">
-              <span class="help-step-num">7</span>
-              <p data-i18n="help.tokens.step7">Va dans Paramètres, colle les deux codes, clique « Vérifier la connexion », puis « Enregistrer ».</p>
-            </li>
           </ol>
+          </section>
 
-          <h4 class="help-subtitle" data-i18n="help.tokens.macosTitle">Sur macOS</h4>
-          <p class="help-intro" data-i18n="help.tokens.macosHint">Les étapes ci-dessus fonctionnent aussi sur Mac avec Cmd+Option+I. Voici le détail selon ton navigateur.</p>
+          <section class="help-path help-path-macos" aria-labelledby="help-path-macos">
+            <header class="help-path-head">
+              <h4 class="help-path-title" id="help-path-macos" data-i18n="help.tokens.macosTitle">macOS</h4>
+              <p class="help-path-lead" data-i18n="help.tokens.macosHint">Choisis ton navigateur — raccourci inspecteur : Cmd+Option+I.</p>
+            </header>
 
-          <h4 class="help-subtitle" data-i18n="help.tokens.macosChromeTitle">Chrome, Firefox ou Edge (recommandé)</h4>
+            <div class="help-browser-block">
+              <header class="help-browser-head">
+                <h5 class="help-browser-title" data-i18n="help.tokens.macosChromeTitle">Chrome, Firefox ou Edge</h5>
+                <span class="help-browser-badge" data-i18n="help.tokens.recommended">Recommandé</span>
+              </header>
+              <div class="help-browser-body">
           <ol class="help-step-list">
             <li class="help-step">
               <span class="help-step-num">1</span>
@@ -128,8 +161,14 @@
               </p>
             </li>
           </ol>
+              </div>
+            </div>
 
-          <h4 class="help-subtitle" data-i18n="help.tokens.macosSafariTitle">Safari</h4>
+            <div class="help-browser-block help-browser-block-safari">
+              <header class="help-browser-head">
+                <h5 class="help-browser-title" data-i18n="help.tokens.macosSafariTitle">Safari</h5>
+              </header>
+              <div class="help-browser-body">
           <ol class="help-step-list">
             <li class="help-step">
               <span class="help-step-num">1</span>
@@ -158,32 +197,29 @@
               </p>
             </li>
           </ol>
+              </div>
+            </div>
 
-          <aside class="help-callout help-callout-warn">
-            <span class="help-callout-icon" aria-hidden="true">!</span>
-            <div>
-              <strong data-i18n="help.tokens.macosIosTitle">iPhone / iPad</strong>
-              <p data-i18n="help.tokens.macosIosNote">Sur Safari mobile, récupérer les cookies est très difficile. Configure les codes depuis un Mac (Safari ou Chrome) ou un PC, puis reviens sur Instree sur ton téléphone.</p>
-            </div>
-          </aside>
+            <aside class="help-callout help-callout-warn help-callout-compact">
+              <span class="help-callout-icon" aria-hidden="true">!</span>
+              <div>
+                <strong data-i18n="help.tokens.macosIosTitle">iPhone / iPad</strong>
+                <p data-i18n="help.tokens.macosIosNote">Sur Safari mobile, récupérer les cookies est très difficile. Configure les codes depuis un Mac (Safari ou Chrome) ou un PC, puis reviens sur Instree sur ton téléphone.</p>
+              </div>
+            </aside>
+          </section>
 
-          {% if web_mode %}
-          <aside class="help-callout help-callout-info">
-            <span class="help-callout-icon" aria-hidden="true">ℹ</span>
-            <div>
-              <strong data-i18n="help.tokens.webTitle">Sur ce serveur (Web)</strong>
-              <p data-i18n="help.tokens.webNote">Instree ne peut pas lire ton navigateur à distance : tu dois coller les codes toi-même. Après l'enregistrement, la première analyse (baseline) démarre automatiquement.</p>
-            </div>
-          </aside>
-          {% else %}
-          <aside class="help-callout help-callout-info">
-            <span class="help-callout-icon" aria-hidden="true">ℹ</span>
-            <div>
-              <strong data-i18n="help.tokens.desktopTitle">Sur ton ordinateur</strong>
-              <p data-i18n="help.tokens.desktopNote">Instree peut parfois lire Chrome, Edge ou Firefox automatiquement. Si ça ne marche pas, colle les codes à la main comme ci-dessus.</p>
-            </div>
-          </aside>
-          {% endif %}
+          <section class="help-path help-path-finish" aria-labelledby="help-path-finish">
+            <header class="help-path-head">
+              <h4 class="help-path-title" id="help-path-finish" data-i18n="help.tokens.finishTitle">Terminer dans Instree</h4>
+            </header>
+            <ol class="help-step-list">
+              <li class="help-step help-step-finish">
+                <span class="help-step-num">✓</span>
+                <p data-i18n="help.tokens.step7">Va dans Paramètres, colle les deux codes, clique « Vérifier la connexion », puis « Enregistrer ».</p>
+              </li>
+            </ol>
+          </section>
 
           <aside class="help-callout help-callout-warn">
             <span class="help-callout-icon" aria-hidden="true">!</span>
