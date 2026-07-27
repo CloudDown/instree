@@ -908,13 +908,12 @@ def config_for_api() -> dict:
         "refetch_mutuals": s.refetch_mutuals,
         "skip_unchanged_profiles": s.skip_unchanged_profiles,
         "partial_fetch": s.partial_fetch,
+        "sessionid": s.sessionid,
+        "ds_user_id": s.ds_user_id,
         "sessionid_set": bool(s.sessionid),
         "ds_user_id_set": bool(s.ds_user_id),
         "web_mode": is_web_mode(),
     }
-    if not is_web_mode():
-        data["sessionid"] = s.sessionid
-        data["ds_user_id"] = s.ds_user_id
     return data
 
 
