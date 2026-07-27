@@ -180,7 +180,7 @@ def load_secret_key() -> str:
 
 
 def _format_server_toml(
-    *, host: str, port: int, daily_hour: int = 2, timezone: str = "Europe/Paris"
+    *, host: str, port: int, daily_hour: int = 2, timezone: str = "America/Montreal"
 ) -> str:
     return f"""# Instree Web — données runtime (hors git)
 # Comptes : users/<id>/
@@ -200,12 +200,43 @@ def load_server_schedule_settings() -> dict:
     raw = _read_toml(server_config_path())
     schedule = raw.get("schedule") if isinstance(raw.get("schedule"), dict) else {}
     hour = int(schedule.get("daily_hour", 2))
-    tz = str(schedule.get("timezone", "Europe/Paris")).strip() or "Europe/Paris"
+    tz = str(schedule.get("timezone", "America/Montreal")).strip() or "America/Montreal"
     return {
         "daily_hour": max(0, min(23, hour)),
         "timezone": tz,
+        "timezone_label": _schedule_timezone_label(tz),
         "manual_scans_disabled": True,
     }
+
+
+def _schedule_timezone_label(timezone: str) -> str:
+    labels = {
+        "America/Montreal": "Montréal",
+        "Europe/Paris": "Paris",
+    }
+    return labels.get(timezone, timezone.replace("_", " "))
+
+
+def ensure_server_schedule(
+    *,
+    daily_hour: int = 2,
+    timezone: str = "America/Montreal",
+) -> None:
+    """Crée ou met à jour [schedule] dans instree.toml (serveur Web)."""
+    path = server_config_path()
+    if path.is_file():
+        host, port = load_server_web_settings()
+    else:
+        host, port = "0.0.0.0", 1488
+    _write_text(
+        path,
+        _format_server_toml(
+            host=host,
+            port=port,
+            daily_hour=daily_hour,
+            timezone=timezone,
+        ),
+    )
 
 
 def load_server_web_settings() -> tuple[str, int]:

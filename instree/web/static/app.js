@@ -200,7 +200,7 @@ function renderWebSchedule(status) {
   if (elWebScheduleHint && sched) {
     elWebScheduleHint.textContent = t("webSchedule.hint", {
       hour: sched.daily_hour,
-      tz: sched.timezone,
+      tz: sched.timezone_label || sched.timezone,
     });
   }
   if (elWebBaselinePending) {

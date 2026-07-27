@@ -231,7 +231,7 @@
   "help.home.title": "Page Home",
   "help.home.intro": "C'est la page principale : lancer une analyse, consulter l'historique et lire les changements détectés.",
   "help.home.webScheduleTitle": "Scan automatique",
-  "help.home.webSchedule": "Sur le serveur, les analyses tournent seules chaque nuit (vers 2 h). Tu ne peux pas lancer un scan manuellement ici — c'est normal.",
+  "help.home.webSchedule": "Sur le serveur, les analyses tournent seules chaque nuit à 2 h (heure de Montréal). Tu ne peux pas lancer un scan manuellement ici — c'est normal.",
   "help.home.webBaselineTitle": "Première connexion",
   "help.home.webBaseline": "Après avoir enregistré tes codes Instagram, Instree lance une baseline automatiquement. Elle télécharge tout depuis zéro et peut prendre longtemps.",
   "help.home.scanBtn": "Compare ta liste de mutuels et les abonnements de chaque personne suivie. Utilise ce bouton pour une analyse régulière.",

@@ -39,15 +39,13 @@ else
 fi
 
 export INSTREE_HOME="$DATA_DIR"
-if [[ ! -f "$DATA_DIR/instree.toml" ]]; then
-  echo "==> Initialisation des données dans $DATA_DIR"
-  INSTREE_HOME="$DATA_DIR" .venv/bin/python3 -c "
-from instree.core.config import bootstrap_web_home, enable_web_mode
+INSTREE_HOME="$DATA_DIR" .venv/bin/python3 -c "
+from instree.core.config import bootstrap_web_home, enable_web_mode, ensure_server_schedule
 enable_web_mode()
 bootstrap_web_home()
-print('OK')
+ensure_server_schedule(daily_hour=2, timezone='America/Montreal')
+print('OK schedule America/Montreal 02:00')
 "
-fi
 
 echo "==> Service systemd"
 UNIT="/tmp/instree-web.service"

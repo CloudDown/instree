@@ -13,6 +13,7 @@
 
   function setEmptyState(isEmpty) {
     elStage?.classList.toggle("is-empty", isEmpty);
+    document.querySelector(".page-graph")?.classList.toggle("is-empty", isEmpty);
   }
 
   const STORAGE_KEY = "instree.graph.display";
