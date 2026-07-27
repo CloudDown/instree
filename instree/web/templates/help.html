@@ -105,6 +105,38 @@
             </li>
           </ol>
 
+          <h4 class="help-subtitle" data-i18n="help.tokens.macosTitle">Sur macOS</h4>
+          <p class="field-hint help-hint" data-i18n="help.tokens.macosHint">Les étapes ci-dessus fonctionnent aussi sur Mac. Raccourci inspecteur : Cmd+Option+I (Chrome, Firefox, Edge, Safari).</p>
+
+          <div class="help-feature-grid help-platform-grid">
+            <article class="help-feature">
+              <h4 class="help-feature-title" data-i18n="help.tokens.macosChromeTitle">Chrome, Firefox ou Edge (recommandé)</h4>
+              <ol class="help-mini-steps">
+                <li data-i18n="help.tokens.macosChrome1">Connecte-toi sur instagram.com.</li>
+                <li data-i18n="help.tokens.macosChrome2">Cmd+Option+I → onglet « Application » (Chrome/Edge) ou « Stockage » (Firefox).</li>
+                <li data-i18n="help.tokens.macosChrome3">Cookies → instagram.com → copie sessionid et ds_user_id.</li>
+              </ol>
+            </article>
+            <article class="help-feature">
+              <h4 class="help-feature-title" data-i18n="help.tokens.macosSafariTitle">Safari</h4>
+              <ol class="help-mini-steps">
+                <li data-i18n="help.tokens.macosSafari1">Safari → Réglages → Avancées → coche « Afficher les fonctionnalités pour les développeurs ».</li>
+                <li data-i18n="help.tokens.macosSafari2">Ouvre instagram.com et connecte-toi.</li>
+                <li data-i18n="help.tokens.macosSafari3">Menu Développement → « Afficher l'inspecteur web » (Cmd+Option+I).</li>
+                <li data-i18n="help.tokens.macosSafari4">Onglet Stockage → Cookies → instagram.com.</li>
+                <li data-i18n="help.tokens.macosSafari5">Double-clique la valeur de sessionid et ds_user_id pour les copier.</li>
+              </ol>
+            </article>
+          </div>
+
+          <aside class="help-callout help-callout-warn">
+            <span class="help-callout-icon" aria-hidden="true">!</span>
+            <div>
+              <strong data-i18n="help.tokens.macosIosTitle">iPhone / iPad</strong>
+              <p data-i18n="help.tokens.macosIosNote">Sur Safari mobile, récupérer les cookies est très difficile. Configure les codes depuis un Mac (Safari ou Chrome) ou un PC, puis reviens sur Instree sur ton téléphone.</p>
+            </div>
+          </aside>
+
           {% if web_mode %}
           <aside class="help-callout help-callout-info">
             <span class="help-callout-icon" aria-hidden="true">ℹ</span>

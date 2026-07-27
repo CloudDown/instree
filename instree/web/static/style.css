@@ -767,6 +767,26 @@ body {
   margin-top: 0.75rem;
 }
 
+.help-mini-steps {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.84rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.help-mini-steps li {
+  margin-bottom: 0.35rem;
+}
+
+.help-mini-steps li:last-child {
+  margin-bottom: 0;
+}
+
+.help-platform-grid {
+  margin-top: 0.65rem;
+}
+
 .help-action {
   margin: 1rem 0 0;
 }
