@@ -234,7 +234,7 @@ function setControlsDisabled(disabled) {
       el.disabled = disabled;
     });
   }
-  if (btnStopScan) {
+  if (btnStopScan && !latestWebMode) {
     btnStopScan.disabled = !disabled;
     btnStopScan.classList.toggle("hidden", !disabled);
   }
@@ -1028,7 +1028,7 @@ function renderJob(job) {
 
   if (isJobActive(job.state)) {
     setControlsDisabled(true);
-    if (btnStopScan) {
+    if (btnStopScan && !latestWebMode) {
       btnStopScan.disabled = job.state === "stopping";
       btnStopScan.textContent =
         job.state === "stopping" ? t("actions.stopping") : t("actions.stopScan");

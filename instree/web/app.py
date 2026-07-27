@@ -627,6 +627,11 @@ def create_app() -> FastAPI:
 
     @app.post("/api/scan/cancel")
     async def api_scan_cancel():
+        if is_web_mode():
+            raise HTTPException(
+                403,
+                "Impossible d'arrêter un scan sur le serveur web.",
+            )
         if not cancel_scan():
             raise HTTPException(409, "Aucun scan en cours")
         return job_status()
