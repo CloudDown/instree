@@ -335,11 +335,21 @@ function fillConfigForm(config) {
   if (elCfgPort) elCfgPort.value = config.port || 1488;
   elCfgSessionid.placeholder = t("settings.sessionPaste");
   elCfgDsUserId.placeholder = t("settings.userIdPaste");
-  lastLoadedSessionid = config.sessionid || "";
+  const webMode = Boolean(config.web_mode);
+  lastLoadedSessionid = webMode ? "" : config.sessionid || "";
   const sidMasked = elCfgSessionid?.classList.contains("is-secret-masked") !== false;
   const uidMasked = elCfgDsUserId?.classList.contains("is-secret-masked") !== false;
-  setSecretValue(elCfgSessionid, lastLoadedSessionid, { masked: sidMasked });
-  setSecretValue(elCfgDsUserId, config.ds_user_id || "", { masked: uidMasked });
+  if (webMode && config.sessionid_set) {
+    elCfgSessionid.placeholder = t("settings.sessionKeep");
+    setSecretValue(elCfgSessionid, "", { masked: sidMasked });
+  } else {
+    setSecretValue(elCfgSessionid, lastLoadedSessionid, { masked: sidMasked });
+  }
+  if (webMode && config.ds_user_id_set) {
+    setSecretValue(elCfgDsUserId, "", { masked: uidMasked });
+  } else {
+    setSecretValue(elCfgDsUserId, config.ds_user_id || "", { masked: uidMasked });
+  }
   // Sync bouton œil
   document.querySelectorAll("[data-secret-toggle]").forEach((btn) => {
     const id = btn.getAttribute("data-secret-toggle");

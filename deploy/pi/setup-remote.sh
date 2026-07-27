@@ -64,6 +64,8 @@ Group=$SERVICE_USER
 WorkingDirectory=$INSTREE_DIR
 Environment=INSTREE_HOME=$DATA_DIR
 Environment=INSTREE_WEB=1
+Environment=INSTREE_HTTPS=1
+Environment=INSTREE_ALLOW_REGISTER=1
 Environment=PATH=$INSTREE_DIR/.venv/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=$INSTREE_DIR/.venv/bin/instree-web --ngrok --host 0.0.0.0
 Restart=on-failure

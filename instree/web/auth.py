@@ -20,6 +20,7 @@ from instree.core.config import (
     reset_current_user,
     set_current_user,
 )
+from instree.web.security import session_https_only
 
 SESSION_COOKIE = "instree_session"
 _PUBLIC_OPEN_PREFIXES = (
@@ -38,7 +39,7 @@ def install_session_middleware(app) -> None:
         session_cookie=SESSION_COOKIE,
         max_age=60 * 60 * 24 * 30,
         same_site="lax",
-        https_only=False,
+        https_only=session_https_only() if is_web_mode() else False,
     )
 
 

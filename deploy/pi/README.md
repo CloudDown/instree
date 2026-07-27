@@ -51,6 +51,19 @@ URL ngrok affichée dans les logs au démarrage.
 
 LAN : `http://192.168.2.170:1488/login`
 
+## Sécurité (mode Web / ngrok)
+
+Variables systemd dans `instree-web.service` (via `setup-remote.sh`) :
+
+| Variable | Défaut | Effet |
+|----------|--------|--------|
+| `INSTREE_HTTPS=1` | activé | Cookie de session `Secure` + en-tête HSTS |
+| `INSTREE_ALLOW_REGISTER=1` | activé | Inscription ouverte |
+
+Après avoir créé ton compte sur la Pi, passe **`INSTREE_ALLOW_REGISTER=0`**, puis `sudo systemctl daemon-reload && sudo systemctl restart instree-web`.
+
+Les tokens Instagram ne sont plus renvoyés par l’API en mode Web (seulement `sessionid_set` / `ds_user_id_set`). Le login est limité à 10 tentatives / 5 min par IP.
+
 ## Activer le mot de passe SSH (si besoin)
 
 Sur la Pi, en local ou via écran :

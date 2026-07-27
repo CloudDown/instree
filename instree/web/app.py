@@ -44,6 +44,11 @@ from instree.web.auth import (
     session_user,
 )
 from instree.web.runner import cancel_scan, job_status, reset_job, start_scan
+from instree.web.security import (
+    allow_register,
+    AuthRateLimitMiddleware,
+    SecurityHeadersMiddleware,
+)
 
 WEB_DIR = Path(__file__).resolve().parent
 STATIC_DIR = WEB_DIR / "static"
@@ -189,6 +194,7 @@ def _page_ctx(request: Request, page: str) -> dict:
         "page": page,
         "auth_user": user,
         "web_mode": is_web_mode(),
+        "allow_register": allow_register() if is_web_mode() else True,
     }
 
 
@@ -223,8 +229,12 @@ def create_app() -> FastAPI:
     if is_web_mode():
         from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-        # Seule différence runtime : auth + proxy (ngrok / reverse-proxy).
-        app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+        app.add_middleware(SecurityHeadersMiddleware)
+        app.add_middleware(AuthRateLimitMiddleware)
+        app.add_middleware(
+            ProxyHeadersMiddleware,
+            trusted_hosts=["127.0.0.1", "::1", "localhost"],
+        )
         app.add_middleware(WebAuthMiddleware)
         install_session_middleware(app)
 
@@ -246,6 +256,8 @@ def create_app() -> FastAPI:
     async def register_page(request: Request):
         if not is_web_mode():
             return RedirectResponse("/changes", status_code=307)
+        if not allow_register():
+            return RedirectResponse("/login", status_code=307)
         if session_user(request):
             return RedirectResponse("/changes", status_code=307)
         return templates.TemplateResponse(
@@ -256,6 +268,8 @@ def create_app() -> FastAPI:
     async def api_auth_register(request: Request, body: AuthBody):
         if not is_web_mode():
             raise HTTPException(404, "Indisponible en mode local")
+        if not allow_register():
+            raise HTTPException(403, "Inscription désactivée")
         try:
             account = register_account(body.username, body.password)
         except ValueError as e:

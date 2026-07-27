@@ -23,7 +23,7 @@
         <p id="auth-error" class="config-msg err hidden" role="alert"></p>
         <button type="submit" class="btn btn-main" data-i18n="auth.login">Se connecter</button>
       </form>
-      <p class="auth-switch">
+      <p class="auth-switch{% if not allow_register %} hidden{% endif %}">
         <span data-i18n="auth.noAccount">Pas encore de compte ?</span>
         <a href="/register" data-i18n="auth.goRegister">Créer un compte</a>
       </p>
