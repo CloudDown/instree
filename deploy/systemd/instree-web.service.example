@@ -1,7 +1,9 @@
-# Instree Web — service systemd
+# Instree Web — service systemd (LAN)
 # 1. Copier vers /etc/systemd/system/instree-web.service
 # 2. Adapter User, WorkingDirectory, INSTREE_HOME
 # 3. sudo systemctl enable --now instree-web
+#
+# Avec ngrok au boot : voir deploy/pi/setup-remote.sh (recommandé Pi)
 
 [Unit]
 Description=Instree Web
@@ -14,9 +16,11 @@ User=pi
 Group=pi
 WorkingDirectory=/home/pi/instree
 Environment=INSTREE_HOME=/var/lib/instree
-ExecStart=/home/pi/instree/.venv/bin/instree-web
+Environment=INSTREE_WEB=1
+Environment=PATH=/home/pi/instree/.venv/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/pi/instree/.venv/bin/instree-web --ngrok --host 0.0.0.0
 Restart=on-failure
-RestartSec=5
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
