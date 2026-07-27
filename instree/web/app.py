@@ -332,6 +332,14 @@ def create_app() -> FastAPI:
             request, "graph.html", _page_ctx(request, "graph")
         )
 
+    @app.get("/help", response_class=HTMLResponse)
+    async def help_page(request: Request):
+        if is_web_mode():
+            init_db()
+        return templates.TemplateResponse(
+            request, "help.html", _page_ctx(request, "help")
+        )
+
     @app.get("/actions", include_in_schema=False)
     async def actions_redirect():
         return RedirectResponse("/changes", status_code=307)

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Instree · Aide</title>
+  <link rel="stylesheet" href="/static/style.css?v={{ v }}">
+</head>
+<body data-page="help" data-asset-v="{{ v }}"{% if web_mode %} data-web-mode="true"{% endif %}>
+  {% include "_header.html" %}
+
+  <main class="page page-help">
+    <article class="card help-card">
+      <header class="help-header">
+        <h2 class="help-title" data-i18n="help.title">Guide d'utilisation</h2>
+        <p class="help-lead" data-i18n="help.lead">Tout ce qu'il faut savoir pour connecter Instagram, lancer des analyses et lire les résultats.</p>
+      </header>
+
+      <nav class="help-toc" aria-label="Sommaire">
+        <h3 class="help-toc-title" data-i18n="help.toc">Sommaire</h3>
+        <ol class="help-toc-list">
+          <li><a href="#help-what" data-i18n="help.what.title">À quoi sert Instree ?</a></li>
+          <li><a href="#help-tokens" data-i18n="help.tokens.title">Connecter Instagram (codes)</a></li>
+          <li><a href="#help-home" data-i18n="help.home.title">Page Home</a></li>
+          <li><a href="#help-graph" data-i18n="help.graph.title">Page Graph</a></li>
+          <li><a href="#help-settings" data-i18n="help.settings.title">Page Paramètres</a></li>
+        </ol>
+      </nav>
+
+      <section id="help-what" class="help-section">
+        <h3 data-i18n="help.what.title">À quoi sert Instree ?</h3>
+        <p data-i18n="help.what.p1">Instree surveille tes amis mutuels Instagram (personnes que tu suis et qui te suivent) et détecte quand leurs abonnements changent.</p>
+        <p data-i18n="help.what.p2">À chaque analyse, tu vois qui s'est abonné ou désabonné chez tes mutuels, qui a rejoint ou quitté ta propre liste, et tu peux visualiser les liens dans le graphe.</p>
+      </section>
+
+      <section id="help-tokens" class="help-section">
+        <h3 data-i18n="help.tokens.title">Connecter Instagram (codes)</h3>
+        <p data-i18n="help.tokens.intro">Instree a besoin de deux valeurs copiées depuis ton navigateur, là où tu es déjà connecté à Instagram. Ce ne sont pas ton mot de passe : ce sont des jetons de session temporaires.</p>
+
+        <ol class="help-steps">
+          <li data-i18n="help.tokens.step1">Ouvre instagram.com dans Chrome, Firefox ou Edge et connecte-toi à ton compte.</li>
+          <li data-i18n="help.tokens.step2">Appuie sur F12 (ou clic droit → Inspecter) pour ouvrir les outils développeur.</li>
+          <li data-i18n="help.tokens.step3">Onglet « Application » (Chrome / Edge) ou « Stockage » (Firefox).</li>
+          <li data-i18n="help.tokens.step4">Menu de gauche : Cookies → https://www.instagram.com</li>
+          <li>
+            <span data-i18n="help.tokens.step5">Copie la valeur du cookie</span>
+            <code>sessionid</code>
+            <span data-i18n="help.tokens.step5b">(longue chaîne alphanumérique).</span>
+          </li>
+          <li>
+            <span data-i18n="help.tokens.step6">Copie la valeur du cookie</span>
+            <code>ds_user_id</code>
+            <span data-i18n="help.tokens.step6b">(souvent un numéro à 10 chiffres).</span>
+          </li>
+          <li data-i18n="help.tokens.step7">Va dans Paramètres, colle les deux codes, clique « Vérifier la connexion », puis « Enregistrer ».</li>
+        </ol>
+
+        {% if web_mode %}
+        <aside class="help-callout help-callout-info">
+          <strong data-i18n="help.tokens.webTitle">Sur ce serveur (Web)</strong>
+          <p data-i18n="help.tokens.webNote">Instree ne peut pas lire ton navigateur à distance : tu dois coller les codes toi-même. Après l'enregistrement, la première analyse (baseline) démarre automatiquement.</p>
+        </aside>
+        {% else %}
+        <aside class="help-callout help-callout-info">
+          <strong data-i18n="help.tokens.desktopTitle">Sur ton ordinateur</strong>
+          <p data-i18n="help.tokens.desktopNote">Instree peut parfois lire Chrome, Edge ou Firefox automatiquement. Si ça ne marche pas, colle les codes à la main comme ci-dessus.</p>
+        </aside>
+        {% endif %}
+
+        <aside class="help-callout help-callout-warn">
+          <strong data-i18n="help.tokens.securityTitle">Confidentialité</strong>
+          <p data-i18n="help.tokens.security">Ne partage jamais ces codes : ils donnent accès à ton compte Instagram comme un mot de passe. Si tu te déconnectes d'Instagram ou changes de mot de passe, recopie de nouveaux codes.</p>
+        </aside>
+      </section>
+
+      <section id="help-home" class="help-section">
+        <h3 data-i18n="help.home.title">Page Home</h3>
+        <p data-i18n="help.home.intro">C'est la page principale : lancer une analyse, consulter l'historique et lire les changements détectés.</p>
+
+        <dl class="help-dl">
+          {% if web_mode %}
+          <div>
+            <dt data-i18n="help.home.webScheduleTitle">Scan automatique</dt>
+            <dd data-i18n="help.home.webSchedule">Sur le serveur, les analyses tournent seules chaque nuit (vers 2 h). Tu ne peux pas lancer un scan manuellement ici — c'est normal.</dd>
+          </div>
+          <div>
+            <dt data-i18n="help.home.webBaselineTitle">Première connexion</dt>
+            <dd data-i18n="help.home.webBaseline">Après avoir enregistré tes codes Instagram, Instree lance une baseline automatiquement. Elle télécharge tout depuis zéro et peut prendre longtemps.</dd>
+          </div>
+          {% else %}
+          <div>
+            <dt data-i18n="actions.scanBtn">Lancer un scan</dt>
+            <dd data-i18n="help.home.scanBtn">Compare ta liste de mutuels et les abonnements de chaque personne suivie. Utilise ce bouton pour une analyse régulière.</dd>
+          </div>
+          <div>
+            <dt data-i18n="actions.baselineBtn">Baseline</dt>
+            <dd data-i18n="help.home.baseline">Efface l'historique et repart de zéro. À utiliser seulement la première fois ou si tu veux tout retélécharger. Très long.</dd>
+          </div>
+          <div>
+            <dt data-i18n="actions.stopScan">Arrêter le scan</dt>
+            <dd data-i18n="help.home.stopScan">Interrompt l'analyse en cours. Instree pourra reprendre plus tard là où il s'est arrêté.</dd>
+          </div>
+          {% endif %}
+          <div>
+            <dt data-i18n="changes.history">Historique</dt>
+            <dd data-i18n="help.home.history">Liste de toutes les analyses passées. Clique sur une ligne pour afficher ses résultats.</dd>
+          </div>
+          <div>
+            <dt data-i18n="help.home.navTitle">Flèches ← →</dt>
+            <dd data-i18n="help.home.nav">Navigue entre le scan précédent et le suivant dans l'historique.</dd>
+          </div>
+          <div>
+            <dt data-i18n="changes.searchLabel">Rechercher</dt>
+            <dd data-i18n="help.home.search">Tape un @utilisateur pour filtrer la liste des changements. Si la personne n'est pas sur ce scan, Instree indique dans quels scans elle apparaît.</dd>
+          </div>
+        </dl>
+
+        <h4 class="help-subtitle" data-i18n="help.home.legendTitle">Légende des symboles</h4>
+        <ul class="help-legend-list">
+          <li><strong class="legend-list-add">&gt;</strong> <span data-i18n="help.home.legendListAdd">Quelqu'un est entré ou sorti de ta propre liste de mutuels.</span></li>
+          <li><strong>+</strong> <span data-i18n="help.home.legendAdd">Un de tes mutuels s'est abonné à quelqu'un.</span></li>
+          <li><strong>−</strong> <span data-i18n="help.home.legendRemove">Un de tes mutuels s'est désabonné.</span></li>
+          <li><strong class="legend-gone">×</strong> <span data-i18n="help.home.legendGone">Compte supprimé, renommé ou inaccessible.</span></li>
+          <li><span class="badge-mutual legend-badge" data-i18n="changes.badgeMutual">mutuel</span> <span data-i18n="help.home.legendMutual">La personne est déjà dans ta liste de mutuels.</span></li>
+        </ul>
+        <p class="field-hint" data-i18n="help.home.legendFilter">Clique sur un symbole en bas de page pour n'afficher que ce type de changement.</p>
+      </section>
+
+      <section id="help-graph" class="help-section">
+        <h3 data-i18n="help.graph.title">Page Graph</h3>
+        <p data-i18n="help.graph.intro">Visualise les liens entre tes mutuels : qui suit qui, regroupés par communautés. Nécessite au moins un scan avec l'option « Regarder aussi qui ils suivent » activée.</p>
+
+        <dl class="help-dl">
+          <div>
+            <dt data-i18n="graph.searchLabel">Rechercher</dt>
+            <dd data-i18n="help.graph.search">Tape un @utilisateur pour centrer la vue sur cette personne.</dd>
+          </div>
+          <div>
+            <dt data-i18n="graph.btnFullscreen">Plein écran</dt>
+            <dd data-i18n="help.graph.fullscreen">Agrandit le graphe pour explorer plus confortablement.</dd>
+          </div>
+          <div>
+            <dt data-i18n="graph.panelTitle">Panneau Affichage</dt>
+            <dd data-i18n="help.graph.panel">À droite : masque des groupes, ajuste la taille des points, l'opacité des liens, le nombre de groupes, etc.</dd>
+          </div>
+          <div>
+            <dt data-i18n="graph.btnFit">Ajuster la vue</dt>
+            <dd data-i18n="help.graph.fit">Recadre le graphe pour tout voir à l'écran.</dd>
+          </div>
+          <div>
+            <dt data-i18n="graph.btnReset">Réinitialiser</dt>
+            <dd data-i18n="help.graph.reset">Remet les réglages d'affichage par défaut.</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section id="help-settings" class="help-section">
+        <h3 data-i18n="help.settings.title">Page Paramètres</h3>
+        <p data-i18n="help.settings.intro">Configure la connexion Instagram et le comportement des analyses.</p>
+
+        <dl class="help-dl">
+          <div>
+            <dt data-i18n="settings.testSession">Vérifier la connexion</dt>
+            <dd data-i18n="help.settings.test">Teste tes codes Instagram avant de les enregistrer. Tu dois voir « Connecté en tant que @… ».</dd>
+          </div>
+          <div>
+            <dt data-i18n="settings.save">Enregistrer</dt>
+            <dd data-i18n="help.settings.save">Sauvegarde tous les réglages. Si tu as déjà des codes enregistrés, laisse les champs vides pour ne pas les changer.</dd>
+          </div>
+          <div>
+            <dt data-i18n="settings.mutualsCount">Amis mutuels analysés</dt>
+            <dd data-i18n="help.settings.mutuals">MAX = tous tes mutuels. Un nombre (ex. 50) limite l'analyse aux N premiers.</dd>
+          </div>
+          <div>
+            <dt data-i18n="settings.watchN">Abonnements par ami</dt>
+            <dd data-i18n="help.settings.watchN">Combien d'abonnements Instree regarde chez chaque mutuel. MAX = toute la liste.</dd>
+          </div>
+          <div>
+            <dt data-i18n="settings.watchFollowing">Regarder aussi qui ils suivent</dt>
+            <dd data-i18n="help.settings.watchFollowing">Indispensable pour le graphe. Désactivé = plus rapide, mais pas de liens entre mutuels.</dd>
+          </div>
+          <div>
+            <dt data-i18n="settings.skipUnchanged">Passer les amis sans changement</dt>
+            <dd data-i18n="help.settings.skipUnchanged">Accélère les scans suivants en ignorant les mutuels dont la liste n'a pas bougé.</dd>
+          </div>
+          {% if not web_mode %}
+          <div>
+            <dt data-i18n="settings.scheduleInterval">Analyse automatique</dt>
+            <dd data-i18n="help.settings.schedule">Relance une analyse toutes les X minutes tant qu'Instree est ouvert sur ton PC.</dd>
+          </div>
+          {% endif %}
+        </dl>
+
+        <p class="help-footer-link">
+          <a href="/settings" data-i18n="help.settings.go">Ouvrir Paramètres →</a>
+        </p>
+      </section>
+    </article>
+  </main>
+
+  <script src="/static/i18n.js?v={{ v }}"></script>
+  <script src="/static/app.js?v={{ v }}"></script>
+</body>
+</html>
