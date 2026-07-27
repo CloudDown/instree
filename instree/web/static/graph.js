@@ -11,6 +11,10 @@
   const elSearchMsg = document.getElementById("graph-search-msg");
   const elNoLinks = document.getElementById("graph-no-links");
 
+  function setEmptyState(isEmpty) {
+    elStage?.classList.toggle("is-empty", isEmpty);
+  }
+
   const STORAGE_KEY = "instree.graph.display";
 
   const DEFAULT_SETTINGS = {
@@ -638,6 +642,7 @@
 
   async function loadGraph({ keepPanel = false } = {}) {
     elEmpty.classList.add("hidden");
+    setEmptyState(false);
     if (!keepPanel) elPanel?.classList.add("hidden");
 
     let data;
@@ -649,12 +654,14 @@
       data = await res.json();
     } catch {
       elEmpty.classList.remove("hidden");
+      setEmptyState(true);
       return;
     }
 
     if (!data.nodes?.length) {
       destroyGraph();
       elEmpty.classList.remove("hidden");
+      setEmptyState(true);
       return;
     }
 
@@ -803,6 +810,7 @@
 
     if (typeof ForceGraph !== "function") {
       elEmpty.classList.remove("hidden");
+      setEmptyState(true);
       return;
     }
 
