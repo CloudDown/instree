@@ -28,24 +28,24 @@
           <fieldset class="config-fieldset">
             <legend data-i18n="settings.instagram">Connexion Instagram</legend>
             <label class="field">
-              <span class="field-label" data-i18n="settings.sessionId">Code de connexion</span>
+              <span class="field-label" data-i18n="settings.sessionId">Cookie sessionid</span>
               <div class="secret-input">
-                <input type="text" id="cfg-sessionid" name="sessionid" class="is-secret-masked" autocomplete="off" spellcheck="false" data-i18n-placeholder="settings.sessionPaste" placeholder="Colle ici le code de connexion Instagram">
+                <input type="text" id="cfg-sessionid" name="sessionid" class="is-secret-masked" autocomplete="off" spellcheck="false" data-i18n-placeholder="settings.sessionPaste" placeholder="sessionid">
                 <button type="button" class="secret-toggle" data-secret-toggle="cfg-sessionid" aria-pressed="false" data-i18n-aria-label="settings.showSecret" aria-label="Afficher">
                   <span class="secret-toggle-icon" aria-hidden="true"></span>
                 </button>
               </div>
             </label>
             <label class="field">
-              <span class="field-label" data-i18n="settings.userId">Numéro du compte</span>
+              <span class="field-label" data-i18n="settings.userId">Cookie ds_user_id</span>
               <div class="secret-input">
-                <input type="text" id="cfg-ds-user-id" name="ds_user_id" class="is-secret-masked" autocomplete="off" spellcheck="false" data-i18n-placeholder="settings.userIdPaste" placeholder="Colle ici le numéro du compte">
+                <input type="text" id="cfg-ds-user-id" name="ds_user_id" class="is-secret-masked" autocomplete="off" spellcheck="false" data-i18n-placeholder="settings.userIdPaste" placeholder="ds_user_id">
                 <button type="button" class="secret-toggle" data-secret-toggle="cfg-ds-user-id" aria-pressed="false" data-i18n-aria-label="settings.showSecret" aria-label="Afficher">
                   <span class="secret-toggle-icon" aria-hidden="true"></span>
                 </button>
               </div>
             </label>
-            <p class="field-hint" data-i18n="settings.sessionHint">Colle les deux codes trouvés dans Instagram (navigateur), puis clique sur « Vérifier la connexion ». Sur cet ordinateur, Instree peut aussi les lire depuis Chrome, Edge ou Firefox.</p>
+            <p class="field-hint" data-i18n="settings.sessionHint">Outils développeur (F12) → Application ou Stockage → Cookies → instagram.com. Copie les cookies sessionid et ds_user_id, colle-les ci-dessus, puis « Vérifier la connexion » et « Enregistrer ». Voir la page Aide pour le détail.</p>
             <button type="button" id="btn-test-session" class="btn btn-ghost btn-sm btn-test-session">
               <span class="btn-test-mark" aria-hidden="true"></span>
               <span class="btn-test-label" data-i18n="settings.testSession">Vérifier la connexion</span>

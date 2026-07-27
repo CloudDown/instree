@@ -566,13 +566,8 @@ async function resolveIgUsername() {
   return session;
 }
 
-async function saveConfig(e) {
-  e.preventDefault();
-  const pastedSession = elCfgSessionid.value.trim();
-  const pastedUserId = elCfgDsUserId.value.trim();
-  const sessionChanged =
-    Boolean(pastedSession) && pastedSession !== lastLoadedSessionid;
-  const body = {
+function buildConfigBody() {
+  return {
     username: "",
     n: elCfgNInput.value.trim(),
     watch_n: elCfgWatchNInput.value.trim(),
@@ -587,22 +582,38 @@ async function saveConfig(e) {
     refetch_mutuals: Boolean(elCfgRefetchMutuals?.checked),
     skip_unchanged_profiles: Boolean(elCfgSkipUnchanged?.checked),
     partial_fetch: Boolean(elCfgPartialFetch?.checked),
-    sessionid: pastedSession,
-    ds_user_id: pastedUserId,
+    sessionid: elCfgSessionid.value.trim(),
+    ds_user_id: elCfgDsUserId.value.trim(),
   };
+}
+
+async function persistConfigFromForm() {
   const res = await fetch("/api/config", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(buildConfigBody()),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    showConfigMsg(err.detail || t("settings.saveError"), false);
-    return;
+    throw new Error(err.detail || t("settings.saveError"));
   }
   const data = await res.json();
   fillConfigForm(data.config);
   await refreshSessionUi();
+  return data;
+}
+
+async function saveConfig(e) {
+  e.preventDefault();
+  const pastedSession = elCfgSessionid.value.trim();
+  const sessionChanged =
+    Boolean(pastedSession) && pastedSession !== lastLoadedSessionid;
+  try {
+    await persistConfigFromForm();
+  } catch (err) {
+    showConfigMsg(err.message || t("settings.saveError"), false);
+    return;
+  }
   showConfigMsg(t("settings.saved"));
 
   // Nouveau sessionid collé → résoudre le @ Instagram pour la carte Session.
@@ -1232,6 +1243,13 @@ async function initSettingsPage() {
       btnTestSession.disabled = true;
       setTestBtnState("testing");
       try {
+        try {
+          await persistConfigFromForm();
+        } catch (err) {
+          setTestBtnState("err");
+          showConfigMsg(err.message || t("settings.saveError"), false);
+          return;
+        }
         const session = await resolveIgUsername();
         await loadConfig();
         if (session.ok) {
