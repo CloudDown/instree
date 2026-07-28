@@ -181,6 +181,7 @@ def _paginate_friendships(
     users: list[IgUser] = list(resume_users or [])
     max_id = resume_max_id or ""
     seen: set[str] = {u.pk for u in users if u.pk}
+    seen_usernames: set[str] = {u.username for u in users if u.username}
     target = limit if limit > 0 else total_hint
     new_found = 0
 
@@ -209,6 +210,7 @@ def _paginate_friendships(
             if not upk or not username or upk in seen:
                 continue
             seen.add(upk)
+            seen_usernames.add(username)
             users.append(
                 IgUser(
                     pk=upk,
@@ -222,12 +224,21 @@ def _paginate_friendships(
             )
             if known_usernames is not None and username not in known_usernames:
                 new_found += 1
-                if stop_after_new > 0 and new_found >= stop_after_new:
-                    if on_page:
-                        on_page(len(users), target or len(users))
-                    if on_checkpoint:
-                        on_checkpoint(users, "")
-                    return users
+            # Arrêt anticipé sûr : assez de nouveaux ET tous les anciens encore vus.
+            # Sinon (unfollow + follow) on manquerait les désabonnements.
+            if (
+                stop_after_new > 0
+                and new_found >= stop_after_new
+                and (
+                    known_usernames is None
+                    or known_usernames.issubset(seen_usernames)
+                )
+            ):
+                if on_page:
+                    on_page(len(users), target or len(users))
+                if on_checkpoint:
+                    on_checkpoint(users, "")
+                return users
             if limit > 0 and len(users) >= limit:
                 if on_page:
                     on_page(len(users), target or len(users))

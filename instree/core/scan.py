@@ -172,20 +172,6 @@ def _watch_total_hint(fetch_limit: int, following_count: int) -> int:
     return fetch_limit if fetch_limit > 0 else 0
 
 
-def _merge_added_snapshot(
-    stored: list[FollowingEntry],
-    added: list[FollowingEntry],
-    watch_n: int,
-) -> list[FollowingEntry]:
-    """Nouveaux abonnements en tête + ancien snapshot, tronqué si watch_n limité."""
-    added_names = {a.username for a in added}
-    rest = [e for e in stored if e.username not in added_names]
-    merged = added + rest
-    if watch_n > 0:
-        return merged[:watch_n]
-    return merged
-
-
 def _checkpoint(
     username: str,
     live: list[FollowingEntry],
@@ -432,7 +418,9 @@ def _watch_persons(
                     stored = get_person_following(profile.username)
                     stored_set = {e.username for e in stored}
                     delta = profile.following_count - snapshot.following_count
-                    partial = _fetch_person_following(
+                    # partial_fetch : arrête tôt seulement quand tous les anciens
+                    # sont encore présents (sinon on rate les désabonnements).
+                    live = _fetch_person_following(
                         ig,
                         profile.pk,
                         limit=fetch_limit,
@@ -447,50 +435,19 @@ def _watch_persons(
                         stop_after_new=delta if partial_fetch else 0,
                         following_count=profile.following_count,
                     )
-                    added = [e for e in partial if e.username not in stored_set]
-                    if len(added) >= delta:
-                        live = _merge_added_snapshot(stored, added, fetch_limit)
-                        _checkpoint(
-                            profile.username, live, profile.following_count, snapshots
-                        )
-                        for a in added:
-                            person_changes.append(
-                                PersonChange(
-                                    subject_username=profile.username,
-                                    subject_full_name=entry.full_name,
-                                    username=a.username,
-                                    full_name=a.full_name,
-                                    op="sub_add",
-                                    is_verified=a.is_verified,
-                                )
-                            )
-                    else:
-                        live = _fetch_person_following(
-                            ig,
-                            profile.pk,
-                            limit=fetch_limit,
-                            page_sleep=page_sleep,
-                            page_size=page_size,
-                            should_cancel=should_cancel,
-                            on_progress=on_progress,
-                            on_cooldown=on_cooldown,
-                            username=profile.username,
-                            total_hint=total_hint,
-                            following_count=profile.following_count,
-                        )
-                        _checkpoint(
-                            profile.username, live, profile.following_count, snapshots
-                        )
-                        _apply_person_diff(
-                            ig,
-                            profile.username,
-                            entry,
-                            stored,
-                            live,
-                            person_changes,
-                            page_sleep=page_sleep,
-                            should_cancel=should_cancel,
-                        )
+                    _checkpoint(
+                        profile.username, live, profile.following_count, snapshots
+                    )
+                    _apply_person_diff(
+                        ig,
+                        profile.username,
+                        entry,
+                        stored,
+                        live,
+                        person_changes,
+                        page_sleep=page_sleep,
+                        should_cancel=should_cancel,
+                    )
                 else:
                     live = _fetch_person_following(
                         ig,
