@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import threading
-import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from instree.core.config import (
+    active_profile_id,
     is_web_mode,
+    list_profiles,
     load_server_schedule_settings,
     load_settings,
     reset_current_user,
+    set_active_profile,
     set_current_user,
 )
 from instree.core.store import has_scans, scan_resume_info
@@ -22,7 +24,17 @@ from instree.web.accounts import (
     set_pending_baseline,
 )
 from instree.web.runner import job_status, start_scan
-from instree.web.schedule_state import last_daily_date, mark_daily_run
+from instree.web.schedule_state import (
+    begin_daily_item,
+    clear_daily_inflight,
+    clear_daily_restore,
+    daily_inflight,
+    daily_queue,
+    daily_restore_active,
+    last_daily_date,
+    mark_daily_run,
+    set_daily_batch,
+)
 
 _stop = threading.Event()
 _thread: threading.Thread | None = None
@@ -33,6 +45,14 @@ def _user_has_session(user_id: str) -> bool:
     token = set_current_user(user_id)
     try:
         return bool(load_settings().sessionid)
+    finally:
+        reset_current_user(token)
+
+
+def _user_has_any_session(user_id: str) -> bool:
+    token = set_current_user(user_id)
+    try:
+        return any(p.get("sessionid_set") for p in list_profiles())
     finally:
         reset_current_user(token)
 
@@ -116,12 +136,31 @@ def try_resume_interrupted_scan(user_id: str) -> bool:
     return True
 
 
+def _restore_active_if_batch_done(user_id: str) -> None:
+    """Remet la session active d'origine une fois le lot quotidien terminé."""
+    if daily_queue(user_id) or daily_inflight(user_id):
+        return
+    if not daily_restore_active(user_id):
+        return
+    restore = clear_daily_restore(user_id)
+    if not restore:
+        return
+    token = set_current_user(user_id)
+    try:
+        set_active_profile(restore)
+    except ValueError:
+        pass
+    finally:
+        reset_current_user(token)
+
+
 def _tick_daily(user_id: str, *, daily_hour: int, timezone: str) -> None:
+    """À l'heure prévue : enfile toutes les sessions avec cookies, puis les
+    enchaîne une par une (un job par compte à la fois).
+    """
     if get_pending_baseline(user_id):
         return
-    if not _user_has_session(user_id):
-        return
-    if job_status(user_id).get("state") in _ACTIVE:
+    if not _user_has_any_session(user_id):
         return
 
     try:
@@ -130,28 +169,81 @@ def _tick_daily(user_id: str, *, daily_hour: int, timezone: str) -> None:
         tz = ZoneInfo("UTC")
 
     now = datetime.now(tz)
-    if now.hour != daily_hour:
-        return
-
     today = now.date().isoformat()
-    if last_daily_date(user_id) == today:
+
+    if job_status(user_id).get("state") in _ACTIVE:
         return
 
+    # Scan quotidien précédent terminé (job idle).
+    if daily_inflight(user_id):
+        clear_daily_inflight(user_id)
+        if not daily_queue(user_id):
+            mark_daily_run(user_id, today)
+            _restore_active_if_batch_done(user_id)
+            return
+
+    queue = daily_queue(user_id)
+
+    # Lot du jour déjà terminé.
+    if last_daily_date(user_id) == today and not queue and not daily_inflight(user_id):
+        _restore_active_if_batch_done(user_id)
+        return
+
+    # Nouvelle journée à l'heure du scan : construire la file.
+    if not queue and not daily_inflight(user_id):
+        if now.hour != daily_hour:
+            return
+        if last_daily_date(user_id) == today:
+            return
+        token = set_current_user(user_id)
+        try:
+            restore = active_profile_id()
+            queue = [p["id"] for p in list_profiles() if p.get("sessionid_set")]
+            if not queue:
+                mark_daily_run(user_id, today)
+                return
+            set_daily_batch(user_id, queue=queue, restore_active=restore)
+        finally:
+            reset_current_user(token)
+        queue = daily_queue(user_id)
+
+    if not queue:
+        return
+
+    pid = queue[0]
     token = set_current_user(user_id)
     try:
-        if not has_scans():
-            start_scan(init=True, user_id=user_id)
-        else:
-            start_scan(init=False, user_id=user_id)
-        mark_daily_run(user_id, today)
-    except RuntimeError:
-        pass
+        set_active_profile(pid)
+        # Reprise d'un brouillon sur cette session si besoin.
+        can_resume = bool(scan_resume_info().get("can_resume"))
+        init = (not can_resume) and (not has_scans())
+        begin_daily_item(user_id, pid)
+        start_scan(init=init, user_id=user_id)
+    except (RuntimeError, ValueError):
+        # Remettre en tête si le démarrage a échoué.
+        remaining = daily_queue(user_id)
+        set_daily_batch(
+            user_id,
+            queue=[pid, *remaining],
+            restore_active=daily_restore_active(user_id),
+        )
+        clear_daily_inflight(user_id)
     finally:
         reset_current_user(token)
 
 
 def _tick_user(user_id: str) -> None:
     schedule = load_server_schedule_settings()
+    # Pendant un lot quotidien, ne pas laisser la reprise voler une autre session.
+    if daily_queue(user_id) or daily_inflight(user_id):
+        if try_resume_interrupted_scan(user_id):
+            return
+        _tick_daily(
+            user_id,
+            daily_hour=schedule["daily_hour"],
+            timezone=schedule["timezone"],
+        )
+        return
     if try_resume_interrupted_scan(user_id):
         return
     if try_start_pending_baseline(user_id):
