@@ -410,12 +410,12 @@ def _watch_persons(
             )
             try:
                 live: list[FollowingEntry]
+                stored = get_person_following(profile.username)
                 if (
                     need_diff
                     and snapshot is not None
                     and profile.following_count > snapshot.following_count
                 ):
-                    stored = get_person_following(profile.username)
                     stored_set = {e.username for e in stored}
                     delta = profile.following_count - snapshot.following_count
                     # partial_fetch : arrête tôt seulement quand tous les anciens
@@ -435,19 +435,6 @@ def _watch_persons(
                         stop_after_new=delta if partial_fetch else 0,
                         following_count=profile.following_count,
                     )
-                    _checkpoint(
-                        profile.username, live, profile.following_count, snapshots
-                    )
-                    _apply_person_diff(
-                        ig,
-                        profile.username,
-                        entry,
-                        stored,
-                        live,
-                        person_changes,
-                        page_sleep=page_sleep,
-                        should_cancel=should_cancel,
-                    )
                 else:
                     live = _fetch_person_following(
                         ig,
@@ -462,21 +449,22 @@ def _watch_persons(
                         total_hint=total_hint,
                         following_count=profile.following_count,
                     )
-                    _checkpoint(
-                        profile.username, live, profile.following_count, snapshots
+                _checkpoint(
+                    profile.username, live, profile.following_count, snapshots
+                )
+                # Diff AVANT d'avoir écrasé stored en mémoire (checkpoint a déjà
+                # écrit live en DB — ne pas relire get_person_following ici).
+                if need_diff and snapshot is not None:
+                    _apply_person_diff(
+                        ig,
+                        profile.username,
+                        entry,
+                        stored,
+                        live,
+                        person_changes,
+                        page_sleep=page_sleep,
+                        should_cancel=should_cancel,
                     )
-                    if need_diff and snapshot is not None:
-                        stored = get_person_following(profile.username)
-                        _apply_person_diff(
-                            ig,
-                            profile.username,
-                            entry,
-                            stored,
-                            live,
-                            person_changes,
-                            page_sleep=page_sleep,
-                            should_cancel=should_cancel,
-                        )
             except ScanCancelled:
                 raise
             except Exception as exc:
