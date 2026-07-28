@@ -336,6 +336,36 @@ def _parse_bool(raw, *, default: bool = True) -> bool:
     return default
 
 
+def _normalize_ig_username(raw: str) -> str:
+    return str(raw or "").strip().lstrip("@").lower()
+
+
+def parse_watch_blacklist(raw) -> tuple[str, ...]:
+    """Liste de @ à exclure de la phase watch (normalisée, unique)."""
+    if raw is None:
+        return ()
+    if isinstance(raw, str):
+        items = [raw]
+    elif isinstance(raw, (list, tuple)):
+        items = list(raw)
+    else:
+        return ()
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        u = _normalize_ig_username(str(item))
+        if u and u not in seen:
+            seen.add(u)
+            out.append(u)
+    return tuple(out)
+
+
+def _toml_str_list(items: list[str] | tuple[str, ...]) -> str:
+    if not items:
+        return "[]"
+    return "[ " + ", ".join(_toml_str(x) for x in items) + " ]"
+
+
 def _scan_behavior(scan: dict | None) -> dict[str, bool]:
     scan = scan if isinstance(scan, dict) else {}
     return {
@@ -345,6 +375,15 @@ def _scan_behavior(scan: dict | None) -> dict[str, bool]:
             scan.get("skip_unchanged_profiles"), default=True
         ),
         "partial_fetch": _parse_bool(scan.get("partial_fetch"), default=True),
+    }
+
+
+def _scan_extras(scan: dict | None) -> dict:
+    """Booléens d'analyse + blacklist watch."""
+    scan = scan if isinstance(scan, dict) else {}
+    return {
+        **_scan_behavior(scan),
+        "watch_blacklist": parse_watch_blacklist(scan.get("watch_blacklist")),
     }
 
 
@@ -433,6 +472,7 @@ class Settings:
     refetch_mutuals: bool = False
     skip_unchanged_profiles: bool = True
     partial_fetch: bool = True
+    watch_blacklist: tuple[str, ...] = ()
     profile_id: str = _DEFAULT_PROFILE
     profile_label: str = "Session 1"
 
@@ -471,6 +511,7 @@ def _format_profile_settings_toml(
     refetch_mutuals: bool = False,
     skip_unchanged_profiles: bool = True,
     partial_fetch: bool = True,
+    watch_blacklist: list[str] | tuple[str, ...] = (),
     ig_username: str = "",
 ) -> str:
     return f"""# Instree — paramètres de session (profil)
@@ -491,6 +532,7 @@ watch_following = {"true" if watch_following else "false"}
 refetch_mutuals = {"true" if refetch_mutuals else "false"}
 skip_unchanged_profiles = {"true" if skip_unchanged_profiles else "false"}
 partial_fetch = {"true" if partial_fetch else "false"}
+watch_blacklist = {_toml_str_list(parse_watch_blacklist(watch_blacklist))}
 
 [schedule]
 interval_minutes = {schedule_interval_minutes}
@@ -577,7 +619,7 @@ def ensure_profiles_migrated() -> None:
                 schedule_interval_minutes=parse_interval_minutes(
                     schedule.get("interval_minutes", 0)
                 ),
-                **_scan_behavior(scan),
+                **_scan_extras(scan),
             ),
         )
 
@@ -648,7 +690,7 @@ def ensure_profiles_migrated() -> None:
                     page_sleep=0.6,
                     page_size=200,
                     schedule_interval_minutes=0,
-                    **_scan_behavior({}),
+                    **_scan_extras({}),
                 ),
             )
 
@@ -734,7 +776,7 @@ def remember_profile_ig_username(username: str, profile_id: str | None = None) -
             schedule_interval_minutes=parse_interval_minutes(
                 schedule.get("interval_minutes", 0)
             ),
-            **_scan_behavior(scan),
+            **_scan_extras(scan),
         ),
     )
 
@@ -810,7 +852,7 @@ def rename_profile(profile_id: str, label: str) -> None:
             schedule_interval_minutes=parse_interval_minutes(
                 schedule.get("interval_minutes", 0)
             ),
-            **_scan_behavior(scan),
+            **_scan_extras(scan),
         ),
     )
 
@@ -882,7 +924,7 @@ def load_settings() -> Settings:
         schedule_interval_minutes=parse_interval_minutes(
             schedule.get("interval_minutes", 0)
         ),
-        **_scan_behavior(scan),
+        **_scan_extras(scan),
         profile_id=pid,
         profile_label=str(profile_meta.get("label") or pid).strip() or pid,
     )
@@ -908,6 +950,7 @@ def config_for_api() -> dict:
         "refetch_mutuals": s.refetch_mutuals,
         "skip_unchanged_profiles": s.skip_unchanged_profiles,
         "partial_fetch": s.partial_fetch,
+        "watch_blacklist": list(s.watch_blacklist),
         "sessionid": s.sessionid,
         "ds_user_id": s.ds_user_id,
         "sessionid_set": bool(s.sessionid),
@@ -1018,6 +1061,7 @@ def save_config(
             partial_fetch=(
                 partial_fetch if partial_fetch is not None else existing.partial_fetch
             ),
+            watch_blacklist=existing.watch_blacklist,
         ),
     )
 
@@ -1031,6 +1075,42 @@ def save_config(
             sync_autostart(autostart)
         except (OSError, RuntimeError) as e:
             raise RuntimeError(f"démarrage automatique : {e}") from e
+
+
+def save_watch_blacklist(usernames: list[str] | tuple[str, ...]) -> tuple[str, ...]:
+    """Met à jour uniquement la blacklist watch du profil actif."""
+    ensure_profiles_migrated()
+    existing = load_settings()
+    blacklist = parse_watch_blacklist(usernames)
+    pid = existing.profile_id
+    existing_raw = _read_toml(profile_settings_path(pid))
+    existing_profile = (
+        existing_raw.get("profile")
+        if isinstance(existing_raw.get("profile"), dict)
+        else {}
+    )
+    _write_text(
+        profile_settings_path(pid),
+        _format_profile_settings_toml(
+            label=existing.profile_label,
+            ig_username=str(existing_profile.get("ig_username") or "").strip().lstrip(
+                "@"
+            ),
+            username=existing.username,
+            n=existing.n,
+            watch_n=existing.watch_n,
+            max_person_following=existing.max_person_following,
+            page_sleep=existing.page_sleep,
+            page_size=existing.page_size,
+            schedule_interval_minutes=existing.schedule_interval_minutes,
+            watch_following=existing.watch_following,
+            refetch_mutuals=existing.refetch_mutuals,
+            skip_unchanged_profiles=existing.skip_unchanged_profiles,
+            partial_fetch=existing.partial_fetch,
+            watch_blacklist=blacklist,
+        ),
+    )
+    return blacklist
 
 
 def save_session_credentials(sessionid: str, ds_user_id: str = "") -> None:

@@ -326,6 +326,7 @@ def _watch_persons(
     new_usernames: set[str],
     skip_unchanged_profiles: bool = True,
     partial_fetch: bool = True,
+    watch_blacklist: set[str] | frozenset[str] | None = None,
     on_progress=None,
     should_cancel: Callable[[], bool] | None = None,
     on_cooldown: Callable[[float], None] | None = None,
@@ -338,10 +339,21 @@ def _watch_persons(
     updated: list[FollowingEntry] = []
     snapshots: list[tuple[str, list[FollowingEntry], int]] = []
     fetch_limit = _effective_fetch_limit(watch_n, max_person_following)
+    blocked = {
+        str(u).strip().lstrip("@").lower()
+        for u in (watch_blacklist or ())
+        if str(u).strip()
+    }
 
     for i, e in enumerate(entries):
         _check_cancel(should_cancel)
         _report(on_progress, i + 1, len(entries), e.username, "profile")
+
+        if e.username.strip().lstrip("@").lower() in blocked:
+            updated.append(e)
+            if i + 1 < len(entries):
+                interruptible_sleep(page_sleep, should_cancel)
+            continue
 
         try:
             if e.pk:
@@ -742,6 +754,7 @@ def run_scan(
             new_usernames=new_usernames,
             skip_unchanged_profiles=settings.skip_unchanged_profiles,
             partial_fetch=settings.partial_fetch,
+            watch_blacklist=set(settings.watch_blacklist),
             on_progress=on_progress,
             should_cancel=should_cancel,
             on_cooldown=on_cooldown,

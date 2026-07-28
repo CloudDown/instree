@@ -1638,6 +1638,122 @@ body {
   padding: 0.55rem 0.7rem 0.7rem;
 }
 
+.config-blacklist {
+  flex-shrink: 0;
+}
+
+.page-blacklist {
+  max-width: 42rem;
+}
+
+.blacklist-page-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.1rem 1.2rem 1.25rem;
+}
+
+.blacklist-back {
+  margin: 0 0 0.35rem;
+}
+
+.blacklist-back a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+
+.blacklist-back a:hover {
+  color: var(--text);
+}
+
+.blacklist-search-field {
+  margin-bottom: 0.35rem;
+}
+
+.blacklist-search {
+  width: 100%;
+  max-width: 22rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.blacklist-summary {
+  margin: 0;
+}
+
+.blacklist-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 18rem;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.blacklist-list-page {
+  max-height: min(70vh, 36rem);
+}
+
+.blacklist-list:empty {
+  display: none;
+}
+
+.blacklist-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.blacklist-item:last-child {
+  border-bottom: none;
+}
+
+.blacklist-item:hover {
+  background: var(--surface-2);
+}
+
+.blacklist-item.is-excluded {
+  background: color-mix(in srgb, var(--remove-bg) 55%, var(--bg));
+}
+
+.blacklist-item input[type="checkbox"] {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+
+.blacklist-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.blacklist-user {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.blacklist-sub {
+  color: var(--muted);
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .config-options {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

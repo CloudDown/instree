@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Instree · Exclusions</title>
+  <link rel="stylesheet" href="/static/style.css?v={{ v }}">
+</head>
+<body data-page="blacklist" data-asset-v="{{ v }}"{% if web_mode %} data-web-mode="true"{% endif %}>
+  {% include "_header.html" %}
+
+  <main class="page page-blacklist">
+    <section class="card blacklist-page-card">
+      <div class="panel-title-row">
+        <div>
+          <p class="blacklist-back">
+            <a href="/settings" data-i18n="settings.blacklistBack">← Paramètres</a>
+          </p>
+          <h1 class="panel-title" data-i18n="settings.blacklistTitle">Exclure du scan</h1>
+          <p class="panel-hint" data-i18n="settings.blacklistPageHint">Coche les mutuels à ignorer pendant l’analyse. Ils restent dans ta liste d’amis, mais Instree ne regarde plus qui ils suivent.</p>
+        </div>
+      </div>
+
+      <label class="field blacklist-search-field">
+        <span class="visually-hidden" data-i18n="settings.blacklistSearch">Rechercher</span>
+        <input type="search" id="blacklist-search" class="blacklist-search" data-i18n-placeholder="settings.blacklistSearchPh" placeholder="Filtrer…" autocomplete="off">
+      </label>
+      <p id="blacklist-summary" class="field-hint blacklist-summary"></p>
+      <p id="blacklist-empty" class="field-hint hidden" data-i18n="settings.blacklistEmpty">Aucun mutuel connu — lance d’abord une analyse.</p>
+      <p id="blacklist-msg" class="config-msg hidden" role="status"></p>
+      <ul id="blacklist-list" class="blacklist-list blacklist-list-page" aria-label="Liste des mutuels"></ul>
+    </section>
+  </main>
+
+  {% include "_confirm_dialog.html" %}
+  {% include "_early_scripts.html" %}
+  <script src="/static/i18n.js?v={{ v }}"></script>
+  <script src="/static/app.js?v={{ v }}"></script>
+</body>
+</html>

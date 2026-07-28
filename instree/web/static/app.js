@@ -166,9 +166,6 @@ function formatScanDate(scannedAt) {
     day: "numeric",
     month: "long",
     year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
   }).format(d);
 }
 
@@ -1181,6 +1178,135 @@ async function triggerScan(body) {
   }
 }
 
+let watchBlacklistMutuals = [];
+let watchBlacklistSaveTimer = 0;
+
+function syncBlacklistSummary() {
+  const elSummary = document.getElementById("blacklist-summary");
+  if (!elSummary) return;
+  const total = watchBlacklistMutuals.length;
+  const excluded = watchBlacklistMutuals.filter((m) => m.blacklisted).length;
+  elSummary.textContent = total
+    ? t("settings.blacklistSummary", { excluded, total })
+    : "";
+}
+
+function renderWatchBlacklist() {
+  const elList = document.getElementById("blacklist-list");
+  const elEmpty = document.getElementById("blacklist-empty");
+  const elSearch = document.getElementById("blacklist-search");
+  if (!elList) return;
+  const q = String(elSearch?.value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^@/, "");
+  const rows = watchBlacklistMutuals.filter((m) => {
+    if (!q) return true;
+    const u = String(m.username || "").toLowerCase();
+    const n = String(m.full_name || "").toLowerCase();
+    return u.includes(q) || n.includes(q);
+  });
+  elEmpty?.classList.toggle("hidden", watchBlacklistMutuals.length > 0);
+  elList.innerHTML = rows
+    .map((m) => {
+      const user = esc(m.username);
+      const name = m.full_name ? esc(m.full_name) : "";
+      const count = Number(m.following_count || 0);
+      const countLabel = count
+        ? esc(t("settings.blacklistFollowing", { n: count }))
+        : "";
+      const sub = [name, countLabel].filter(Boolean).join(" · ");
+      const checked = m.blacklisted ? " checked" : "";
+      const excluded = m.blacklisted ? " is-excluded" : "";
+      return (
+        `<li>` +
+        `<label class="blacklist-item${excluded}">` +
+        `<input type="checkbox" data-blacklist-user="${user}"${checked}>` +
+        `<span class="blacklist-meta">` +
+        `<span class="blacklist-user">@${user}</span>` +
+        (sub ? `<span class="blacklist-sub">${sub}</span>` : "") +
+        `</span>` +
+        `</label>` +
+        `</li>`
+      );
+    })
+    .join("");
+  syncBlacklistSummary();
+}
+
+async function persistWatchBlacklist() {
+  const usernames = watchBlacklistMutuals
+    .filter((m) => m.blacklisted)
+    .map((m) => m.username);
+  const res = await fetch("/api/watch-blacklist", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ usernames }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || t("settings.blacklistSaveError"));
+  }
+}
+
+function scheduleWatchBlacklistSave() {
+  clearTimeout(watchBlacklistSaveTimer);
+  watchBlacklistSaveTimer = setTimeout(async () => {
+    const elMsg = document.getElementById("blacklist-msg") || document.getElementById("config-msg");
+    try {
+      await persistWatchBlacklist();
+      if (elMsg) {
+        elMsg.textContent = t("settings.blacklistSaved");
+        elMsg.classList.remove("hidden", "is-err");
+        elMsg.classList.add("is-ok");
+      } else {
+        showConfigMsg(t("settings.blacklistSaved"));
+      }
+    } catch (err) {
+      const msg = err.message || t("settings.blacklistSaveError");
+      if (elMsg) {
+        elMsg.textContent = msg;
+        elMsg.classList.remove("hidden", "is-ok");
+        elMsg.classList.add("is-err");
+      } else {
+        showConfigMsg(msg, false);
+      }
+    }
+  }, 350);
+}
+
+async function initWatchBlacklist() {
+  const elList = document.getElementById("blacklist-list");
+  const elSearch = document.getElementById("blacklist-search");
+  if (!elList) return;
+  try {
+    const data = await fetch("/api/mutuals").then((r) => r.json());
+    watchBlacklistMutuals = Array.isArray(data.mutuals) ? data.mutuals : [];
+  } catch {
+    watchBlacklistMutuals = [];
+  }
+  renderWatchBlacklist();
+  if (elSearch && !elSearch.dataset.bound) {
+    elSearch.dataset.bound = "1";
+    elSearch.addEventListener("input", () => renderWatchBlacklist());
+  }
+  if (!elList.dataset.bound) {
+    elList.dataset.bound = "1";
+    elList.addEventListener("change", (e) => {
+      const input = e.target.closest("input[data-blacklist-user]");
+      if (!input) return;
+      const user = String(input.dataset.blacklistUser || "").toLowerCase();
+      const row = watchBlacklistMutuals.find(
+        (m) => String(m.username || "").toLowerCase() === user,
+      );
+      if (!row) return;
+      row.blacklisted = Boolean(input.checked);
+      renderWatchBlacklist();
+      scheduleWatchBlacklistSave();
+    });
+  }
+}
+
 async function initSettingsPage() {
   initSecretToggles();
   if (elCfgWatchFollowing) {
@@ -1412,6 +1538,12 @@ async function init() {
   renderWebSchedule(status);
 
   if (page === "settings") await initSettingsPage();
+  // blacklist page: dedicated exclusions UI (not embedded in settings form)
+  if (page === "blacklist") {
+    await I18n.ready;
+    I18n.applyI18n();
+    await initWatchBlacklist();
+  }
   if (page === "changes") await initChangesPage();
 }
 

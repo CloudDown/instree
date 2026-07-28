@@ -341,6 +341,35 @@ def latest_following(username: str) -> tuple[int | None, int | None, list[Follow
         return row["following_count"], row["follower_count"], entries
 
 
+def latest_mutuals() -> list[FollowingEntry]:
+    """Mutuels du scan le plus récent (profil actif), sans filtrer sur le username."""
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT id FROM scans ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        if not row:
+            return []
+        rows = conn.execute(
+            """
+            SELECT username, pk, full_name, following_count, is_verified
+            FROM following
+            WHERE scan_id = ?
+            ORDER BY position
+            """,
+            (row["id"],),
+        ).fetchall()
+        return [
+            FollowingEntry(
+                username=r["username"],
+                pk=r["pk"],
+                full_name=r["full_name"],
+                following_count=int(r["following_count"] or 0),
+                is_verified=bool(r["is_verified"]),
+            )
+            for r in rows
+        ]
+
+
 def get_person_snapshot(person_username: str) -> PersonSnapshot | None:
     with _connect() as conn:
         row = conn.execute(

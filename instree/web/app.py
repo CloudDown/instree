@@ -23,6 +23,7 @@ from instree.core.config import (
     remember_profile_ig_username,
     rename_profile,
     save_config,
+    save_watch_blacklist,
     set_active_profile,
 )
 from instree.core.session import connect
@@ -31,6 +32,7 @@ from instree.core.store import (
     get_graph_data,
     get_scan,
     init_db,
+    latest_mutuals,
     list_scans,
     scan_neighbors,
     scan_resume_info,
@@ -89,6 +91,10 @@ class ProfileActivate(BaseModel):
 
 class ProfileRename(BaseModel):
     label: str
+
+
+class WatchBlacklistBody(BaseModel):
+    usernames: list[str] = []
 
 
 class AuthBody(BaseModel):
@@ -316,6 +322,14 @@ def create_app() -> FastAPI:
             request, "settings.html", _page_ctx(request, "settings")
         )
 
+    @app.get("/settings/blacklist", response_class=HTMLResponse)
+    async def blacklist_page(request: Request):
+        if is_web_mode():
+            init_db()
+        return templates.TemplateResponse(
+            request, "blacklist.html", _page_ctx(request, "blacklist")
+        )
+
     @app.get("/changes", response_class=HTMLResponse)
     async def changes_page(request: Request):
         if is_web_mode():
@@ -506,6 +520,36 @@ def create_app() -> FastAPI:
             if uid:
                 try_start_baseline_after_session(uid)
         return {"ok": True, "config": config_for_api()}
+
+    @app.get("/api/mutuals")
+    async def api_mutuals():
+        """Mutuels du dernier scan + statut blacklist watch."""
+        settings = load_settings()
+        blocked = set(settings.watch_blacklist)
+        mutuals = [
+            {
+                "username": e.username,
+                "full_name": e.full_name or "",
+                "following_count": int(e.following_count or 0),
+                "blacklisted": e.username.strip().lstrip("@").lower() in blocked,
+            }
+            for e in latest_mutuals()
+        ]
+        mutuals.sort(
+            key=lambda m: (-int(m["following_count"] or 0), str(m["username"]).lower())
+        )
+        return {
+            "mutuals": mutuals,
+            "watch_blacklist": list(settings.watch_blacklist),
+        }
+
+    @app.put("/api/watch-blacklist")
+    async def api_watch_blacklist_put(body: WatchBlacklistBody):
+        try:
+            blacklist = save_watch_blacklist(body.usernames)
+        except (ValueError, OSError) as e:
+            raise HTTPException(400, str(e)) from e
+        return {"ok": True, "watch_blacklist": list(blacklist)}
 
     @app.post("/api/session/test")
     async def api_session_test():
