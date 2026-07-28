@@ -123,6 +123,24 @@ def register_account(username: str, password: str) -> Account:
     return Account(id=uid, username=username, created_at=created)
 
 
+def set_account_password(username: str, password: str) -> None:
+    """Met à jour le mot de passe d'un compte existant (par nom d'utilisateur)."""
+    username = _normalize_username(username)
+    if not password or len(password) < 8:
+        raise ValueError("Mot de passe trop court (8 caractères minimum)")
+    if len(password) > 200:
+        raise ValueError("Mot de passe trop long")
+    pw_hash = _hash_password(password)
+    with _connect() as conn:
+        cur = conn.execute(
+            "UPDATE accounts SET password_hash = ? WHERE username = ? COLLATE NOCASE",
+            (pw_hash, username),
+        )
+        conn.commit()
+        if cur.rowcount < 1:
+            raise ValueError(f"Compte introuvable : {username}")
+
+
 def authenticate(username: str, password: str) -> Account | None:
     username = (username or "").strip()
     if not username or not password:
@@ -175,9 +193,14 @@ def get_pending_baseline(user_id: str) -> bool:
     return bool(row and row["pending_baseline"])
 
 
-def clear_pending_baseline(user_id: str) -> None:
+def set_pending_baseline(user_id: str, pending: bool = True) -> None:
     with _connect() as conn:
         conn.execute(
-            "UPDATE accounts SET pending_baseline = 0 WHERE id = ?", (user_id,)
+            "UPDATE accounts SET pending_baseline = ? WHERE id = ?",
+            (1 if pending else 0, user_id),
         )
         conn.commit()
+
+
+def clear_pending_baseline(user_id: str) -> None:
+    set_pending_baseline(user_id, False)

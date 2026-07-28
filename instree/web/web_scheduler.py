@@ -15,7 +15,12 @@ from instree.core.config import (
     set_current_user,
 )
 from instree.core.store import has_scans, scan_resume_info
-from instree.web.accounts import clear_pending_baseline, get_pending_baseline, list_user_ids
+from instree.web.accounts import (
+    clear_pending_baseline,
+    get_pending_baseline,
+    list_user_ids,
+    set_pending_baseline,
+)
 from instree.web.runner import job_status, start_scan
 from instree.web.schedule_state import last_daily_date, mark_daily_run
 
@@ -50,6 +55,48 @@ def try_start_pending_baseline(user_id: str) -> bool:
         return False
     start_scan(init=True, user_id=user_id)
     return True
+
+
+def _needs_initial_baseline() -> bool:
+    """True si aucun scan, ou dernier scan vide (0 mutuel tracké)."""
+    if not has_scans():
+        return True
+    from instree.core.store import list_scans
+
+    scans = list_scans()
+    if not scans:
+        return True
+    latest = scans[-1] if isinstance(scans[-1], dict) else None
+    if not latest:
+        return True
+    return int(latest.get("tracked_count") or 0) <= 0
+
+
+def try_start_baseline_after_session(user_id: str) -> bool:
+    """Après enregistrement de session : reprendre un brouillon, ou lancer
+    une baseline si le compte n'a pas encore de données utiles.
+    """
+    if not is_web_mode():
+        return False
+    if not _user_has_session(user_id):
+        return False
+    if job_status(user_id).get("state") in _ACTIVE:
+        return False
+
+    token = set_current_user(user_id)
+    try:
+        can_resume = bool(scan_resume_info().get("can_resume"))
+        needs_baseline = _needs_initial_baseline()
+    finally:
+        reset_current_user(token)
+
+    if can_resume:
+        return try_resume_interrupted_scan(user_id)
+
+    # Pas de données utiles : re-armer pending (session recollée, baseline vide…).
+    if needs_baseline:
+        set_pending_baseline(user_id, True)
+    return try_start_pending_baseline(user_id)
 
 
 def try_resume_interrupted_scan(user_id: str) -> bool:

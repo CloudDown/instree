@@ -27,9 +27,6 @@ class IgUser:
     followed_by: bool | None = None
 
 
-_FRIENDSHIP_BATCH = 50
-
-
 def _user_verified(u) -> bool:
     if isinstance(u, dict):
         return bool(u.get("is_verified"))
@@ -338,51 +335,6 @@ def user_follows_me(
     )
 
 
-def friendships_followed_by_map(
-    ig: Client,
-    user_pks: list[str],
-    *,
-    should_cancel: Callable[[], bool] | None = None,
-    on_cooldown: Callable[[float], None] | None = None,
-    page_sleep: float = 0.6,
-) -> dict[str, bool]:
-    """Batch ``friendships/show_many/`` → pk → followed_by."""
-    out: dict[str, bool] = {}
-    pks = [str(p) for p in user_pks if p]
-    for start in range(0, len(pks), _FRIENDSHIP_BATCH):
-        if should_cancel and should_cancel():
-            raise ScanCancelled()
-        chunk = pks[start : start + _FRIENDSHIP_BATCH]
-
-        def _load(chunk=chunk) -> dict[str, bool]:
-            rels = ig.user_friendships_v1(chunk)
-            mapped: dict[str, bool] = {}
-            for rel in rels or []:
-                uid = str(getattr(rel, "user_id", "") or "")
-                if not uid:
-                    continue
-                mapped[uid] = bool(getattr(rel, "followed_by", False))
-            # Réponse partielle : compléter un par un pour garder le même résultat.
-            for pk in chunk:
-                if pk not in mapped:
-                    mapped[pk] = user_follows_me(
-                        ig,
-                        pk,
-                        should_cancel=should_cancel,
-                        on_cooldown=on_cooldown,
-                    )
-            return mapped
-
-        out.update(
-            _with_rate_limit_retry(
-                _load, should_cancel=should_cancel, on_cooldown=on_cooldown
-            )
-        )
-        if start + _FRIENDSHIP_BATCH < len(pks):
-            interruptible_sleep(page_sleep, should_cancel)
-    return out
-
-
 def filter_mutuals_from_following(
     ig: Client,
     following: list[IgUser],
@@ -396,57 +348,45 @@ def filter_mutuals_from_following(
     seed_mutuals: list[IgUser] | None = None,
     on_checkpoint: Callable[[list[IgUser], int], None] | None = None,
 ) -> list[IgUser]:
-    """Mutuels parmi ``following`` : friendship_status liste + batch show_many."""
+    """Mutuels parmi ``following`` via ``friendships/show/{id}/`` (followed_by).
+
+    Note : ``friendships/show_many/`` ne renvoie PAS ``followed_by`` — inutilisable ici.
+    On réutilise ``friendship_status.followed_by`` de la liste following s'il est présent.
+    """
     mutuals: list[IgUser] = list(seed_mutuals or [])
     seen = {u.pk for u in mutuals if u.pk}
     total = len(following)
-    i = max(0, start_index)
 
-    while i < total:
+    for i in range(max(0, start_index), total):
         if should_cancel and should_cancel():
             raise ScanCancelled()
-        if limit > 0 and len(mutuals) >= limit:
-            trimmed = mutuals[:limit]
-            if on_checkpoint:
-                on_checkpoint(trimmed, i)
-            return trimmed
+        u = following[i]
+        if on_progress:
+            on_progress(i + 1, total, u.username)
 
-        end = min(i + _FRIENDSHIP_BATCH, total)
-        batch = following[i:end]
-        if on_progress and batch:
-            on_progress(end, total, batch[-1].username)
-
-        known_yes = [u for u in batch if u.followed_by is True]
-        unknown = [u for u in batch if u.followed_by is None]
-        # followed_by is False → non-mutuel, aucun appel API
-
-        for u in known_yes:
-            if u.pk and u.pk not in seen:
-                mutuals.append(u)
-                seen.add(u.pk)
-
-        if unknown:
-            fb_map = friendships_followed_by_map(
+        if u.followed_by is True:
+            is_mutual = True
+        elif u.followed_by is False:
+            is_mutual = False
+        else:
+            is_mutual = user_follows_me(
                 ig,
-                [u.pk for u in unknown],
+                u.pk,
                 should_cancel=should_cancel,
                 on_cooldown=on_cooldown,
-                page_sleep=page_sleep,
             )
-            for u in unknown:
-                if fb_map.get(u.pk, False) and u.pk not in seen:
-                    mutuals.append(u)
-                    seen.add(u.pk)
 
-        i = end
-        if limit > 0 and len(mutuals) >= limit:
-            trimmed = mutuals[:limit]
-            if on_checkpoint:
-                on_checkpoint(trimmed, i)
-            return trimmed
+        if is_mutual and u.pk and u.pk not in seen:
+            mutuals.append(u)
+            seen.add(u.pk)
+
+        next_index = i + 1
         if on_checkpoint:
-            on_checkpoint(mutuals, i)
-        if i < total:
+            on_checkpoint(mutuals, next_index)
+
+        if limit > 0 and len(mutuals) >= limit:
+            return mutuals[:limit]
+        if next_index < total:
             interruptible_sleep(page_sleep, should_cancel)
 
     if limit > 0:

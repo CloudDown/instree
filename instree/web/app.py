@@ -500,17 +500,24 @@ def create_app() -> FastAPI:
             raise HTTPException(400, str(e)) from e
         clear_session_cache()
         if is_web_mode():
-            from instree.web.web_scheduler import try_start_pending_baseline
+            from instree.web.web_scheduler import try_start_baseline_after_session
 
             uid = current_user_id()
             if uid:
-                try_start_pending_baseline(uid)
+                try_start_baseline_after_session(uid)
         return {"ok": True, "config": config_for_api()}
 
     @app.post("/api/session/test")
     async def api_session_test():
         clear_session_cache()
-        return _session_info(verify=True)
+        info = _session_info(verify=True)
+        if is_web_mode() and info.get("ok"):
+            from instree.web.web_scheduler import try_start_baseline_after_session
+
+            uid = current_user_id()
+            if uid:
+                try_start_baseline_after_session(uid)
+        return info
 
     @app.get("/api/scans")
     async def api_scans():
