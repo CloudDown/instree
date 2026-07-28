@@ -223,6 +223,12 @@ def _worker(init: bool, user_key: str, is_baseline: bool = False) -> None:
 
             on_baseline_completed(user_key)
     except ScanCancelled:
+        try:
+            from instree.core.store import abandon_interrupted_scan
+
+            abandon_interrupted_scan()
+        except Exception:
+            pass
         with _lock:
             slot.job.state = "cancelled"
             slot.job.cooldown_until = 0.0

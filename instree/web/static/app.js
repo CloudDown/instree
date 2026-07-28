@@ -231,7 +231,7 @@ function setControlsDisabled(disabled) {
       el.disabled = disabled;
     });
   }
-  if (btnStopScan && !latestWebMode) {
+  if (btnStopScan) {
     btnStopScan.disabled = !disabled;
     btnStopScan.classList.toggle("hidden", !disabled);
   }
@@ -1025,10 +1025,11 @@ function renderJob(job) {
 
   if (isJobActive(job.state)) {
     setControlsDisabled(true);
-    if (btnStopScan && !latestWebMode) {
+    if (btnStopScan) {
       btnStopScan.disabled = job.state === "stopping";
       btnStopScan.textContent =
         job.state === "stopping" ? t("actions.stopping") : t("actions.stopScan");
+      btnStopScan.classList.toggle("hidden", false);
     }
     elJobPanel.classList.remove("hidden", "job-error");
 

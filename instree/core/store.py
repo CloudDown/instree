@@ -518,6 +518,32 @@ def clear_scan_draft() -> None:
         conn.commit()
 
 
+def abandon_interrupted_scan() -> int:
+    """Abandonne un scan interrompu pour ne plus le reprendre automatiquement.
+
+    Supprime le brouillon et les snapshots incomplets (les complets restent).
+    Retourne le nombre de profils incomplets abandonnés.
+    """
+    with _connect() as conn:
+        incomplete = conn.execute(
+            "SELECT COUNT(*) FROM person_snapshots WHERE is_complete = 0"
+        ).fetchone()[0]
+        # Retirer aussi les following partiels liés aux snapshots incomplets
+        conn.execute(
+            """
+            DELETE FROM person_following
+            WHERE person_username IN (
+                SELECT person_username FROM person_snapshots WHERE is_complete = 0
+            )
+            """
+        )
+        conn.execute("DELETE FROM person_snapshots WHERE is_complete = 0")
+        conn.execute("DELETE FROM scan_drafts")
+        conn.execute("DELETE FROM draft_friendships")
+        conn.commit()
+    return int(incomplete)
+
+
 def clear_person_watch_data() -> None:
     """Efface snapshots et listes d'abonnements des mutuels suivis (baseline complète)."""
     with _connect() as conn:
