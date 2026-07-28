@@ -97,6 +97,7 @@ def main() -> None:
 
     _run(client, "rm -f /etc/apt/sources.list.d/ngrok.list /etc/apt/trusted.gpg.d/ngrok.asc", sudo=True)
 
+    # Fallback ngrok si cloudflared indisponible (installé dans setup-remote.sh).
     _run(
         client,
         "command -v ngrok >/dev/null || npm install -g ngrok",
@@ -109,7 +110,7 @@ def main() -> None:
         sftp = client.open_sftp()
         sftp.put(str(local_ngrok), f"/home/{PI_USER}/.config/ngrok/ngrok.yml")
         sftp.close()
-        print("==> Config ngrok copiée depuis cette machine")
+        print("==> Config ngrok copiée (fallback)")
 
     _run(client, f"chmod +x {PI_DIR}/deploy/pi/setup-remote.sh")
     _run(
@@ -128,7 +129,7 @@ def main() -> None:
     client.close()
     print("\n==> Déploiement terminé")
     print(f"    LAN : http://{PI_HOST}:1488/login")
-    print("    URL ngrok : voir les logs ci-dessus (journalctl -u instree-web -f)")
+    print("    URL publique : voir les logs ci-dessus (journalctl -u instree-web -f)")
 
 
 if __name__ == "__main__":

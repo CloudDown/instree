@@ -9,21 +9,22 @@ import threading
 import time
 
 
-def _serve_with_ngrok(host: str, port: int, app) -> int:
+def _serve_with_tunnel(host: str, port: int, app) -> int:
     import uvicorn
 
     from instree.core.netinfo import print_serve_banner
-    from instree.web.ngrok_tunnel import (
+    from instree.web.public_tunnel import (
+        cloudflared_available,
         ngrok_available,
-        start_ngrok,
-        wait_for_ngrok_url,
+        start_public_tunnel,
     )
 
-    if not ngrok_available():
+    if not cloudflared_available() and not ngrok_available():
         print(
-            "! ngrok introuvable dans le PATH.\n"
-            "  1. Installe : https://ngrok.com/download\n"
-            "  2. ngrok config add-authtoken <ton-token>",
+            "! Aucun tunnel public trouvé.\n"
+            "  Recommandé : cloudflared (pas de page d'avertissement)\n"
+            "    https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/\n"
+            "  Sinon : ngrok — https://ngrok.com/download puis authtoken",
             flush=True,
         )
         return 1
@@ -38,34 +39,42 @@ def _serve_with_ngrok(host: str, port: int, app) -> int:
     time.sleep(0.6)
 
     print_serve_banner(bind_host, port, product="Instree Web", ngrok=True)
-    print("  […] ouverture du tunnel ngrok…", flush=True)
+    prefer = "cloudflare" if cloudflared_available() else "ngrok"
+    print(f"  […] ouverture du tunnel ({prefer})…", flush=True)
 
     try:
-        ngrok_proc = start_ngrok(port)
+        tunnel = start_public_tunnel(port)
     except RuntimeError as e:
         print(f"! {e}", flush=True)
         return 1
 
-    url = wait_for_ngrok_url()
-    if url:
-        print(f"  public   {url}", flush=True)
-        print(f"  login    {url.rstrip('/')}/login", flush=True)
+    if tunnel.url:
+        print(f"  public   {tunnel.url}", flush=True)
+        print(f"  login    {tunnel.url.rstrip('/')}/login", flush=True)
+        if tunnel.kind == "cloudflare":
+            print("  note     Cloudflare — pas de page d'avertissement navigateur", flush=True)
+        else:
+            print(
+                "  note     ngrok free — page d'avertissement possible "
+                "(installe cloudflared pour l'éviter)",
+                flush=True,
+            )
     else:
         print(
-            "  ! URL ngrok indisponible (authtoken manquant ?). "
-            "Vérifie http://127.0.0.1:4040",
+            "  ! URL publique indisponible. "
+            "Vérifie les logs du tunnel (cloudflared / ngrok 4040).",
             flush=True,
         )
 
     try:
-        code = ngrok_proc.wait()
+        code = tunnel.process.wait()
     except KeyboardInterrupt:
         print("\narrêt…", flush=True)
-        ngrok_proc.terminate()
+        tunnel.process.terminate()
         try:
-            ngrok_proc.wait(timeout=3)
+            tunnel.process.wait(timeout=3)
         except subprocess.TimeoutExpired:
-            ngrok_proc.kill()
+            tunnel.process.kill()
         return 0
     return int(code or 0)
 
@@ -89,9 +98,9 @@ def cmd_serve(args: argparse.Namespace) -> int:
     print(f"instree-web  home={root}", flush=True)
     app = create_app()
 
-    use_ngrok = args.ngrok and not args.no_ngrok
-    if use_ngrok:
-        return _serve_with_ngrok(host, port, app)
+    use_tunnel = args.ngrok and not args.no_ngrok
+    if use_tunnel:
+        return _serve_with_tunnel(host, port, app)
 
     print_serve_banner(host, port, product="Instree Web")
     uvicorn.run(app, host=host, port=port, log_level="warning")
@@ -107,12 +116,12 @@ def main() -> None:
     parser.add_argument(
         "--ngrok",
         action="store_true",
-        help="exposer via ngrok (HTTPS temporaire ; défaut avec ./bin/run-web)",
+        help="exposer via tunnel public (Cloudflare si dispo, sinon ngrok)",
     )
     parser.add_argument(
         "--no-ngrok",
         action="store_true",
-        help="LAN seulement, sans tunnel ngrok",
+        help="LAN seulement, sans tunnel public",
     )
     args = parser.parse_args()
     sys.exit(cmd_serve(args))

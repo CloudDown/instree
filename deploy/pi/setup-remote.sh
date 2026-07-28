@@ -32,10 +32,32 @@ if [[ ! -x .venv/bin/instree-web ]]; then
   fi
 fi
 
-if ! command -v ngrok >/dev/null 2>&1; then
-  echo "[AVERT] ngrok absent du PATH — installe-le si le tunnel public ne démarre pas."
+if ! command -v cloudflared >/dev/null 2>&1; then
+  echo "==> Installation cloudflared…"
+  arch="$(uname -m)"
+  case "$arch" in
+    aarch64|arm64) deb="cloudflared-linux-arm64.deb" ;;
+    armv7l|armhf) deb="cloudflared-linux-arm.deb" ;;
+    x86_64|amd64) deb="cloudflared-linux-amd64.deb" ;;
+    *)
+      echo "[AVERT] arch non supportée pour cloudflared: $arch"
+      deb=""
+      ;;
+  esac
+  if [[ -n "$deb" ]]; then
+    curl -fsSL -o /tmp/cloudflared.deb \
+      "https://github.com/cloudflare/cloudflared/releases/latest/download/$deb"
+    sudo_cmd dpkg -i /tmp/cloudflared.deb || sudo_cmd apt-get install -y -f
+    rm -f /tmp/cloudflared.deb
+  fi
+fi
+
+if command -v cloudflared >/dev/null 2>&1; then
+  echo "[OK] cloudflared : $(command -v cloudflared) (tunnel sans page d'avertissement)"
+elif command -v ngrok >/dev/null 2>&1; then
+  echo "[OK] ngrok : $(command -v ngrok) (page d'avertissement possible — préfère cloudflared)"
 else
-  echo "[OK] ngrok : $(command -v ngrok)"
+  echo "[AVERT] ni cloudflared ni ngrok dans le PATH — pas de tunnel public."
 fi
 
 export INSTREE_HOME="$DATA_DIR"
@@ -51,7 +73,7 @@ echo "==> Service systemd"
 UNIT="/tmp/instree-web.service"
 cat > "$UNIT" <<EOF
 [Unit]
-Description=Instree Web (FastAPI + ngrok)
+Description=Instree Web (FastAPI + tunnel public)
 After=network-online.target
 Wants=network-online.target
 

@@ -779,6 +779,41 @@
     });
   }
 
+  function initProfileMenu() {
+    const menu = document.getElementById("profile-menu");
+    const trigger = document.getElementById("profile-menu-trigger");
+    const panel = document.getElementById("profile-menu-panel");
+    const logoutBtn = document.getElementById("btn-logout");
+    if (!menu || !trigger || !panel) return;
+
+    const setOpen = (open) => {
+      menu.classList.toggle("is-open", open);
+      trigger.setAttribute("aria-expanded", open ? "true" : "false");
+      panel.hidden = !open;
+    };
+
+    trigger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setOpen(panel.hidden);
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!menu.contains(e.target)) setOpen(false);
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") setOpen(false);
+    });
+
+    if (logoutBtn) {
+      logoutBtn.onclick = async () => {
+        setOpen(false);
+        await fetch("/api/auth/logout", { method: "POST" });
+        location.href = "/login";
+      };
+    }
+  }
+
   async function init() {
     if (hasI18n()) await I18n.ready;
 
@@ -799,6 +834,8 @@
         updateStats(filterGraphData(rawGraphData));
       }
     }
+
+    initProfileMenu();
 
     if (hasI18n()) {
       I18n.applyI18n();
