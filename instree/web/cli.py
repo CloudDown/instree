@@ -51,8 +51,11 @@ def _serve_with_tunnel(host: str, port: int, app) -> int:
     if tunnel.url:
         print(f"  public   {tunnel.url}", flush=True)
         print(f"  login    {tunnel.url.rstrip('/')}/login", flush=True)
-        if tunnel.kind == "cloudflare":
-            print("  note     Cloudflare — pas de page d'avertissement navigateur", flush=True)
+        if tunnel.kind in ("cloudflare-named", "cloudflare"):
+            if tunnel.kind == "cloudflare-named":
+                print("  note     Cloudflare nommé — URL fixe, sans avertissement", flush=True)
+            else:
+                print("  note     Cloudflare — pas de page d'avertissement navigateur", flush=True)
         else:
             print(
                 "  note     ngrok free — page d'avertissement possible "
