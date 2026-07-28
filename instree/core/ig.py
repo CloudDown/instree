@@ -23,6 +23,11 @@ class IgUser:
     following_count: int = 0
     follower_count: int = 0
     is_verified: bool = False
+    # Présent si Instagram a renvoyé friendship_status dans la liste following.
+    followed_by: bool | None = None
+
+
+_FRIENDSHIP_BATCH = 50
 
 
 def _user_verified(u) -> bool:
@@ -99,6 +104,17 @@ def _with_rate_limit_retry(
     raise last
 
 
+def _ig_user_from_info(u) -> IgUser:
+    return IgUser(
+        pk=str(u.pk),
+        username=u.username,
+        full_name=u.full_name or "",
+        following_count=int(getattr(u, "following_count", 0) or 0),
+        follower_count=int(getattr(u, "follower_count", 0) or 0),
+        is_verified=_user_verified(u),
+    )
+
+
 def user_profile(
     ig: Client,
     username: str,
@@ -107,15 +123,24 @@ def user_profile(
     on_cooldown: Callable[[float], None] | None = None,
 ) -> IgUser:
     def _load() -> IgUser:
-        u = ig.user_info_by_username(username.lstrip("@"))
-        return IgUser(
-            pk=str(u.pk),
-            username=u.username,
-            full_name=u.full_name or "",
-            following_count=int(u.following_count or 0),
-            follower_count=int(u.follower_count or 0),
-            is_verified=_user_verified(u),
-        )
+        return _ig_user_from_info(ig.user_info_by_username(username.lstrip("@")))
+
+    return _with_rate_limit_retry(
+        _load, should_cancel=should_cancel, on_cooldown=on_cooldown
+    )
+
+
+def user_profile_by_pk(
+    ig: Client,
+    pk: str,
+    *,
+    should_cancel: Callable[[], bool] | None = None,
+    on_cooldown: Callable[[float], None] | None = None,
+) -> IgUser:
+    """Profil par pk (évite la résolution username → id)."""
+
+    def _load() -> IgUser:
+        return _ig_user_from_info(ig.user_info(str(pk)))
 
     return _with_rate_limit_retry(
         _load, should_cancel=should_cancel, on_cooldown=on_cooldown
@@ -125,19 +150,17 @@ def user_profile(
 def try_user_by_pk(ig: Client, pk: str) -> IgUser | None:
     """Profil par pk, ou None si le compte est introuvable / supprimé."""
     try:
-        u = ig.user_info(str(pk))
+        return _ig_user_from_info(ig.user_info(str(pk)))
     except Exception:
         return None
-    if not u or not getattr(u, "username", None):
+
+
+def _followed_by_from_list_user(u: dict) -> bool | None:
+    """Extrait followed_by depuis un user de liste following, si présent."""
+    fs = u.get("friendship_status")
+    if not isinstance(fs, dict) or "followed_by" not in fs:
         return None
-    return IgUser(
-        pk=str(u.pk),
-        username=u.username,
-        full_name=u.full_name or "",
-        following_count=int(getattr(u, "following_count", 0) or 0),
-        follower_count=int(getattr(u, "follower_count", 0) or 0),
-        is_verified=_user_verified(u),
-    )
+    return bool(fs.get("followed_by"))
 
 
 def _paginate_friendships(
@@ -194,7 +217,10 @@ def _paginate_friendships(
                     pk=upk,
                     username=username,
                     full_name=u.get("full_name") or "",
+                    following_count=int(u.get("following_count") or 0),
+                    follower_count=int(u.get("follower_count") or 0),
                     is_verified=_user_verified(u),
+                    followed_by=_followed_by_from_list_user(u),
                 )
             )
             if known_usernames is not None and username not in known_usernames:
@@ -312,6 +338,122 @@ def user_follows_me(
     )
 
 
+def friendships_followed_by_map(
+    ig: Client,
+    user_pks: list[str],
+    *,
+    should_cancel: Callable[[], bool] | None = None,
+    on_cooldown: Callable[[float], None] | None = None,
+    page_sleep: float = 0.6,
+) -> dict[str, bool]:
+    """Batch ``friendships/show_many/`` → pk → followed_by."""
+    out: dict[str, bool] = {}
+    pks = [str(p) for p in user_pks if p]
+    for start in range(0, len(pks), _FRIENDSHIP_BATCH):
+        if should_cancel and should_cancel():
+            raise ScanCancelled()
+        chunk = pks[start : start + _FRIENDSHIP_BATCH]
+
+        def _load(chunk=chunk) -> dict[str, bool]:
+            rels = ig.user_friendships_v1(chunk)
+            mapped: dict[str, bool] = {}
+            for rel in rels or []:
+                uid = str(getattr(rel, "user_id", "") or "")
+                if not uid:
+                    continue
+                mapped[uid] = bool(getattr(rel, "followed_by", False))
+            # Réponse partielle : compléter un par un pour garder le même résultat.
+            for pk in chunk:
+                if pk not in mapped:
+                    mapped[pk] = user_follows_me(
+                        ig,
+                        pk,
+                        should_cancel=should_cancel,
+                        on_cooldown=on_cooldown,
+                    )
+            return mapped
+
+        out.update(
+            _with_rate_limit_retry(
+                _load, should_cancel=should_cancel, on_cooldown=on_cooldown
+            )
+        )
+        if start + _FRIENDSHIP_BATCH < len(pks):
+            interruptible_sleep(page_sleep, should_cancel)
+    return out
+
+
+def filter_mutuals_from_following(
+    ig: Client,
+    following: list[IgUser],
+    *,
+    limit: int = 0,
+    page_sleep: float = 0.6,
+    should_cancel: Callable[[], bool] | None = None,
+    on_cooldown: Callable[[float], None] | None = None,
+    on_progress: Callable[[int, int, str], None] | None = None,
+    start_index: int = 0,
+    seed_mutuals: list[IgUser] | None = None,
+    on_checkpoint: Callable[[list[IgUser], int], None] | None = None,
+) -> list[IgUser]:
+    """Mutuels parmi ``following`` : friendship_status liste + batch show_many."""
+    mutuals: list[IgUser] = list(seed_mutuals or [])
+    seen = {u.pk for u in mutuals if u.pk}
+    total = len(following)
+    i = max(0, start_index)
+
+    while i < total:
+        if should_cancel and should_cancel():
+            raise ScanCancelled()
+        if limit > 0 and len(mutuals) >= limit:
+            trimmed = mutuals[:limit]
+            if on_checkpoint:
+                on_checkpoint(trimmed, i)
+            return trimmed
+
+        end = min(i + _FRIENDSHIP_BATCH, total)
+        batch = following[i:end]
+        if on_progress and batch:
+            on_progress(end, total, batch[-1].username)
+
+        known_yes = [u for u in batch if u.followed_by is True]
+        unknown = [u for u in batch if u.followed_by is None]
+        # followed_by is False → non-mutuel, aucun appel API
+
+        for u in known_yes:
+            if u.pk and u.pk not in seen:
+                mutuals.append(u)
+                seen.add(u.pk)
+
+        if unknown:
+            fb_map = friendships_followed_by_map(
+                ig,
+                [u.pk for u in unknown],
+                should_cancel=should_cancel,
+                on_cooldown=on_cooldown,
+                page_sleep=page_sleep,
+            )
+            for u in unknown:
+                if fb_map.get(u.pk, False) and u.pk not in seen:
+                    mutuals.append(u)
+                    seen.add(u.pk)
+
+        i = end
+        if limit > 0 and len(mutuals) >= limit:
+            trimmed = mutuals[:limit]
+            if on_checkpoint:
+                on_checkpoint(trimmed, i)
+            return trimmed
+        if on_checkpoint:
+            on_checkpoint(mutuals, i)
+        if i < total:
+            interruptible_sleep(page_sleep, should_cancel)
+
+    if limit > 0:
+        return mutuals[:limit]
+    return mutuals
+
+
 def fetch_mutuals(
     ig: Client,
     pk: str,
@@ -323,7 +465,7 @@ def fetch_mutuals(
     on_cooldown: Callable[[float], None] | None = None,
     on_progress: Callable[[int, int, str], None] | None = None,
 ) -> list[IgUser]:
-    """Abonnements mutuels : following + API amitié (followed_by)."""
+    """Abonnements mutuels : following + API amitié (batch followed_by)."""
     following = fetch_following(
         ig,
         pk,
@@ -333,21 +475,12 @@ def fetch_mutuals(
         should_cancel=should_cancel,
         on_cooldown=on_cooldown,
     )
-    mutuals: list[IgUser] = []
-    total = len(following)
-    for i, u in enumerate(following):
-        if should_cancel and should_cancel():
-            raise ScanCancelled()
-        if on_progress:
-            on_progress(i + 1, total, u.username)
-        if user_follows_me(
-            ig,
-            u.pk,
-            should_cancel=should_cancel,
-            on_cooldown=on_cooldown,
-        ):
-            mutuals.append(u)
-            if limit > 0 and len(mutuals) >= limit:
-                return mutuals
-        interruptible_sleep(page_sleep, should_cancel)
-    return mutuals
+    return filter_mutuals_from_following(
+        ig,
+        following,
+        limit=limit,
+        page_sleep=page_sleep,
+        should_cancel=should_cancel,
+        on_cooldown=on_cooldown,
+        on_progress=on_progress,
+    )

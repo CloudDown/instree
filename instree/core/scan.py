@@ -12,11 +12,12 @@ from instree.core.errors import ScanCancelled
 from instree.core.ig import (
     IgUser,
     fetch_following,
+    filter_mutuals_from_following,
     interruptible_sleep,
     is_rate_limited,
     try_user_by_pk,
-    user_follows_me,
     user_profile,
+    user_profile_by_pk,
 )
 from instree.core.session import session_user
 from instree.core.store import (
@@ -357,12 +358,20 @@ def _watch_persons(
         _report(on_progress, i + 1, len(entries), e.username, "profile")
 
         try:
-            profile = user_profile(
-                ig,
-                e.username,
-                should_cancel=should_cancel,
-                on_cooldown=on_cooldown,
-            )
+            if e.pk:
+                profile = user_profile_by_pk(
+                    ig,
+                    e.pk,
+                    should_cancel=should_cancel,
+                    on_cooldown=on_cooldown,
+                )
+            else:
+                profile = user_profile(
+                    ig,
+                    e.username,
+                    should_cancel=should_cancel,
+                    on_cooldown=on_cooldown,
+                )
         except ScanCancelled:
             raise
         except Exception as exc:
@@ -544,22 +553,22 @@ def _fetch_mutuals_with_draft(
     on_progress=None,
     on_cooldown: Callable[[float], None] | None = None,
 ) -> list[FollowingEntry]:
-    """Fetch mutuels avec checkpoint (following → API amitié followed_by)."""
+    """Fetch mutuels : following → amitié (liste + batch show_many)."""
     _report(on_progress, 0, 0, "", "mutuals")
     phase = draft.phase if draft else "mutuals_following"
     following_max_id = draft.following_max_id if draft else ""
-    # Index de reprise dans la liste following (ex-followers_max_id).
     check_index = 0
     if phase == "mutuals_check" and draft and draft.followers_max_id:
         try:
             check_index = max(0, int(draft.followers_max_id))
         except ValueError:
             check_index = 0
-    # Ancienne phase « télécharger tous les abonnés » → bascule sur l'API amitié.
+    # Ancienne phase « télécharger tous les abonnés » → bascule API amitié.
     if phase == "mutuals_followers":
         phase = "mutuals_check"
         check_index = 0
 
+    following_users: list[IgUser]
     if phase == "mutuals_following":
         following_entries = load_draft_friendships("following")
         resume_users = _entries_to_ig(following_entries) if following_entries else None
@@ -590,47 +599,17 @@ def _fetch_mutuals_with_draft(
             resume_users=resume_users,
             on_checkpoint=on_following_checkpoint,
         )
-        following_entries = [_to_entry(u) for u in following_users]
+        save_draft_friendships("following", [_to_entry(u) for u in following_users])
         check_index = 0
     else:
-        following_entries = load_draft_friendships("following")
+        following_users = _entries_to_ig(load_draft_friendships("following"))
 
     _check_cancel(should_cancel)
 
-    mutuals = load_draft_mutuals() if check_index > 0 else []
-    seen_mutual_pks = {e.pk for e in mutuals if e.pk}
-    total = len(following_entries)
+    seed = _entries_to_ig(load_draft_mutuals()) if check_index > 0 else []
 
-    for i in range(check_index, total):
-        _check_cancel(should_cancel)
-        entry = following_entries[i]
-        _report(on_progress, i + 1, total, entry.username, "mutuals")
-        if user_follows_me(
-            ig,
-            entry.pk,
-            should_cancel=should_cancel,
-            on_cooldown=on_cooldown,
-        ):
-            if entry.pk not in seen_mutual_pks:
-                mutuals.append(entry)
-                seen_mutual_pks.add(entry.pk)
-            if limit > 0 and len(mutuals) >= limit:
-                save_draft_mutuals(mutuals)
-                upsert_scan_draft(
-                    ScanDraft(
-                        account_username=account_username,
-                        is_baseline=is_baseline,
-                        following_count=following_count,
-                        follower_count=follower_count,
-                        phase="watch",
-                        following_max_id="",
-                        followers_max_id="",
-                    )
-                )
-                return mutuals
-
-        next_index = i + 1
-        save_draft_mutuals(mutuals)
+    def on_mutuals_checkpoint(mutuals_ig: list[IgUser], next_index: int) -> None:
+        save_draft_mutuals([_to_entry(u) for u in mutuals_ig])
         upsert_scan_draft(
             ScanDraft(
                 account_username=account_username,
@@ -642,10 +621,23 @@ def _fetch_mutuals_with_draft(
                 followers_max_id=str(next_index),
             )
         )
-        interruptible_sleep(page_sleep, should_cancel)
 
-    if limit > 0:
-        mutuals = mutuals[:limit]
+    def on_mutuals_progress(current: int, total: int, username: str) -> None:
+        _report(on_progress, current, total, username, "mutuals")
+
+    mutuals_ig = filter_mutuals_from_following(
+        ig,
+        following_users,
+        limit=limit,
+        page_sleep=page_sleep,
+        should_cancel=should_cancel,
+        on_cooldown=on_cooldown,
+        on_progress=on_mutuals_progress,
+        start_index=check_index,
+        seed_mutuals=seed,
+        on_checkpoint=on_mutuals_checkpoint,
+    )
+    mutuals = [_to_entry(u) for u in mutuals_ig]
     save_draft_mutuals(mutuals)
     upsert_scan_draft(
         ScanDraft(
