@@ -29,7 +29,8 @@ def _serve_with_tunnel(host: str, port: int, app) -> int:
         )
         return 1
 
-    bind_host = host if host not in ("0.0.0.0", "::") else "127.0.0.1"
+    # Garder 0.0.0.0 pour l'accès LAN ; le tunnel pointe déjà sur 127.0.0.1:port.
+    bind_host = host or "0.0.0.0"
 
     def _run_uvicorn() -> None:
         uvicorn.run(app, host=bind_host, port=port, log_level="warning")
@@ -93,8 +94,6 @@ def cmd_serve(args: argparse.Namespace) -> int:
     host, port = load_server_web_settings()
     if args.host:
         host = args.host
-    elif args.ngrok and not args.no_ngrok:
-        host = "127.0.0.1"
     if args.port:
         port = args.port
 

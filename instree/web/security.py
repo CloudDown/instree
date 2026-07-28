@@ -23,14 +23,23 @@ def allow_register() -> bool:
 
 
 def session_https_only() -> bool:
-    if not os.environ.get("INSTREE_HTTPS", "").strip():
+    """Cookie Secure uniquement si explicitement forcé.
+
+    Sur la Pi on sert à la fois le LAN en HTTP et Cloudflare en HTTPS :
+    un cookie Secure casserait la connexion locale (navigateur l'ignore).
+    """
+    raw = os.environ.get("INSTREE_HTTPS_ONLY", "").strip().lower()
+    if raw in ("1", "true", "yes", "on"):
         return True
-    return os.environ.get("INSTREE_HTTPS", "1").strip().lower() not in (
-        "0",
-        "false",
-        "no",
-        "off",
-    )
+    # Ancien flag INSTREE_HTTPS=1 ne force plus Secure (compat dual HTTP/HTTPS).
+    return False
+
+
+def request_is_https(request: Request) -> bool:
+    if request.url.scheme == "https":
+        return True
+    proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
+    return proto == "https"
 
 
 def _client_ip(request: Request) -> str:
@@ -68,7 +77,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault(
             "Permissions-Policy", "geolocation=(), microphone=(), camera=()"
         )
-        if session_https_only():
+        # HSTS seulement sur une vraie requête HTTPS (pas sur le LAN HTTP).
+        if request_is_https(request):
             response.headers.setdefault(
                 "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
             )
