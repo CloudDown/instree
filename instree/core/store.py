@@ -42,7 +42,7 @@ class ScanDraft:
     is_baseline: bool
     following_count: int
     follower_count: int
-    phase: str  # mutuals_following | mutuals_followers | watch
+    phase: str  # mutuals_following | mutuals_check | watch (legacy: mutuals_followers)
     following_max_id: str = ""
     followers_max_id: str = ""
 

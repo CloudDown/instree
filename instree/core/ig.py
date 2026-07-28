@@ -292,6 +292,26 @@ def fetch_followers(
     )
 
 
+def user_follows_me(
+    ig: Client,
+    user_pk: str,
+    *,
+    should_cancel: Callable[[], bool] | None = None,
+    on_cooldown: Callable[[float], None] | None = None,
+) -> bool:
+    """True si ``user_pk`` suit le compte connecté (friendship / followed_by)."""
+
+    def _load() -> bool:
+        st = ig.user_friendship_v1(int(user_pk))
+        return bool(getattr(st, "followed_by", False))
+
+    return bool(
+        _with_rate_limit_retry(
+            _load, should_cancel=should_cancel, on_cooldown=on_cooldown
+        )
+    )
+
+
 def fetch_mutuals(
     ig: Client,
     pk: str,
@@ -301,8 +321,9 @@ def fetch_mutuals(
     page_size: int = 200,
     should_cancel: Callable[[], bool] | None = None,
     on_cooldown: Callable[[float], None] | None = None,
+    on_progress: Callable[[int, int, str], None] | None = None,
 ) -> list[IgUser]:
-    """Abonnements mutuels : intersection following ∩ followers."""
+    """Abonnements mutuels : following + API amitié (followed_by)."""
     following = fetch_following(
         ig,
         pk,
@@ -312,19 +333,21 @@ def fetch_mutuals(
         should_cancel=should_cancel,
         on_cooldown=on_cooldown,
     )
-    if should_cancel and should_cancel():
-        raise ScanCancelled()
-    followers = fetch_followers(
-        ig,
-        pk,
-        limit=0,
-        page_sleep=page_sleep,
-        page_size=page_size,
-        should_cancel=should_cancel,
-        on_cooldown=on_cooldown,
-    )
-    follower_pks = {u.pk for u in followers}
-    mutuals = [u for u in following if u.pk in follower_pks]
-    if limit > 0:
-        return mutuals[:limit]
+    mutuals: list[IgUser] = []
+    total = len(following)
+    for i, u in enumerate(following):
+        if should_cancel and should_cancel():
+            raise ScanCancelled()
+        if on_progress:
+            on_progress(i + 1, total, u.username)
+        if user_follows_me(
+            ig,
+            u.pk,
+            should_cancel=should_cancel,
+            on_cooldown=on_cooldown,
+        ):
+            mutuals.append(u)
+            if limit > 0 and len(mutuals) >= limit:
+                return mutuals
+        interruptible_sleep(page_sleep, should_cancel)
     return mutuals
