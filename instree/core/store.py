@@ -552,12 +552,34 @@ def clear_person_watch_data() -> None:
         conn.commit()
 
 
+def _reset_scan_id_sequence(conn: sqlite3.Connection) -> None:
+    """Prochain INSERT scans repart de MAX(id)+1 (ou 1 si vide)."""
+    conn.execute("DELETE FROM sqlite_sequence WHERE name = 'scans'")
+
+
+def _scan_ids_need_compact() -> bool:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n, MIN(id) AS mn, MAX(id) AS mx FROM scans"
+        ).fetchone()
+        n = int(row["n"] or 0)
+        if n == 0:
+            return False
+        return int(row["mn"]) != 1 or int(row["mx"]) != n
+
+
+def _ensure_compact_scan_ids() -> None:
+    if _scan_ids_need_compact():
+        compact_scan_ids()
+
+
 def clear_scan_history() -> None:
     """Efface l'historique des scans (DB + fichiers journal)."""
     with _connect() as conn:
         conn.execute("DELETE FROM changes")
         conn.execute("DELETE FROM following")
         conn.execute("DELETE FROM scans")
+        _reset_scan_id_sequence(conn)
         conn.commit()
     jdir = journal_dir()
     if jdir.is_dir():
@@ -837,6 +859,8 @@ def save_scan(result: ScanResult, following: list[FollowingEntry]) -> tuple[int,
         conn.execute("DELETE FROM draft_friendships")
         conn.commit()
 
+    mapping = compact_scan_ids()
+    scan_id = mapping.get(scan_id, scan_id)
     return scan_id, write_journal(scan_id, label, result)
 
 
@@ -894,6 +918,7 @@ def write_journal(scan_id: int, label: str, result: ScanResult) -> Path:
 
 
 def list_scans() -> list[dict]:
+    _ensure_compact_scan_ids()
     with _connect() as conn:
         rows = conn.execute(
             """
@@ -970,6 +995,7 @@ def compact_scan_ids() -> dict[int, int]:
                 (new_id, tmp),
             )
         conn.execute("PRAGMA foreign_keys=ON")
+        _reset_scan_id_sequence(conn)
         conn.commit()
     return mapping
 
