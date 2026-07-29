@@ -15,6 +15,27 @@
   const mode = form.dataset.mode || "login";
   const t = (key) => (window.I18n ? I18n.t(key) : key);
 
+  function initPasswordToggles() {
+    document.querySelectorAll("[data-secret-toggle]").forEach((btn) => {
+      if (btn.dataset.bound) return;
+      btn.dataset.bound = "1";
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-secret-toggle");
+        const input = id ? document.getElementById(id) : null;
+        if (!input) return;
+        const showPlain = input.type === "password";
+        input.type = showPlain ? "text" : "password";
+        btn.setAttribute("aria-pressed", showPlain ? "true" : "false");
+        btn.setAttribute(
+          "aria-label",
+          t(showPlain ? "settings.hideSecret" : "settings.showSecret")
+        );
+      });
+    });
+  }
+
+  initPasswordToggles();
+
   function showError(msg) {
     if (!errEl) return;
     errEl.textContent = msg;

@@ -66,6 +66,9 @@ const elChangesSearchEmpty = document.getElementById("changes-search-empty");
 const dialog = document.getElementById("confirm-dialog");
 const confirmTitle = document.getElementById("confirm-title");
 const confirmMessage = document.getElementById("confirm-message");
+const sessionAlertDialog = document.getElementById("session-alert-dialog");
+const sessionAlertTitle = document.getElementById("session-alert-title");
+const sessionAlertMessage = document.getElementById("session-alert-message");
 
 function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -435,6 +438,7 @@ async function switchProfile(id) {
   }
   await applyProfilePayload(await res.json());
   showConfigMsg(t("session.switched"));
+  await verifyActiveSessionAndAlert();
 }
 
 async function addProfile() {
@@ -620,6 +624,10 @@ async function saveConfig(e) {
       showConfigMsg(t("settings.connectedAs", { user: session.username }));
     } else if (!session.ok) {
       showConfigMsg(session.error || t("settings.connectionFailed"), false);
+      showSessionAlert(
+        t("settings.sessionExpiredTitle"),
+        session.error || t("settings.sessionExpiredMsg")
+      );
     }
   }
 }
@@ -639,6 +647,41 @@ function askConfirm(title, message) {
     };
     dialog.addEventListener("close", onClose);
   });
+}
+
+function showSessionAlert(title, message) {
+  const msg = String(message || "").trim() || t("settings.sessionExpiredMsg");
+  if (!sessionAlertDialog || !sessionAlertMessage) {
+    window.alert(`${title}\n\n${msg}`);
+    return;
+  }
+  if (sessionAlertTitle) {
+    sessionAlertTitle.textContent = title || t("settings.sessionExpiredTitle");
+  }
+  sessionAlertMessage.textContent = msg;
+  if (typeof sessionAlertDialog.showModal === "function") {
+    sessionAlertDialog.showModal();
+  }
+}
+
+async function verifyActiveSessionAndAlert() {
+  const st = await fetchStatus();
+  if (!st.config?.sessionid_set) return null;
+  const session = await fetch("/api/session/test", { method: "POST" }).then((r) =>
+    r.json()
+  );
+  renderSession(session);
+  if (session.ok) {
+    const status = await fetchStatus();
+    renderProfiles(status.profiles || []);
+  } else {
+    await refreshSessionUi();
+    showSessionAlert(
+      t("settings.sessionExpiredTitle"),
+      session.error || t("settings.sessionExpiredMsg")
+    );
+  }
+  return session;
 }
 
 function renderGroup(title, items, type) {
@@ -1386,10 +1429,18 @@ async function initSettingsPage() {
         } else {
           setTestBtnState("err");
           showConfigMsg(session.error || t("settings.connectionFailed"), false);
+          showSessionAlert(
+            t("settings.sessionExpiredTitle"),
+            session.error || t("settings.sessionExpiredMsg")
+          );
         }
       } catch {
         setTestBtnState("err");
         showConfigMsg(t("settings.connectionFailed"), false);
+        showSessionAlert(
+          t("settings.sessionExpiredTitle"),
+          t("settings.connectionFailed")
+        );
       } finally {
         btnTestSession.disabled = false;
         // Garde le V / X un moment, puis revient au libellé normal.
@@ -1406,7 +1457,15 @@ async function initSettingsPage() {
     !st.session?.username &&
     !active?.ig_username
   ) {
-    await resolveIgUsername();
+    const session = await resolveIgUsername();
+    if (session && !session.ok) {
+      showSessionAlert(
+        t("settings.sessionExpiredTitle"),
+        session.error || t("settings.sessionExpiredMsg")
+      );
+    }
+  } else if (st.config?.sessionid_set) {
+    await verifyActiveSessionAndAlert();
   }
 }
 

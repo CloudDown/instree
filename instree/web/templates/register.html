@@ -18,11 +18,21 @@
         </label>
         <label class="field">
           <span class="field-label" data-i18n="auth.password">Mot de passe</span>
-          <input type="password" id="auth-password" name="password" autocomplete="new-password" required minlength="8">
+          <div class="secret-input">
+            <input type="password" id="auth-password" name="password" autocomplete="new-password" required minlength="8">
+            <button type="button" class="secret-toggle" data-secret-toggle="auth-password" aria-pressed="false" data-i18n-aria-label="settings.showSecret" aria-label="Afficher">
+              <span class="secret-toggle-icon" aria-hidden="true"></span>
+            </button>
+          </div>
         </label>
         <label class="field">
           <span class="field-label" data-i18n="auth.passwordConfirm">Confirmer le mot de passe</span>
-          <input type="password" id="auth-password2" name="password2" autocomplete="new-password" required minlength="8">
+          <div class="secret-input">
+            <input type="password" id="auth-password2" name="password2" autocomplete="new-password" required minlength="8">
+            <button type="button" class="secret-toggle" data-secret-toggle="auth-password2" aria-pressed="false" data-i18n-aria-label="settings.showSecret" aria-label="Afficher">
+              <span class="secret-toggle-icon" aria-hidden="true"></span>
+            </button>
+          </div>
         </label>
         <p id="auth-error" class="config-msg err hidden" role="alert"></p>
         <button type="submit" class="btn btn-main" data-i18n="auth.register">Créer le compte</button>
