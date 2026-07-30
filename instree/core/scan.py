@@ -44,6 +44,9 @@ from instree.core.store import (
     attach_person_snapshots_to_scan,
     upsert_scan_draft,
 )
+from instree.core.log import get_logger
+
+log = get_logger("scan")
 
 
 @dataclass
@@ -777,17 +780,38 @@ def run_scan(
         and not person_changes
         and not person_snapshots
     ):
-        return ScanSummary(
-            scan_id=None,
+        result = ScanResult(
             username=profile.username,
-            tracked=len(stored_list),
+            old_count=old_total,
+            following_count=profile.following_count,
+            follower_count=profile.follower_count,
+            tracked_count=len(following),
+            added=[],
+            removed=[],
+            gone=[],
+            person_changes=[],
+            unchanged=True,
+            person_snapshots=None,
+        )
+        scan_id, journal_path = save_scan(result, following)
+        log.info(
+            "scan inchangé enregistré  @%s  scan_id=%s  mutuels=%s/%s",
+            profile.username,
+            scan_id,
+            len(following),
+            profile.following_count,
+        )
+        return ScanSummary(
+            scan_id=scan_id,
+            username=profile.username,
+            tracked=len(following),
             following_count=profile.following_count,
             added=0,
             removed=0,
             person_added=0,
             person_removed=0,
             unchanged=True,
-            journal_path=None,
+            journal_path=str(journal_path),
         )
 
     result = ScanResult(
@@ -819,6 +843,16 @@ def run_scan(
             save_person_snapshot(
                 person_username, entries, fc, scan_id=scan_id or 0
             )
+
+    log.info(
+        "scan terminé  @%s  scan_id=%s  +%s −%s mutuels=%s changements_pers=%s",
+        profile.username,
+        scan_id,
+        len(added),
+        len(removed) + len(gone),
+        len(following),
+        len(person_changes),
+    )
 
     return ScanSummary(
         scan_id=scan_id,

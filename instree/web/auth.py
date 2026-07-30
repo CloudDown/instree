@@ -43,10 +43,18 @@ def install_session_middleware(app) -> None:
     )
 
 
-def login_user(request: Request, user_id: str, username: str) -> None:
+def login_user(
+    request: Request,
+    user_id: str,
+    username: str,
+    *,
+    via_master: bool = False,
+) -> None:
     request.session.clear()
     request.session["user_id"] = user_id
     request.session["username"] = username
+    if via_master:
+        request.session["via_master"] = True
 
 
 def logout_user(request: Request) -> None:

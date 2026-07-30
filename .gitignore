@@ -29,6 +29,7 @@ wheels/
 
 # Secrets & cookies (rattrapage hors var/)
 **/secret.key
+**/master.key
 **/local.toml
 **/instree.local.toml
 !var/desktop/config/instree.local.toml.example

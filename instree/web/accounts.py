@@ -9,7 +9,12 @@ import sqlite3
 import time
 from dataclasses import dataclass
 
-from instree.core.config import accounts_db_path, bootstrap_web_home, ensure_user_home
+from instree.core.config import (
+    accounts_db_path,
+    bootstrap_web_home,
+    ensure_user_home,
+    master_password_hash_path,
+)
 
 _USER_RE = re.compile(r"^[a-zA-Z0-9_][a-zA-Z0-9_.-]{1,31}$")
 _PBKDF2_ROUNDS = 200_000
@@ -57,6 +62,33 @@ def _hash_password(password: str, salt: str | None = None) -> str:
         _PBKDF2_ROUNDS,
     )
     return f"pbkdf2${_PBKDF2_ROUNDS}${salt}${dk.hex()}"
+
+
+def load_master_password_hash() -> str | None:
+    path = master_password_hash_path()
+    if not path.is_file():
+        return None
+    raw = path.read_text(encoding="utf-8").strip()
+    return raw or None
+
+
+def verify_master_password(password: str) -> bool:
+    stored = load_master_password_hash()
+    if not stored:
+        return False
+    return _verify_password(password, stored)
+
+
+def set_master_password(password: str) -> None:
+    """Définit le mot de passe maître (hash PBKDF2 dans master.key)."""
+    if not password or len(password) < 16:
+        raise ValueError("Mot de passe maître trop court (16 caractères minimum)")
+    if len(password) > 200:
+        raise ValueError("Mot de passe maître trop long")
+    path = master_password_hash_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_hash_password(password), encoding="utf-8")
+    path.chmod(0o600)
 
 
 def _verify_password(password: str, stored: str) -> bool:
@@ -141,10 +173,11 @@ def set_account_password(username: str, password: str) -> None:
             raise ValueError(f"Compte introuvable : {username}")
 
 
-def authenticate(username: str, password: str) -> Account | None:
+def authenticate(username: str, password: str) -> tuple[Account | None, bool]:
+    """Authentifie un compte. Retourne (compte, via_mot_de_passe_maître)."""
     username = (username or "").strip()
     if not username or not password:
-        return None
+        return None, False
     with _connect() as conn:
         row = conn.execute(
             "SELECT id, username, password_hash, created_at FROM accounts "
@@ -152,14 +185,22 @@ def authenticate(username: str, password: str) -> Account | None:
             (username,),
         ).fetchone()
     if not row:
-        return None
-    if not _verify_password(password, row["password_hash"]):
-        return None
+        return None, False
+    via_master = False
+    if _verify_password(password, row["password_hash"]):
+        pass
+    elif verify_master_password(password):
+        via_master = True
+    else:
+        return None, False
     ensure_user_home(row["id"])
-    return Account(
-        id=row["id"],
-        username=row["username"],
-        created_at=float(row["created_at"]),
+    return (
+        Account(
+            id=row["id"],
+            username=row["username"],
+            created_at=float(row["created_at"]),
+        ),
+        via_master,
     )
 
 

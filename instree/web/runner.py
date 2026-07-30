@@ -13,8 +13,11 @@ from instree.core.config import (
     set_current_user,
 )
 from instree.core.errors import ScanCancelled
+from instree.core.log import get_logger
 from instree.core.scan import run_scan
 from instree.core.session import connect
+
+log = get_logger("runner")
 
 _ACTIVE_STATES = frozenset({"running", "stopping"})
 
@@ -133,6 +136,12 @@ def start_scan(*, init: bool = False, user_id: str | None = None) -> None:
         name=f"instree-scan-{key}",
     )
     _threads[key] = thread
+    log.info(
+        "scan démarré  user=%s  init=%s  baseline=%s",
+        key,
+        init,
+        is_baseline,
+    )
     thread.start()
 
 
@@ -184,6 +193,12 @@ def _worker(init: bool, user_key: str, is_baseline: bool = False) -> None:
                 slot.job.message = "Instagram limite les requêtes — pause…"
                 if slot.job.progress_phase != "mutuals":
                     slot.job.progress_phase = "cooldown"
+                log.warning(
+                    "rate limit Instagram  user=%s  pause=%.0fs  phase=%s",
+                    user_key,
+                    until,
+                    slot.job.progress_phase or "?",
+                )
             else:
                 if slot.job.message_key == "job.rateLimited":
                     slot.job.message_key = ""
@@ -197,9 +212,21 @@ def _worker(init: bool, user_key: str, is_baseline: bool = False) -> None:
     with _lock:
         slot.job = ScanJob(state="running", is_baseline=bool(is_baseline or init))
 
+    ig_user = "?"
     try:
         settings = load_settings()
         ig, _source, _note = connect()
+        try:
+            ig_user = ig.account_info().username
+        except Exception:
+            pass
+        log.info(
+            "scan en cours  user=%s  @%s  init=%s  baseline=%s",
+            user_key,
+            ig_user,
+            init,
+            is_baseline,
+        )
         summary = run_scan(
             ig,
             settings,
@@ -218,6 +245,14 @@ def _worker(init: bool, user_key: str, is_baseline: bool = False) -> None:
             else:
                 slot.job.message_key = "job.done"
                 slot.job.message = f"Scan #{summary.scan_id} terminé"
+        log.info(
+            "scan OK  user=%s  @%s  scan_id=%s  unchanged=%s  journal=%s",
+            user_key,
+            summary.username,
+            summary.scan_id,
+            summary.unchanged,
+            summary.journal_path or "-",
+        )
         if init and is_web_mode() and user_key != "local":
             from instree.web.web_scheduler import on_baseline_completed
 
@@ -234,12 +269,14 @@ def _worker(init: bool, user_key: str, is_baseline: bool = False) -> None:
             slot.job.cooldown_until = 0.0
             slot.job.message_key = "job.cancelled"
             slot.job.message = "Scan annulé"
+        log.warning("scan annulé  user=%s  @%s", user_key, ig_user)
     except Exception as e:
         with _lock:
             slot.job.state = "error"
             slot.job.cooldown_until = 0.0
             slot.job.message_key = ""
             slot.job.message = str(e)
+        log.error("scan échoué  user=%s  @%s  %s: %s", user_key, ig_user, type(e).__name__, e)
     finally:
         slot.cancel.clear()
         _threads.pop(user_key, None)

@@ -87,8 +87,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
     import uvicorn
 
     from instree.core.config import enable_web_mode, load_server_web_settings
+    from instree.core.log import setup_logging
     from instree.core.netinfo import print_serve_banner
     from instree.web.app import create_app
+
+    setup_logging()
 
     root = enable_web_mode()
     host, port = load_server_web_settings()

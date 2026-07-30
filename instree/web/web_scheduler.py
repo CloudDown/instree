@@ -16,6 +16,7 @@ from instree.core.config import (
     set_active_profile,
     set_current_user,
 )
+from instree.core.log import get_logger
 from instree.core.store import has_scans, scan_resume_info
 from instree.web.accounts import (
     clear_pending_baseline,
@@ -39,6 +40,7 @@ from instree.web.schedule_state import (
 _stop = threading.Event()
 _thread: threading.Thread | None = None
 _ACTIVE = frozenset({"running", "stopping"})
+log = get_logger("scheduler")
 
 
 def _user_has_session(user_id: str) -> bool:
@@ -73,6 +75,7 @@ def try_start_pending_baseline(user_id: str) -> bool:
         return False
     if job_status(user_id).get("state") in _ACTIVE:
         return False
+    log.info("baseline initiale  user=%s", user_id)
     start_scan(init=True, user_id=user_id)
     return True
 
@@ -176,9 +179,40 @@ def _tick_daily(user_id: str, *, daily_hour: int, timezone: str) -> None:
 
     # Scan quotidien précédent terminé (job idle).
     if daily_inflight(user_id):
+        inflight_pid = daily_inflight(user_id)
+        status = job_status(user_id)
+        state = status.get("state", "idle")
         clear_daily_inflight(user_id)
         if not daily_queue(user_id):
-            mark_daily_run(user_id, today)
+            if state == "done":
+                mark_daily_run(user_id, today)
+                log.info(
+                    "scan quotidien OK  user=%s  profile=%s  scan_id=%s  msg=%s",
+                    user_id,
+                    inflight_pid,
+                    (status.get("result") or {}).get("scan_id"),
+                    status.get("message") or "-",
+                )
+            elif state == "error":
+                log.error(
+                    "scan quotidien échoué  user=%s  profile=%s  erreur=%s",
+                    user_id,
+                    inflight_pid,
+                    status.get("message") or "?",
+                )
+            elif state == "cancelled":
+                log.warning(
+                    "scan quotidien annulé  user=%s  profile=%s",
+                    user_id,
+                    inflight_pid,
+                )
+            else:
+                log.warning(
+                    "scan quotidien état inattendu  user=%s  profile=%s  state=%s",
+                    user_id,
+                    inflight_pid,
+                    state,
+                )
             _restore_active_if_batch_done(user_id)
             return
 
@@ -200,8 +234,19 @@ def _tick_daily(user_id: str, *, daily_hour: int, timezone: str) -> None:
             restore = active_profile_id()
             queue = [p["id"] for p in list_profiles() if p.get("sessionid_set")]
             if not queue:
+                log.warning(
+                    "scan quotidien ignoré  user=%s  raison=pas_de_session_IG",
+                    user_id,
+                )
                 mark_daily_run(user_id, today)
                 return
+            log.info(
+                "scan quotidien planifié  user=%s  profiles=%s  heure=%02d:00 %s",
+                user_id,
+                queue,
+                daily_hour,
+                timezone,
+            )
             set_daily_batch(user_id, queue=queue, restore_active=restore)
         finally:
             reset_current_user(token)
@@ -218,8 +263,20 @@ def _tick_daily(user_id: str, *, daily_hour: int, timezone: str) -> None:
         can_resume = bool(scan_resume_info().get("can_resume"))
         init = (not can_resume) and (not has_scans())
         begin_daily_item(user_id, pid)
+        log.info(
+            "scan quotidien démarré  user=%s  profile=%s  init=%s",
+            user_id,
+            pid,
+            init,
+        )
         start_scan(init=init, user_id=user_id)
-    except (RuntimeError, ValueError):
+    except (RuntimeError, ValueError) as e:
+        log.error(
+            "scan quotidien non démarré  user=%s  profile=%s  %s",
+            user_id,
+            pid,
+            e,
+        )
         # Remettre en tête si le démarrage a échoué.
         remaining = daily_queue(user_id)
         set_daily_batch(
@@ -264,7 +321,7 @@ def _loop() -> None:
                         break
                     _tick_user(uid)
             except Exception:
-                pass
+                log.exception("erreur planificateur")
         if _stop.wait(timeout=60):
             break
 

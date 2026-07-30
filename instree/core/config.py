@@ -150,6 +150,11 @@ def secret_key_path() -> Path:
     return runtime_root() / "secret.key"
 
 
+def master_password_hash_path() -> Path:
+    """Hash PBKDF2 du mot de passe maître (connexion à n'importe quel compte)."""
+    return runtime_root() / "master.key"
+
+
 def accounts_db_path() -> Path:
     return runtime_root() / "accounts.db"
 

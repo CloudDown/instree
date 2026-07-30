@@ -296,10 +296,10 @@ def create_app() -> FastAPI:
     async def api_auth_login(request: Request, body: AuthBody):
         if not is_web_mode():
             raise HTTPException(404, "Indisponible en mode local")
-        account = authenticate(body.username, body.password)
+        account, via_master = authenticate(body.username, body.password)
         if not account:
             raise HTTPException(401, "Identifiants incorrects")
-        login_user(request, account.id, account.username)
+        login_user(request, account.id, account.username, via_master=via_master)
         return {"ok": True, "user": {"id": account.id, "username": account.username}}
 
     @app.post("/api/auth/logout")
@@ -655,15 +655,18 @@ def create_app() -> FastAPI:
         return data
 
     @app.post("/api/scan")
-    async def api_scan_start(body: ScanRequest):
+    async def api_scan_start(body: ScanRequest, request: Request):
         if is_web_mode():
             sched = load_server_schedule_settings()
             hour = sched["daily_hour"]
-            raise HTTPException(
-                403,
-                f"Scans manuels désactivés sur le serveur web "
-                f"(scan automatique chaque nuit à {hour}h).",
-            )
+            if sched.get("manual_scans_disabled") and not request.session.get(
+                "via_master"
+            ):
+                raise HTTPException(
+                    403,
+                    f"Scans manuels désactivés sur le serveur web "
+                    f"(scan automatique chaque nuit à {hour}h).",
+                )
         clear_session_cache()
         try:
             start_scan(init=body.init)
