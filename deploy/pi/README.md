@@ -16,7 +16,7 @@ Le mot de passe `pi` est bon — c’est le client OpenSSH local qui échouait (
 python3 deploy/pi/deploy_paramiko.py
 ```
 
-Variables optionnelles : `PI_HOST`, `PI_PASS`, `PI_DIR`, `PI_DATA`.
+Variables : `PI_PASS` **obligatoire** (`oeuil/secrets.env` ou `export`). Optionnelles : `PI_HOST`, `PI_DIR`, `PI_DATA`.
 
 ## Déploiement manuel (sur la Pi)
 

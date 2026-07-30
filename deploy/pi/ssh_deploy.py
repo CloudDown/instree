@@ -11,7 +11,17 @@ import sys
 from pathlib import Path
 
 PI = os.environ.get("PI_HOST", "pi@192.168.2.170")
-PI_PASS = os.environ.get("PI_PASS", "pi")
+
+
+def _require_env(name: str) -> str:
+    val = os.environ.get(name)
+    if not val:
+        print(f"{name} manquant — export ou oeuil/secrets.env", file=sys.stderr)
+        sys.exit(1)
+    return val
+
+
+PI_PASS = _require_env("PI_PASS")
 ROOT = Path(__file__).resolve().parents[2]
 PI_DIR = os.environ.get("PI_DIR", "/home/pi/instree")
 

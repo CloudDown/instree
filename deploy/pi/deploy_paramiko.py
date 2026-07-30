@@ -14,7 +14,17 @@ import paramiko
 
 PI_HOST = os.environ.get("PI_HOST", "192.168.2.170")
 PI_USER = os.environ.get("PI_USER", "pi")
-PI_PASS = os.environ.get("PI_PASS", "pi")
+
+
+def _require_env(name: str) -> str:
+    val = os.environ.get(name)
+    if not val:
+        print(f"{name} manquant — export ou oeuil/secrets.env", file=sys.stderr)
+        sys.exit(1)
+    return val
+
+
+PI_PASS = _require_env("PI_PASS")
 PI_DIR = os.environ.get("PI_DIR", "/home/pi/instree")
 DATA_DIR = os.environ.get("PI_DATA", "/var/lib/instree")
 ROOT = Path(__file__).resolve().parents[2]
