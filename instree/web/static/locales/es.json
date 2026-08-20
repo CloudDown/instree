@@ -100,6 +100,8 @@
   "webSchedule.hint": "Cada noche a las {hour}h ({tz}), todas tus sesiones de Instagram se escanean una por una. Los escaneos manuales y la detención de un escaneo en curso están desactivados en el servidor.",
   "webSchedule.baselinePending": "Baseline pendiente — configura tu sesión de Instagram en Ajustes para iniciarla automáticamente.",
   "webSchedule.baselineInProgress": "Baseline en curso — el historial se actualizará al terminar.",
+  "home.scanFailedTitle": "Escaneo automático fallido",
+  "home.scanFailedSessionMsg": "El escaneo de anoche no pudo ejecutarse porque tu sesión de Instagram expiró. Ve a Ajustes para actualizar tus cookies (sessionid y ds_user_id); luego el próximo escaneo podrá reanudarse.",
   "job.running": "Escaneo en curso",
   "job.stopping": "Parada solicitada — terminando la petición actual…",
   "job.profiles": "Perfiles",

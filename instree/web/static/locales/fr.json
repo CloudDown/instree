@@ -100,6 +100,8 @@
   "webSchedule.hint": "Chaque nuit à {hour}h ({tz}), toutes tes sessions Instagram sont scannées une par une. Les scans manuels et l'arrêt d'un scan en cours sont désactivés sur le serveur.",
   "webSchedule.baselinePending": "Baseline en attente — configure ta session Instagram dans Paramètres pour la lancer automatiquement.",
   "webSchedule.baselineInProgress": "Baseline en cours — l'historique sera mis à jour à la fin.",
+  "home.scanFailedTitle": "Scan automatique échoué",
+  "home.scanFailedSessionMsg": "Ton scan de cette nuit n'a pas pu s'exécuter : ta session Instagram a expiré. Va dans Paramètres pour mettre à jour tes cookies (sessionid et ds_user_id), puis le prochain scan pourra reprendre.",
   "job.running": "Scan en cours",
   "job.stopping": "Arrêt demandé — fin de la requête en cours…",
   "job.profiles": "Profils",

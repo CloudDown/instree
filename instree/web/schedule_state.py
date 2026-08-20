@@ -94,3 +94,24 @@ def clear_daily_restore(user_id: str) -> str | None:
     restore = state.pop("daily_restore_active", None)
     _write(user_id, state)
     return str(restore) if restore else None
+
+
+def get_scan_alert(user_id: str) -> dict | None:
+    raw = _read(user_id).get("scan_alert")
+    if not isinstance(raw, dict) or not raw.get("kind"):
+        return None
+    return raw
+
+
+def set_scan_alert(user_id: str, alert: dict) -> None:
+    state = _read(user_id)
+    state["scan_alert"] = alert
+    _write(user_id, state)
+
+
+def clear_scan_alert(user_id: str) -> None:
+    state = _read(user_id)
+    if "scan_alert" not in state:
+        return
+    state.pop("scan_alert", None)
+    _write(user_id, state)

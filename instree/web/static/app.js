@@ -664,6 +664,29 @@ function showSessionAlert(title, message) {
   }
 }
 
+function isSessionExpiredJob(job) {
+  if (!job) return false;
+  if (job.message_key === "job.sessionExpired") return true;
+  const msg = String(job.message || "").toLowerCase();
+  return /expirée|expired|session toml|login_required|pas de session/.test(msg);
+}
+
+function showHomeScanFailedAlert() {
+  showSessionAlert(t("home.scanFailedTitle"), t("home.scanFailedSessionMsg"));
+}
+
+async function dismissPersistedScanAlert() {
+  await fetch("/api/scan/alert/dismiss", { method: "POST" });
+}
+
+async function maybeShowPersistedScanAlert(status) {
+  if (page !== "changes") return;
+  const alert = status?.scan_alert;
+  if (!alert || alert.kind !== "session_expired") return;
+  showHomeScanFailedAlert();
+  await dismissPersistedScanAlert();
+}
+
 async function verifyActiveSessionAndAlert() {
   const st = await fetchStatus();
   if (!st.config?.sessionid_set) return null;
@@ -1180,6 +1203,10 @@ function renderJob(job) {
     if (elJobTextProfiles) elJobTextProfiles.textContent = msg;
     if (elJobWatchBlock) elJobWatchBlock.classList.add("hidden");
     lastJobState = "error";
+    if (page === "changes" && isSessionExpiredJob(job)) {
+      showHomeScanFailedAlert();
+      void dismissPersistedScanAlert();
+    }
     setTimeout(() => {
       elJobPanel.classList.add("hidden");
       elJobPanel.classList.remove("job-error");
@@ -1585,6 +1612,17 @@ async function init() {
   window.addEventListener("instree:locale", onLocaleChange);
 
   let status = await fetchStatus();
+  if (page === "changes") {
+    if (status.scan_alert?.kind === "session_expired") {
+      await maybeShowPersistedScanAlert(status);
+    } else if (
+      status.job?.state === "error" &&
+      isSessionExpiredJob(status.job)
+    ) {
+      showHomeScanFailedAlert();
+      await dismissPersistedScanAlert();
+    }
+  }
   if (["done", "error", "cancelled"].includes(status.job?.state)) {
     await fetch("/api/scan/reset", { method: "POST" });
     status = await fetchStatus();

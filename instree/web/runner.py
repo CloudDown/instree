@@ -22,6 +22,41 @@ log = get_logger("runner")
 _ACTIVE_STATES = frozenset({"running", "stopping"})
 
 
+def _is_session_error(message: str) -> bool:
+    msg = message.lower()
+    return any(
+        token in msg
+        for token in (
+            "session toml invalide",
+            "expirée",
+            "expired",
+            "login_required",
+            "pas de session configurée",
+        )
+    )
+
+
+def _persist_session_alert(user_key: str, message: str) -> None:
+    if not is_web_mode() or user_key == "local":
+        return
+    if not _is_session_error(message):
+        return
+    from datetime import datetime, timezone
+
+    from instree.core.config import active_profile_id
+    from instree.web.schedule_state import set_scan_alert
+
+    set_scan_alert(
+        user_key,
+        {
+            "kind": "session_expired",
+            "message": message,
+            "at": datetime.now(timezone.utc).isoformat(),
+            "profile_id": active_profile_id(),
+        },
+    )
+
+
 @dataclass
 class ScanJob:
     state: str = "idle"
@@ -271,11 +306,15 @@ def _worker(init: bool, user_key: str, is_baseline: bool = False) -> None:
             slot.job.message = "Scan annulé"
         log.warning("scan annulé  user=%s  @%s", user_key, ig_user)
     except Exception as e:
+        msg = str(e)
+        is_session = _is_session_error(msg)
         with _lock:
             slot.job.state = "error"
             slot.job.cooldown_until = 0.0
-            slot.job.message_key = ""
-            slot.job.message = str(e)
+            slot.job.message_key = "job.sessionExpired" if is_session else ""
+            slot.job.message = msg
+        if is_session:
+            _persist_session_alert(user_key, msg)
         log.error("scan échoué  user=%s  @%s  %s: %s", user_key, ig_user, type(e).__name__, e)
     finally:
         slot.cancel.clear()

@@ -46,6 +46,7 @@ from instree.web.auth import (
     session_user,
 )
 from instree.web.runner import cancel_scan, job_status, reset_job, start_scan
+from instree.web.schedule_state import clear_scan_alert, get_scan_alert
 from instree.web.security import (
     allow_register,
     AuthRateLimitMiddleware,
@@ -377,6 +378,10 @@ def create_app() -> FastAPI:
             uid = current_user_id()
             payload["scan_schedule"] = load_server_schedule_settings()
             payload["pending_baseline"] = bool(uid and get_pending_baseline(uid))
+            if uid:
+                alert = get_scan_alert(uid)
+                if alert:
+                    payload["scan_alert"] = alert
         return payload
 
     @app.get("/api/profiles")
@@ -678,6 +683,13 @@ def create_app() -> FastAPI:
     async def api_scan_reset():
         reset_job()
         return job_status()
+
+    @app.post("/api/scan/alert/dismiss")
+    async def api_scan_alert_dismiss():
+        uid = current_user_id()
+        if uid:
+            clear_scan_alert(uid)
+        return {"ok": True}
 
     @app.post("/api/scan/cancel")
     async def api_scan_cancel():
