@@ -16,7 +16,7 @@ Le mot de passe `pi` est bon — c’est le client OpenSSH local qui échouait (
 python3 deploy/pi/deploy_paramiko.py
 ```
 
-Variables : `PI_PASS` **obligatoire** (`oeuil/secrets.env` ou `export`). Optionnelles : `PI_HOST`, `PI_DIR`, `PI_DATA`.
+Variables : `PI_PASS` **obligatoire** (`scripts/secrets.env` ou `export`). Optionnelles : `PI_HOST`, `PI_DIR`, `PI_DATA`.
 
 ## Déploiement manuel (sur la Pi)
 
@@ -77,7 +77,7 @@ sudo systemctl restart ssh
 ## Mise à jour
 
 ```bash
-python3 deploy/pi/ssh_deploy.py
-# puis sur la Pi :
+python3 deploy/pi/deploy_paramiko.py
+# puis sur la Pi si besoin :
 sudo systemctl restart instree-web
 ```

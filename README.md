@@ -21,7 +21,7 @@ Deux modes :
 | Usage | 1 personne, chez toi | multi-comptes (Pi, VPS…) |
 | Données | `var/desktop/` | `var/web/` ou `INSTREE_HOME` |
 
-Structure du dépôt : [docs/STRUCTURE.md](docs/STRUCTURE.md) · déploiement Pi : [docs/deploy-raspberry-pi.md](docs/deploy-raspberry-pi.md).
+Structure du dépôt : voir [AGENTS.md](AGENTS.md) · déploiement Pi : [deploy/pi/README.md](deploy/pi/README.md).
 
 ---
 
@@ -133,5 +133,5 @@ var/web/   # ou INSTREE_HOME
   users/<id>/        # config + data par utilisateur
 ```
 
-**Raspberry Pi** : [docs/deploy-raspberry-pi.md](docs/deploy-raspberry-pi.md).  
+**Raspberry Pi** : [deploy/pi/README.md](deploy/pi/README.md).  
 En production : reverse-proxy (Caddy / nginx) + HTTPS devant le bind.

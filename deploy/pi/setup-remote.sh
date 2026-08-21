@@ -5,7 +5,7 @@ set -euo pipefail
 INSTREE_DIR="${INSTREE_DIR:-/home/pi/instree}"
 DATA_DIR="${INSTREE_DATA:-/var/lib/instree}"
 SERVICE_USER="${SERVICE_USER:-pi}"
-SUDO_PASS="${SUDO_PASS:?SUDO_PASS/PI_PASS manquant — export PI_PASS ou oeuil/secrets.env}"
+SUDO_PASS="${SUDO_PASS:?SUDO_PASS/PI_PASS manquant — export PI_PASS ou scripts/secrets.env}"
 
 sudo_cmd() {
   echo "$SUDO_PASS" | sudo -S "$@"

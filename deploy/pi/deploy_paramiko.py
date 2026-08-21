@@ -16,12 +16,27 @@ PI_HOST = os.environ.get("PI_HOST", "192.168.2.170")
 PI_USER = os.environ.get("PI_USER", "pi")
 
 
+def _load_secrets() -> None:
+    secrets = Path(__file__).resolve().parents[3] / "scripts" / "secrets.env"
+    if not secrets.is_file():
+        return
+    for line in secrets.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip())
+
+
 def _require_env(name: str) -> str:
     val = os.environ.get(name)
     if not val:
-        print(f"{name} manquant — export ou oeuil/secrets.env", file=sys.stderr)
+        print(f"{name} manquant — export ou scripts/secrets.env", file=sys.stderr)
         sys.exit(1)
     return val
+
+
+_load_secrets()
 
 
 PI_PASS = _require_env("PI_PASS")
