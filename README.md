@@ -1,27 +1,27 @@
 # Instree
 
-Surveillance **locale** de tes abonnements mutuels Instagram (tu les suis, ils te suivent). Chaque scan compare ta liste, puis les abonnements de chaque mutuel.
+**Local** monitoring of your mutual Instagram follows (you follow them, they follow you). Each scan compares your list, then each mutual’s following.
 
-| Symbole | Sens |
-|---------|------|
-| `>` | ajouté à **ta** liste |
-| `+` / `−` | un mutuel s’est abonné / désabonné |
-| `×` | compte supprimé ou renommé |
-| pastille jaune **mutuel** | déjà dans ta liste |
-| pastille bleue | compte vérifié |
+| Symbol | Meaning |
+|--------|---------|
+| `>` | added to **your** list |
+| `+` / `−` | a mutual followed / unfollowed |
+| `×` | account deleted or renamed |
+| yellow **mutual** badge | already on your list |
+| blue badge | verified account |
 
-Interface web en FR / EN / ES. Données Desktop dans `var/desktop/` (SQLite).
+Web UI in FR / EN / ES. Desktop data in `var/desktop/` (SQLite).
 
-Deux modes :
+Two modes:
 
 | | **Instree Desktop** | **Instree Web** |
 |---|---------------------|-----------------|
-| Lancement | `./bin/run-desktop` · `instree serve` | `./bin/run-web` · `instree-web` |
+| Launch | `./bin/run-desktop` · `instree serve` | `./bin/run-web` · `instree-web` |
 | Package | `instree.desktop` | `instree.web` |
-| Usage | 1 personne, chez toi | multi-comptes (Pi, VPS…) |
-| Données | `var/desktop/` | `var/web/` ou `INSTREE_HOME` |
+| Usage | 1 person, at home | multi-account (Pi, VPS…) |
+| Data | `var/desktop/` | `var/web/` or `INSTREE_HOME` |
 
-Structure du dépôt : voir [AGENTS.md](AGENTS.md) · déploiement Pi : [deploy/pi/README.md](deploy/pi/README.md).
+Repo layout: see [AGENTS.md](AGENTS.md) · Pi deploy: [deploy/pi/README.md](deploy/pi/README.md).
 
 ---
 
@@ -29,10 +29,10 @@ Structure du dépôt : voir [AGENTS.md](AGENTS.md) · déploiement Pi : [deploy/
 
 ### Windows
 
-1. Télécharge le projet (ZIP GitHub ou `git clone`).
-2. Double-clique **`bin\run-desktop.bat`**.
+1. Download the project (GitHub ZIP or `git clone`).
+2. Double-click **`bin\run-desktop.bat`**.
 
-Au premier lancement : Python (winget si besoin), dépendances, config, ouverture de [http://127.0.0.1:1488](http://127.0.0.1:1488).
+On first launch: Python (winget if needed), dependencies, config, opens [http://127.0.0.1:1488](http://127.0.0.1:1488).
 
 ### Linux / macOS
 
@@ -42,96 +42,96 @@ cd instree
 ./bin/run-desktop
 ```
 
-Au premier lancement : installation de **uv** si besoin, Python 3.11+, dépendances, config locale, ouverture du navigateur sur [http://127.0.0.1:1488](http://127.0.0.1:1488).
+On first launch: installs **uv** if needed, Python 3.11+, dependencies, local config, opens the browser at [http://127.0.0.1:1488](http://127.0.0.1:1488).
 
-Ensuite : **Paramètres** → session Instagram → **Home** → lancer un scan.
+Then: **Settings** → Instagram session → **Home** → start a scan.
 
-Si Instagram limite les requêtes (`feedback_required`), Instree affiche une pause avec compte à rebours puis réessaie. Les snapshots des mutuels sont sauvés au fil de l’eau : tu peux **relancer** un scan après un blocage / cancel — les comptes déjà traités sont sautés, la liste mutuelle et les fetch en cours reprennent là où ils se sont arrêtés. Avec `watch_n = MAX`, Instree charge tous les abonnements de chaque mutuel (la barre utilise le vrai compte Instagram).
-
----
-
-## Session Instagram
-
-**Auto (recommandé)**  
-Connecté sur [instagram.com](https://www.instagram.com) → ferme le navigateur → **Paramètres** → **Tester la connexion**.  
-Les cookies vont dans `var/desktop/config/profiles/<session>/local.toml` (gitignored). Chaque session a ses propres paramètres et son historique (`var/desktop/data/profiles/<session>/`).
-
-**Manuel** si l’auto échoue : F12 → Cookies → `instagram.com` → copie `sessionid` et `ds_user_id` dans **Paramètres**.
-
-Dans **Paramètres**, le bouton **+** crée une nouvelle session Instagram (config + données isolées). Clique une session dans la liste pour basculer. **Exporter** / **Importer** sauve ou restaure une session (ZIP, sans cookies IG).
+If Instagram rate-limits requests (`feedback_required`), Instree shows a pause with a countdown then retries. Mutual snapshots are saved as they go: you can **resume** a scan after a block / cancel — already processed accounts are skipped, and the mutual list and in-flight fetches pick up where they left off. With `watch_n = MAX`, Instree loads every mutual’s full following (the progress bar uses the real Instagram count).
 
 ---
 
-## Les 3 pages
+## Instagram session
 
-### Home — scans & historique
+**Auto (recommended)**  
+Signed in on [instagram.com](https://www.instagram.com) → close the browser → **Settings** → **Test connection**.  
+Cookies go into `var/desktop/config/profiles/<session>/local.toml` (gitignored). Each session has its own settings and history (`var/desktop/data/profiles/<session>/`).
+
+**Manual** if auto fails: F12 → Cookies → `instagram.com` → copy `sessionid` and `ds_user_id` into **Settings**.
+
+In **Settings**, the **+** button creates a new Instagram session (isolated config + data). Click a session in the list to switch. **Export** / **Import** saves or restores a session (ZIP, without IG cookies).
+
+---
+
+## The 3 pages
+
+### Home — scans & history
 
 ![Home](docs/screenshots/readme-home.png)
 
-Lancer un scan, parcourir l’historique, et lire les changements d’un scan :
+Start a scan, browse history, and read changes from a scan:
 
-- liste des scans à gauche (baseline, dates, nombre de changements) ;
-- détail groupé par mutuel suivi, avec compteurs `(+N −M)` ;
-- recherche `@utilisateur` (accents ignorés, historique mis en avant) ;
-- légende cliquable : masquer un type de ligne (ajouts, suppressions, mutuels, vérifiés…).
+- scan list on the left (baseline, dates, change count);
+- detail grouped by watched mutual, with `(+N −M)` counters;
+- `@user` search (accents ignored, history highlighted);
+- clickable legend: hide a line type (adds, removals, mutuals, verified…).
 
-### Graph — réseau des mutuels
+### Graph — mutual network
 
 ![Graph](docs/screenshots/readme-graph.png)
 
-Vue force-directed de ta communauté :
+Force-directed view of your community:
 
-- nœuds colorés par groupe (communautés détectées) ;
-- panneau **Display** : taille des nœuds, groupes, liens intra / inter ;
-- recherche d’un `@` avec zoom sur le nœud ;
-- mode plein écran pour explorer confortablement.
+- nodes colored by group (detected communities);
+- **Display** panel: node size, groups, intra / inter links;
+- `@` search with zoom to the node;
+- fullscreen mode for comfortable exploration.
 
-### Paramètres — session & config
+### Settings — session & config
 
-![Paramètres](docs/screenshots/readme-settings.png)
+![Settings](docs/screenshots/readme-settings.png)
 
-Configurer Instree sans éditer les fichiers à la main :
+Configure Instree without editing files by hand:
 
-- session Instagram (`sessionid` / `ds_user_id`) et test de connexion ;
-- taille des scans (`n`, `watch_n`, délais API) ;
-- planification (intervalle auto, lancement au démarrage) ;
-- host / port de l’interface web.
+- Instagram session (`sessionid` / `ds_user_id`) and connection test;
+- scan size (`n`, `watch_n`, API delays);
+- scheduling (auto interval, launch on start);
+- web UI host / port.
 
 ---
 
-## Config utile
+## Useful config
 
-| Fichier | Contenu |
-|---------|---------|
-| `var/desktop/config/instree.toml` | host, port, session active |
-| `var/desktop/config/profiles/<id>/settings.toml` | scan / planification |
-| `var/desktop/config/profiles/<id>/local.toml` | cookies Instagram (gitignored) |
+| File | Contents |
+|------|----------|
+| `var/desktop/config/instree.toml` | host, port, active session |
+| `var/desktop/config/profiles/<id>/settings.toml` | scan / scheduling |
+| `var/desktop/config/profiles/<id>/local.toml` | Instagram cookies (gitignored) |
 | `var/desktop/data/profiles/<id>/` | SQLite + journal |
 
-Les mêmes options sont éditables dans **Paramètres**.
+The same options are editable in **Settings**.
 
 ---
 
-## Instree Web (multi-utilisateurs)
+## Instree Web (multi-user)
 
-Même UI que Desktop (cœur partagé `instree.core`).  
-Différences : **login / inscription**, **Déconnexion**, données isolées par utilisateur.
+Same UI as Desktop (shared core `instree.core`).  
+Differences: **login / signup**, **Logout**, data isolated per user.
 
 ```bash
-./bin/run-web                 # ngrok (HTTPS public, défaut)
-./bin/run-web --no-ngrok      # LAN seulement
-# ou : .venv/bin/instree-web --no-ngrok
+./bin/run-web                 # ngrok (public HTTPS, default)
+./bin/run-web --no-ngrok      # LAN only
+# or: .venv/bin/instree-web --no-ngrok
 ```
 
-Données **hors git** (`var/web/` en dev, ou `INSTREE_HOME` en prod) :
+Data **outside git** (`var/web/` in dev, or `INSTREE_HOME` in prod):
 
 ```
-var/web/   # ou INSTREE_HOME
-  instree.toml       # host/port (défaut 0.0.0.0:1488)
+var/web/   # or INSTREE_HOME
+  instree.toml       # host/port (default 0.0.0.0:1488)
   secret.key
   accounts.db
-  users/<id>/        # config + data par utilisateur
+  users/<id>/        # config + data per user
 ```
 
-**Raspberry Pi** : [deploy/pi/README.md](deploy/pi/README.md).  
-En production : reverse-proxy (Caddy / nginx) + HTTPS devant le bind.
+**Raspberry Pi**: [deploy/pi/README.md](deploy/pi/README.md).  
+In production: reverse proxy (Caddy / nginx) + HTTPS in front of the bind.
